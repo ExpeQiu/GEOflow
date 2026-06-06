@@ -120,7 +120,7 @@ class ProductionHubPageTest extends TestCase
             ->assertRedirect(route('admin.production.index', ['tab' => 'ai_config']));
     }
 
-    public function test_production_hub_overview_renders_orchestration_stats(): void
+    public function test_production_hub_overview_does_not_render_orchestration_panel(): void
     {
         $admin = Admin::query()->create([
             'username' => 'production_orch_admin',
@@ -146,8 +146,9 @@ class ProductionHubPageTest extends TestCase
         $this->actingAs($admin, 'admin')
             ->get('/'.$prefix.'/production?tab=overview')
             ->assertOk()
-            ->assertSee(__('admin.production.orchestration.title'), false)
-            ->assertSee(__('admin.production.orchestration.backend_'.config('geoflow.content_agent.backend', 'internal')), false);
+            ->assertDontSee('id="content-agent-orchestration"', false)
+            ->assertDontSee(__('admin.production.orchestration.graph_title'), false)
+            ->assertSee(__('admin.production.tabs.knowledge'), false);
     }
 
     public function test_production_hub_knowledge_tab_shows_pending_orchestration(): void

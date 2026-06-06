@@ -16,7 +16,7 @@
 
         <div id="production-tab-panel" data-tab="{{ $currentTab }}">
             @if ($currentTab === 'overview')
-                @include('admin.production._overview', ['stats' => $stats, 'aiStats' => $aiStats, 'orchestrationStats' => $orchestrationStats ?? [], 'workflowCatalog' => $workflowCatalog ?? []])
+                @include('admin.production._overview', ['stats' => $stats, 'aiStats' => $aiStats])
             @elseif ($currentTab === 'materials')
                 @include('admin.production._materials', ['stats' => $stats])
             @elseif ($currentTab === 'knowledge')
@@ -24,7 +24,7 @@
             @elseif ($currentTab === 'ai_config')
                 @include('admin.production._ai_config', ['stats' => $aiStats, 'orchestrationStats' => $orchestrationStats ?? [], 'workflowCatalog' => $workflowCatalog ?? []])
             @else
-                @include('admin.production._overview', ['stats' => $stats, 'aiStats' => $aiStats, 'orchestrationStats' => $orchestrationStats ?? [], 'workflowCatalog' => $workflowCatalog ?? []])
+                @include('admin.production._overview', ['stats' => $stats, 'aiStats' => $aiStats])
             @endif
         </div>
     </div>

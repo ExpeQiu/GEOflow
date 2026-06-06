@@ -49,8 +49,12 @@ class ProductionHubController extends Controller
 
         $materialStats = $this->loadMaterialStats();
         $aiStats = $this->loadAiConfiguratorStats();
-        $orchestrationStats = $this->orchestrationStatsService->load();
-        $workflowCatalog = $this->workflowCatalogService->catalog();
+        $orchestrationStats = in_array($tab, ['knowledge', 'ai_config'], true)
+            ? $this->orchestrationStatsService->load()
+            : [];
+        $workflowCatalog = $tab === 'ai_config'
+            ? $this->workflowCatalogService->catalog()
+            : ['default_workflow' => 'content_pipeline', 'workflows' => []];
 
         return view('admin.production.index', [
             'pageTitle' => __('admin.production.hub_title'),
