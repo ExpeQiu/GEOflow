@@ -24,5 +24,7 @@ Schedule::command('geoflow:schedule-tasks')->everyMinute();
 
 Schedule::command('geo:aggregate-adoption-metrics')->dailyAt('02:00');
 Schedule::command('geo:market-scan --type=weekly')->weeklyOn(1, '03:00');
+Schedule::command('geo:monitor-scan --type=daily')->dailyAt('04:00');
+Schedule::command('geo:web-intel-refresh --async')->weeklyOn(2, '05:00');
 Schedule::command('geo:check-adoption-alerts')->dailyAt('08:30');
 Schedule::command('geoflow:expire-content-agent-requests')->everyFiveMinutes();

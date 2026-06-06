@@ -2,17 +2,25 @@
 
 from __future__ import annotations
 
-import asyncio
+import logging
 import os
 import uuid
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from app.config.loader import config_dir, load_agents_config, load_workflows_config
 from app.orchestration import create_backend
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
 app = FastAPI(title="GEOFlow Content Agent", version="0.1.0")
 backend = create_backend()
+
+load_agents_config()
+load_workflows_config()
+logger = logging.getLogger("content_agent.main")
+logger.info("content_agent_started config_dir=%s engine=%s", config_dir(), backend.engine_name())
 
 
 class RunAsyncRequest(BaseModel):

@@ -34,7 +34,7 @@ class GeoEvalDiagnosticsPageTest extends TestCase
             ->assertSee(__('admin.geo_eval.diagnostics_title'), false);
     }
 
-    public function test_dashboard_shows_geo_eval_nav_only(): void
+    public function test_dashboard_shows_strategy_hub_nav(): void
     {
         $admin = Admin::query()->create([
             'username' => 'nav_admin',
@@ -49,8 +49,8 @@ class GeoEvalDiagnosticsPageTest extends TestCase
         $this->actingAs($admin, 'admin')
             ->get('/'.$prefix.'/dashboard')
             ->assertOk()
-            ->assertSee(__('admin.nav.geo_eval'), false)
-            ->assertSee('/'.$prefix.'/geo-eval/diagnostics', false);
+            ->assertSee(__('admin.nav.strategy_hub'), false)
+            ->assertSee('/'.$prefix.'/strategy', false);
     }
 
     public function test_diagnostics_shows_gate_status_banner(): void

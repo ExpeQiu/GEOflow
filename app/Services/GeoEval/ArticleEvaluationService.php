@@ -5,6 +5,7 @@ namespace App\Services\GeoEval;
 use App\Models\Article;
 use App\Models\ArticleEvaluation;
 use App\Services\GeoEval\Contracts\GeoEvalClientInterface;
+use App\Services\GeoEval\Simulation\OptimizationAdvisorService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -12,7 +13,8 @@ final class ArticleEvaluationService
 {
     public function __construct(
         private readonly GeoEvalClientInterface $client,
-        private readonly GeoEvalStructuredLogger $logger
+        private readonly GeoEvalStructuredLogger $logger,
+        private readonly OptimizationAdvisorService $optimizationAdvisor,
     ) {}
 
     public function shouldEvaluateArticle(Article $article): bool
@@ -127,9 +129,16 @@ final class ArticleEvaluationService
             $auditData = is_array($audit['data'] ?? null) ? $audit['data'] : [];
             $passed = $this->passesGate($metrics, $auditData);
 
+            $recommendations = $this->optimizationAdvisor->advise(
+                $this->buildEvaluationQuestion($article),
+                $metrics,
+                $auditData
+            );
+
             $mergedMetrics = array_merge($metrics, [
                 'audit_status' => $auditData['status'] ?? null,
                 'audit' => $auditData,
+                'recommendations' => $recommendations,
             ]);
 
             $status = $passed ? 'passed' : 'failed';

@@ -91,18 +91,26 @@ class AdminMaterialsPagesTest extends TestCase
 
         $this->actingAs($admin, 'admin')
             ->get(route('admin.materials.index'))
+            ->assertRedirect(route('admin.production.index', ['tab' => 'materials']));
+
+        $this->actingAs($admin, 'admin')
+            ->get(route('admin.production.index', ['tab' => 'materials']))
             ->assertOk()
-            ->assertSee(__('admin.materials.page_title'))
+            ->assertSee(__('admin.production.hub_title'))
+            ->assertSee(__('admin.materials.foundation_title'))
+            ->assertSee(__('admin.materials.author_manage_title'))
+            ->assertSee(__('admin.materials.url_import'));
+
+        $this->actingAs($admin, 'admin')
+            ->get(route('admin.production.index', ['tab' => 'knowledge']))
+            ->assertOk()
             ->assertSee(__('admin.materials.knowledge_hub_label'))
             ->assertSee(__('admin.materials.knowledge_hub_vector_progress'))
             ->assertSeeInOrder([
                 __('admin.materials.knowledge_hub_create'),
                 __('admin.materials.manage_knowledge_bases'),
                 __('admin.materials.knowledge_hub_vector_config'),
-            ])
-            ->assertSee(__('admin.materials.foundation_title'))
-            ->assertSee(__('admin.materials.author_manage_title'))
-            ->assertSee(__('admin.materials.url_import'));
+            ]);
 
         $this->actingAs($admin, 'admin')
             ->get(route('admin.authors.index'))

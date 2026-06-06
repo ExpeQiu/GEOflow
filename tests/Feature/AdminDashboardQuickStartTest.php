@@ -77,7 +77,7 @@ class AdminDashboardQuickStartTest extends TestCase
             ->assertSee(route('admin.articles.index'), false)
             ->assertSee(route('admin.site-settings.index'), false)
             ->assertSee(route('admin.dashboard'), false)
-            ->assertSee(route('admin.analytics'), false)
+            ->assertSee(route('admin.strategy.index'), false)
             ->assertSee(route('admin.ai-prompts'), false)
             ->assertSee(route('admin.ai-special-prompts'), false)
             ->assertSee(route('admin.admin-users.index'), false)

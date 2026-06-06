@@ -30,20 +30,29 @@ class ArticleController extends Controller
     public function __construct(private readonly ArticlePublishService $articlePublishService) {}
 
     /**
-     * 文章管理首页：渲染筛选与列表。
+     * 文章管理入口重定向至 L3 运营 Hub。
      */
-    public function index(Request $request): View
+    public function index(Request $request): RedirectResponse
+    {
+        return redirect()->route('admin.operations.index', array_merge(
+            ['tab' => 'articles'],
+            $request->query()
+        ));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function indexViewData(Request $request): array
     {
         $filters = $this->buildFilters($request);
         $articles = $this->queryArticles($filters);
         $isTrashView = (bool) ($filters['trashed'] ?? false);
 
-        return view('admin.articles.index', [
+        return [
             'pageTitle' => $isTrashView
                 ? __('admin.articles.trash.title')
                 : __('admin.articles.page_title'),
-            'activeMenu' => 'articles',
-            'adminSiteName' => AdminWeb::siteName(),
             'articles' => $articles,
             'stats' => $isTrashView ? $this->loadTrashStats() : $this->loadStats(),
             'filters' => $filters,
@@ -53,7 +62,7 @@ class ArticleController extends Controller
             'isTrashView' => $isTrashView,
             'trashI18n' => $this->trashI18n(),
             'articleBatchRoutes' => $this->articleBatchRoutes($isTrashView),
-        ]);
+        ];
     }
 
     /**

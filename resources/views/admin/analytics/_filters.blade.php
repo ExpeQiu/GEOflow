@@ -1,4 +1,6 @@
 @php
+    $analyticsFormRoute = $analyticsFormRoute ?? 'admin.analytics';
+    $analyticsFormParams = $analyticsFormParams ?? [];
     $filterData = $filters->toArray();
     $presetOptions = ['today', 'yesterday', '7d', '30d', '90d', 'custom'];
     $trafficOptions = ['all', 'human', 'search_bot', 'ai_bot', 'other_bot', 'unknown'];
@@ -17,9 +19,12 @@
 <section class="mb-8 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
     <div class="mb-5 flex items-center justify-between">
         <h2 class="text-lg font-semibold text-gray-900">{{ __('admin.analytics.filters.title') }}</h2>
-        <a href="{{ route('admin.analytics') }}" class="text-sm font-medium text-gray-500 hover:text-blue-600">{{ __('admin.analytics.filters.reset') }}</a>
+        <a href="{{ route($analyticsFormRoute, $analyticsFormParams) }}" class="text-sm font-medium text-gray-500 hover:text-blue-600">{{ __('admin.analytics.filters.reset') }}</a>
     </div>
-    <form id="analytics-filter-form" method="GET" action="{{ route('admin.analytics') }}" class="space-y-5">
+    <form id="analytics-filter-form" method="GET" action="{{ route($analyticsFormRoute, $analyticsFormParams) }}" class="space-y-5">
+        @foreach ($analyticsFormParams as $paramKey => $paramValue)
+            <input type="hidden" name="{{ $paramKey }}" value="{{ $paramValue }}">
+        @endforeach
         <input type="hidden" name="preset" value="{{ $filterData['preset'] }}">
         <div>
             <label class="mb-2 block text-sm font-medium text-gray-700">{{ __('admin.analytics.filters.preset') }}</label>

@@ -228,7 +228,7 @@
                     __('admin.dashboard.automation.metric_ai_bots', ['count' => $aiBotCount]),
                 ],
                 'actions' => [
-                    ['label' => __('admin.dashboard.navigation.analytics_title'), 'href' => route('admin.analytics'), 'primary' => true],
+                    ['label' => __('admin.dashboard.navigation.analytics_title'), 'href' => route('admin.strategy.index', ['tab' => 'analytics']), 'primary' => true],
                 ],
             ],
         ];
@@ -343,10 +343,10 @@
                 'title' => __('admin.dashboard.automation.lane_feedback_title'),
                 'desc' => __('admin.dashboard.automation.lane_feedback_desc'),
                 'rows' => [
-                    ['title' => __('admin.dashboard.navigation.analytics_title'), 'desc' => __('admin.dashboard.automation.lane_analytics_desc'), 'href' => route('admin.analytics'), 'icon' => 'chart-no-axes-combined', 'count' => $todayVisits],
+                    ['title' => __('admin.dashboard.navigation.analytics_title'), 'desc' => __('admin.dashboard.automation.lane_analytics_desc'), 'href' => route('admin.strategy.index', ['tab' => 'analytics']), 'icon' => 'chart-no-axes-combined', 'count' => $todayVisits],
                     ['title' => __('admin.geo_eval.diagnostics_title'), 'desc' => __('admin.geo_eval.diagnostics_subtitle'), 'href' => route('admin.geo-eval.diagnostics'), 'icon' => 'shield-check', 'count' => $evalFailed],
-                    ['title' => __('admin.dashboard.automation.lane_ai_bot_title'), 'desc' => __('admin.dashboard.automation.lane_ai_bot_desc'), 'href' => route('admin.analytics'), 'icon' => 'bot', 'count' => $aiBotCount],
-                    ['title' => __('admin.dashboard.automation.lane_risk_title'), 'desc' => __('admin.dashboard.automation.lane_risk_desc'), 'href' => route('admin.analytics'), 'icon' => 'triangle-alert', 'count' => $riskCount],
+                    ['title' => __('admin.dashboard.automation.lane_ai_bot_title'), 'desc' => __('admin.dashboard.automation.lane_ai_bot_desc'), 'href' => route('admin.strategy.index', ['tab' => 'analytics']), 'icon' => 'bot', 'count' => $aiBotCount],
+                    ['title' => __('admin.dashboard.automation.lane_risk_title'), 'desc' => __('admin.dashboard.automation.lane_risk_desc'), 'href' => route('admin.strategy.index', ['tab' => 'analytics']), 'icon' => 'triangle-alert', 'count' => $riskCount],
                 ],
             ],
         ];
@@ -377,28 +377,35 @@
                 <h2 class="mt-2 text-lg font-semibold text-gray-900">{{ __('admin.dashboard.layers.l1_title') }}</h2>
                 <p class="mt-2 text-sm text-gray-600">{{ __('admin.dashboard.layers.l1_desc') }}</p>
                 <div class="mt-4 flex flex-wrap gap-2">
+                    <a href="{{ route('admin.strategy.index', ['tab' => 'monitor']) }}" class="text-sm font-medium text-violet-800 hover:underline">{{ __('admin.strategy.tabs.monitor') }}</a>
+                    <a href="{{ route('admin.strategy.index', ['tab' => 'web-intel']) }}" class="text-sm font-medium text-violet-800 hover:underline">{{ __('admin.strategy.tabs.web_intel') }}</a>
+                    <a href="{{ route('admin.strategy.index', ['tab' => 'simulator']) }}" class="text-sm font-medium text-violet-800 hover:underline">{{ __('admin.strategy.tabs.simulator') }}</a>
+                    <a href="{{ route('admin.strategy.index', ['tab' => 'analytics']) }}" class="text-sm font-medium text-violet-800 hover:underline">{{ __('admin.strategy.tabs.analytics') }}</a>
                     <a href="{{ route('admin.insight-templates.index') }}" class="text-sm font-medium text-violet-800 hover:underline">{{ __('admin.nav.insight_templates') }}</a>
-                    <a href="{{ route('admin.geo-eval.diagnostics') }}" class="text-sm font-medium text-violet-800 hover:underline">{{ __('admin.nav.geo_eval') }}</a>
-                    <a href="{{ route('admin.analytics') }}" class="text-sm font-medium text-violet-800 hover:underline">{{ __('admin.nav.analytics') }}</a>
                 </div>
             </div>
             <div class="rounded-lg border border-emerald-200 bg-emerald-50/60 p-5">
                 <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">{{ __('admin.dashboard.layers.l2_label') }}</p>
-                <h2 class="mt-2 text-lg font-semibold text-gray-900">{{ __('admin.dashboard.layers.l2_title') }}</h2>
+                <h2 class="mt-2 text-lg font-semibold text-gray-900">
+                    <a href="{{ route('admin.production.index') }}" class="hover:text-emerald-800 hover:underline">{{ __('admin.dashboard.layers.l2_title') }}</a>
+                </h2>
                 <p class="mt-2 text-sm text-gray-600">{{ __('admin.dashboard.layers.l2_desc') }}</p>
                 <div class="mt-4 flex flex-wrap gap-2">
-                    <a href="{{ route('admin.materials.index') }}" class="text-sm font-medium text-emerald-800 hover:underline">{{ __('admin.nav.materials') }}</a>
-                    <a href="{{ route('admin.ai.configurator') }}" class="text-sm font-medium text-emerald-800 hover:underline">{{ __('admin.nav.ai_config') }}</a>
+                    <a href="{{ route('admin.production.index', ['tab' => 'ai_config']) }}" class="text-sm font-medium text-emerald-800 hover:underline">{{ __('admin.production.tabs.ai_config') }}</a>
+                    <a href="{{ route('admin.production.index', ['tab' => 'materials']) }}" class="text-sm font-medium text-emerald-800 hover:underline">{{ __('admin.production.tabs.materials') }}</a>
+                    <a href="{{ route('admin.production.index', ['tab' => 'knowledge']) }}" class="text-sm font-medium text-emerald-800 hover:underline">{{ __('admin.production.tabs.knowledge') }}</a>
                 </div>
             </div>
             <div class="rounded-lg border border-blue-200 bg-blue-50/60 p-5">
                 <p class="text-xs font-semibold uppercase tracking-wide text-blue-700">{{ __('admin.dashboard.layers.l3_label') }}</p>
-                <h2 class="mt-2 text-lg font-semibold text-gray-900">{{ __('admin.dashboard.layers.l3_title') }}</h2>
+                <h2 class="mt-2 text-lg font-semibold text-gray-900">
+                    <a href="{{ route('admin.operations.index') }}" class="hover:text-blue-800 hover:underline">{{ __('admin.dashboard.layers.l3_title') }}</a>
+                </h2>
                 <p class="mt-2 text-sm text-gray-600">{{ __('admin.dashboard.layers.l3_desc') }}</p>
                 <div class="mt-4 flex flex-wrap gap-2">
-                    <a href="{{ route('admin.tasks.index') }}" class="text-sm font-medium text-blue-800 hover:underline">{{ __('admin.nav.tasks') }}</a>
-                    <a href="{{ route('admin.articles.index') }}" class="text-sm font-medium text-blue-800 hover:underline">{{ __('admin.nav.articles') }}</a>
-                    <a href="{{ route('admin.distribution.index') }}" class="text-sm font-medium text-blue-800 hover:underline">{{ __('admin.nav.distribution') }}</a>
+                    <a href="{{ route('admin.operations.index', ['tab' => 'tasks']) }}" class="text-sm font-medium text-blue-800 hover:underline">{{ __('admin.operations.tabs.tasks') }}</a>
+                    <a href="{{ route('admin.operations.index', ['tab' => 'articles']) }}" class="text-sm font-medium text-blue-800 hover:underline">{{ __('admin.operations.tabs.articles') }}</a>
+                    <a href="{{ route('admin.operations.index', ['tab' => 'distribution']) }}" class="text-sm font-medium text-blue-800 hover:underline">{{ __('admin.operations.tabs.distribution') }}</a>
                 </div>
             </div>
         </section>

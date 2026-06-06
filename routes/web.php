@@ -20,6 +20,10 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DistributionController;
 use App\Http\Controllers\Admin\GeoEvalAlertsController;
 use App\Http\Controllers\Admin\GeoEvalDiagnosticsController;
+use App\Http\Controllers\Admin\MonitorQuestionController;
+use App\Http\Controllers\Admin\StrategyHubController;
+use App\Http\Controllers\Admin\StrategySimulatorController;
+use App\Http\Controllers\Admin\StrategyWebIntelController;
 use App\Http\Controllers\Admin\KnowledgeSettingsController;
 use App\Http\Controllers\Admin\ImageLibraryController;
 use App\Http\Controllers\Admin\InsightTemplateController;
@@ -28,6 +32,8 @@ use App\Http\Controllers\Admin\KnowledgeBaseController;
 use App\Http\Controllers\Admin\KnowledgeRagSandboxController;
 use App\Http\Controllers\Admin\LegacyController;
 use App\Http\Controllers\Admin\MaterialsController;
+use App\Http\Controllers\Admin\OperationsHubController;
+use App\Http\Controllers\Admin\ProductionHubController;
 use App\Http\Controllers\Admin\SecuritySettingsController;
 use App\Http\Controllers\Admin\SiteSettingsController;
 use App\Http\Controllers\Admin\TaskController;
@@ -79,6 +85,30 @@ Route::prefix($adminPrefix)->name('admin.')->middleware(['admin.locale'])->group
         Route::post('welcome/dismiss', [AdminWelcomeController::class, 'dismiss'])->name('welcome.dismiss');
         Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
         Route::get('analytics', [AnalyticsController::class, 'index'])->name('analytics');
+        Route::prefix('production')->name('production.')->group(function () {
+            Route::get('/', [ProductionHubController::class, 'index'])->name('index');
+        });
+        Route::prefix('operations')->name('operations.')->group(function () {
+            Route::get('/', [OperationsHubController::class, 'index'])->name('index');
+        });
+        Route::prefix('strategy')->name('strategy.')->group(function () {
+            Route::get('/', [StrategyHubController::class, 'index'])->name('index');
+            Route::post('monitor', [MonitorQuestionController::class, 'store'])->name('monitor.store');
+            Route::put('monitor/{questionId}', [MonitorQuestionController::class, 'update'])->name('monitor.update')->whereNumber('questionId');
+            Route::delete('monitor/{questionId}', [MonitorQuestionController::class, 'destroy'])->name('monitor.destroy')->whereNumber('questionId');
+            Route::post('monitor/import', [MonitorQuestionController::class, 'import'])->name('monitor.import');
+            Route::post('monitor/import-batch', [MonitorQuestionController::class, 'importBatch'])->name('monitor.import-batch');
+            Route::post('monitor/import-tech-keywords', [MonitorQuestionController::class, 'importTechKeywords'])->name('monitor.import-tech-keywords');
+            Route::post('monitor/config', [MonitorQuestionController::class, 'saveConfig'])->name('monitor.config');
+            Route::post('monitor/scan', [MonitorQuestionController::class, 'scan'])->name('monitor.scan');
+            Route::post('web-intel/sources', [StrategyWebIntelController::class, 'storeSource'])->name('web-intel.sources.store');
+            Route::delete('web-intel/sources/{sourceId}', [StrategyWebIntelController::class, 'destroySource'])->name('web-intel.sources.destroy')->whereNumber('sourceId');
+            Route::post('web-intel/sources/{sourceId}/refresh', [StrategyWebIntelController::class, 'refreshSource'])->name('web-intel.sources.refresh')->whereNumber('sourceId');
+            Route::post('web-intel/reports/compose', [StrategyWebIntelController::class, 'composeReport'])->name('web-intel.reports.compose');
+            Route::post('simulator/articles/{articleId}/reevaluate', [StrategySimulatorController::class, 'reevaluate'])->name('simulator.reevaluate')->whereNumber('articleId');
+            Route::post('simulator/batch-reevaluate', [StrategySimulatorController::class, 'batchReevaluate'])->name('simulator.batch-reevaluate');
+            Route::post('simulator/articles/{articleId}/apply-recommendations', [StrategySimulatorController::class, 'applyRecommendations'])->name('simulator.apply-recommendations')->whereNumber('articleId');
+        });
         Route::prefix('geo-eval')->name('geo-eval.')->group(function () {
             Route::get('diagnostics', [GeoEvalDiagnosticsController::class, 'index'])->name('diagnostics');
             Route::get('alerts', [GeoEvalAlertsController::class, 'index'])->name('alerts');

@@ -20,7 +20,7 @@ class InsightTemplateController extends Controller
     {
         return view('admin.insight-templates.index', [
             'pageTitle' => __('admin.geo_eval.insight_templates_title'),
-            'activeMenu' => 'materials',
+            'activeMenu' => 'strategy_hub',
             'adminSiteName' => AdminWeb::siteName(),
             'templates' => InsightTemplate::query()->orderByDesc('id')->limit(100)->get(),
         ]);
@@ -30,7 +30,7 @@ class InsightTemplateController extends Controller
     {
         return view('admin.insight-templates.create', [
             'pageTitle' => __('admin.geo_eval.insight_create_title'),
-            'activeMenu' => 'materials',
+            'activeMenu' => 'strategy_hub',
             'adminSiteName' => AdminWeb::siteName(),
         ]);
     }
@@ -60,7 +60,7 @@ class InsightTemplateController extends Controller
 
         return view('admin.insight-templates.show', [
             'pageTitle' => $template->name,
-            'activeMenu' => 'materials',
+            'activeMenu' => 'strategy_hub',
             'adminSiteName' => AdminWeb::siteName(),
             'template' => $template,
         ]);
@@ -72,7 +72,7 @@ class InsightTemplateController extends Controller
 
         return view('admin.insight-templates.edit', [
             'pageTitle' => __('admin.geo_eval.insight_edit_title'),
-            'activeMenu' => 'materials',
+            'activeMenu' => 'strategy_hub',
             'adminSiteName' => AdminWeb::siteName(),
             'template' => $template,
         ]);

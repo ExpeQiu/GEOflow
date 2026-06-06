@@ -42,4 +42,18 @@ return [
         'trim',
         explode(',', (string) env('GEO_EVAL_BRAND_KEYWORDS', ''))
     ), static fn (string $v): bool => $v !== '')),
+    'monitor' => [
+        'scan_batch_size' => max(1, (int) env('GEO_EVAL_MONITOR_SCAN_BATCH', 50)),
+        'rank_drop_threshold' => max(1, (int) env('GEO_EVAL_MONITOR_RANK_DROP', 2)),
+        'accuracy_floor' => (float) env('GEO_EVAL_MONITOR_ACCURACY_FLOOR', 0.5),
+        /** live=调用已配置 AI 平台；mock=规则模拟回复（CI/无 Key） */
+        'ai_probe_mode' => (string) env('GEO_EVAL_MONITOR_AI_PROBE_MODE', 'live'),
+    ],
+    'web_intel' => [
+        'refresh_days' => max(1, (int) env('GEO_EVAL_WEB_INTEL_REFRESH_DAYS', 7)),
+        'max_sources_per_question' => max(1, (int) env('GEO_EVAL_WEB_INTEL_MAX_SOURCES', 5)),
+    ],
+    'advisor' => [
+        'llm_enhance' => filter_var(env('GEO_EVAL_ADVISOR_LLM_ENHANCE', false), FILTER_VALIDATE_BOOLEAN),
+    ],
 ];

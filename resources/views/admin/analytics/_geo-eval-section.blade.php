@@ -12,6 +12,8 @@
         ];
     }
     $belowThreshold = (bool) ($dash['below_threshold'] ?? false);
+    $analyticsFormRoute = $analyticsFormRoute ?? 'admin.analytics';
+    $analyticsFormParams = $analyticsFormParams ?? [];
 @endphp
 <section id="geo-eval-dashboard" class="mb-8 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
     <div class="mb-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -19,9 +21,15 @@
             <h2 class="text-lg font-semibold text-gray-900">{{ __('admin.geo_eval.analytics_section_title') }}</h2>
             <p class="text-sm text-gray-500">{{ __('admin.geo_eval.analytics_section_subtitle') }}</p>
         </div>
-        <form method="get" action="{{ route('admin.analytics') }}" class="flex flex-wrap items-end gap-2">
-            @foreach (request()->except(['geo_days', 'geo_platform', 'page']) as $key => $value)
-                @if (is_array($value))
+        <form method="get" action="{{ route($analyticsFormRoute, $analyticsFormParams) }}" class="flex flex-wrap items-end gap-2">
+            @foreach ($analyticsFormParams as $paramKey => $paramValue)
+                <input type="hidden" name="{{ $paramKey }}" value="{{ $paramValue }}">
+            @endforeach
+            @php
+                $geoEvalFilterPassthrough = isset($filters) ? $filters->toArray() : request()->except(['geo_days', 'geo_platform', 'page', 'tab']);
+            @endphp
+            @foreach ($geoEvalFilterPassthrough as $key => $value)
+                @if (is_array($value) || $value === null || $value === '')
                     @continue
                 @endif
                 <input type="hidden" name="{{ $key }}" value="{{ $value }}">
@@ -44,7 +52,7 @@
                 </select>
             </div>
             <button type="submit" class="rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700">{{ __('admin.geo_eval.apply_filter') }}</button>
-            <a href="{{ route('admin.geo-eval.diagnostics') }}" class="text-sm font-medium text-blue-600 hover:text-blue-800">
+            <a href="{{ route('admin.strategy.index', ['tab' => 'simulator']) }}" class="text-sm font-medium text-blue-600 hover:text-blue-800">
                 {{ __('admin.geo_eval.open_diagnostics') }}
             </a>
         </form>

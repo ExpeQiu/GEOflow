@@ -1,0 +1,212 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 1000" style="background-color:#f8f9fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+  <defs>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000" flood-opacity="0.05"/>
+    </filter>
+    <filter id="shadow-sm" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.05"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#adb5bd"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4dabf7"/>
+    </marker>
+    <style>
+      .layer-bg { rx: 12px; stroke-width: 1.5px; stroke-dasharray: 4 4; fill: none; }
+      .layer-title { font-size: 20px; font-weight: bold; fill: #495057; text-anchor: start; dominant-baseline: central; }
+      
+      .card { fill: #ffffff; stroke: #dee2e6; stroke-width: 1.5px; rx: 8px; }
+      .card-blue { fill: #e7f5ff; stroke: #74c0fc; stroke-width: 1.5px; rx: 8px; }
+      .card-green { fill: #ebfbee; stroke: #8ce99a; stroke-width: 1.5px; rx: 8px; }
+      .card-orange { fill: #fff4e6; stroke: #ffd43b; stroke-width: 1.5px; rx: 8px; }
+      .card-purple { fill: #f3f0ff; stroke: #b197fc; stroke-width: 1.5px; rx: 8px; }
+      
+      .title { font-size: 16px; font-weight: bold; fill: #212529; text-anchor: middle; dominant-baseline: central; }
+      .subtitle { font-size: 13px; fill: #495057; text-anchor: middle; dominant-baseline: central; }
+      
+      .line { fill: none; stroke: #adb5bd; stroke-width: 2px; }
+      .line-bold { fill: none; stroke: #4dabf7; stroke-width: 2.5px; stroke-dasharray: 6 4; }
+      
+      .label-bg { fill: #ffffff; stroke: #a5d8ff; stroke-width: 1.5px; rx: 15px; }
+      .label-text { font-size: 14px; font-weight: bold; fill: #1864ab; text-anchor: middle; dominant-baseline: central; }
+    </style>
+  </defs>
+
+  <!-- Title -->
+  <text x="700" y="50" font-size="28" font-weight="bold" fill="#212529" text-anchor="middle">GEOFlow 系统架构图 (Laravel + LangGraph 微服务架构)</text>
+  <text x="700" y="80" font-size="16" fill="#868e96" text-anchor="middle">GEO Content Engineering &amp; Multi-site Distribution System</text>
+
+  <!-- 1. Touchpoint Layer -->
+  <g transform="translate(100, 120)">
+    <rect width="1200" height="120" class="layer-bg" stroke="#ced4da" fill="#f8f9fa"/>
+    <text x="20" y="30" class="layer-title" fill="#495057">1. 触点层 (Touchpoint Layer)</text>
+    
+    <g transform="translate(100, 45)">
+      <rect width="200" height="55" class="card" filter="url(#shadow-sm)"/>
+      <text x="100" y="20" class="title">Web Admin</text>
+      <text x="100" y="40" class="subtitle" fill="#868e96">管理后台 (UI)</text>
+    </g>
+    
+    <g transform="translate(400, 45)">
+      <rect width="200" height="55" class="card" filter="url(#shadow-sm)"/>
+      <text x="100" y="20" class="title">Article Site</text>
+      <text x="100" y="40" class="subtitle" fill="#868e96">本地文章站点</text>
+    </g>
+    
+    <g transform="translate(700, 45)">
+      <rect width="200" height="55" class="card" filter="url(#shadow-sm)"/>
+      <text x="100" y="20" class="title">Target Sites</text>
+      <text x="100" y="40" class="subtitle" fill="#868e96">目标站与静态包</text>
+    </g>
+    
+    <g transform="translate(1000, 45)">
+      <rect width="150" height="55" class="card" filter="url(#shadow-sm)"/>
+      <text x="75" y="20" class="title">API Clients</text>
+      <text x="75" y="40" class="subtitle" fill="#868e96">外部接口调用</text>
+    </g>
+  </g>
+
+  <!-- 2. Business Domains -->
+  <g transform="translate(100, 270)">
+    <rect width="1200" height="220" class="layer-bg" stroke="#8ce99a" fill="#ffffff"/>
+    <text x="20" y="30" class="layer-title" fill="#2b8a3e">2. 业务逻辑切分 (Business Domains)</text>
+    
+    <!-- Block 1: Effect & Strategy -->
+    <g transform="translate(40, 50)">
+      <rect width="340" height="150" class="card" filter="url(#shadow)"/>
+      <text x="170" y="25" class="title">效果与策略 (Effect &amp; Strategy)</text>
+      <line x1="20" y1="45" x2="320" y2="45" class="line" stroke-width="1" stroke="#e9ecef"/>
+      
+      <rect x="20" y="55" width="300" height="26" class="card-green"/>
+      <text x="170" y="68" class="subtitle">GEO 评估与数据分析 (Analytics)</text>
+      
+      <rect x="20" y="88" width="300" height="26" class="card-green"/>
+      <text x="170" y="101" class="subtitle">策略审计与调优 (Strategy Audit)</text>
+      
+      <rect x="20" y="121" width="300" height="26" class="card-green"/>
+      <text x="170" y="134" class="subtitle">市场大盘与竞品监控 (Market Scan)</text>
+    </g>
+    
+    <!-- Block 2: Content & Knowledge -->
+    <g transform="translate(430, 50)">
+      <rect width="340" height="150" class="card" filter="url(#shadow)"/>
+      <text x="170" y="25" class="title">内容生产与知识库 (Content &amp; Knowledge)</text>
+      <line x1="20" y1="45" x2="320" y2="45" class="line" stroke-width="1" stroke="#e9ecef"/>
+      
+      <rect x="20" y="55" width="300" height="26" class="card-green"/>
+      <text x="170" y="68" class="subtitle">AI 内容代理 (Content Agent)</text>
+      
+      <rect x="20" y="88" width="300" height="26" class="card-green"/>
+      <text x="170" y="101" class="subtitle">知识库与 RAG 检索 (Knowledge Base)</text>
+      
+      <rect x="20" y="121" width="300" height="26" class="card-green"/>
+      <text x="170" y="134" class="subtitle">提示词与素材库 (Prompts &amp; Materials)</text>
+    </g>
+    
+    <!-- Block 3: Task & Distribution -->
+    <g transform="translate(820, 50)">
+      <rect width="340" height="150" class="card" filter="url(#shadow)"/>
+      <text x="170" y="25" class="title">任务与分发 (Task &amp; Distribution)</text>
+      <line x1="20" y1="45" x2="320" y2="45" class="line" stroke-width="1" stroke="#e9ecef"/>
+      
+      <rect x="20" y="55" width="300" height="26" class="card-green"/>
+      <text x="170" y="68" class="subtitle">任务流转与调度 (Task Lifecycle)</text>
+      
+      <rect x="20" y="88" width="300" height="26" class="card-green"/>
+      <text x="170" y="101" class="subtitle">多渠道分发编排 (Distribution Orchestrator)</text>
+      
+      <rect x="20" y="121" width="300" height="26" class="card-green"/>
+      <text x="170" y="134" class="subtitle">目标站包与静态化 (Target Packages)</text>
+    </g>
+    
+    <text x="1180" y="30" font-size="12" fill="#adb5bd" text-anchor="end">(逻辑领域拆分)</text>
+  </g>
+
+  <!-- 3. Execution Engines (PHP + Python) -->
+  <g transform="translate(100, 520)">
+    <rect width="1200" height="220" class="layer-bg" stroke="#74c0fc" fill="#f8f9fa"/>
+    <text x="20" y="30" class="layer-title" fill="#1864ab">3. 混合执行引擎 (Execution Engines: PHP + Python)</text>
+    
+    <!-- Laravel Core -->
+    <g transform="translate(30, 50)">
+      <rect width="350" height="150" class="card-blue" filter="url(#shadow)"/>
+      <text x="175" y="30" class="title" font-size="18">Laravel Framework (PHP)</text>
+      <text x="175" y="55" class="subtitle" fill="#868e96">系统主控与任务流转</text>
+      <line x1="20" y1="75" x2="330" y2="75" class="line" stroke-width="1" stroke="#a5d8ff"/>
+      
+      <rect x="20" y="90" width="145" height="40" class="card" fill="#ffffff"/>
+      <text x="92.5" y="110" class="subtitle">Tasks / DB / Queue</text>
+      
+      <rect x="185" y="90" width="145" height="40" class="card" fill="#ffffff"/>
+      <text x="257.5" y="110" class="subtitle">Admin / API / Dist</text>
+    </g>
+
+    <!-- Communication Arrows: Laravel <-> LangGraph -->
+    <g transform="translate(380, 50)">
+      <!-- Laravel -> LangGraph -->
+      <path d="M 10 65 L 430 65" class="line-bold" marker-end="url(#arrow-blue)"/>
+      <rect x="30" y="50" width="380" height="30" class="label-bg" filter="url(#shadow-sm)"/>
+      <text x="220" y="65" class="label-text">[Laravel] → [LangGraph] (HTTP/gRPC 调用)</text>
+      
+      <!-- LangGraph -> Laravel -->
+      <path d="M 430 125 L 10 125" class="line-bold" marker-end="url(#arrow-blue)"/>
+      <rect x="30" y="110" width="380" height="30" class="label-bg" filter="url(#shadow-sm)"/>
+      <text x="220" y="125" class="label-text">[LangGraph] → [Laravel] (Webhook 回调)</text>
+    </g>
+
+    <!-- LangGraph Service -->
+    <g transform="translate(820, 50)">
+      <rect width="350" height="150" class="card-purple" filter="url(#shadow)"/>
+      <text x="175" y="30" class="title" font-size="18">LangGraph Service (Python)</text>
+      <text x="175" y="55" class="subtitle" fill="#868e96">Agentic Workflow 与 AI 编排</text>
+      <line x1="20" y1="75" x2="330" y2="75" class="line" stroke-width="1" stroke="#d0bfff"/>
+      
+      <rect x="20" y="90" width="145" height="40" class="card" fill="#ffffff"/>
+      <text x="92.5" y="110" class="subtitle">StateGraph</text>
+      
+      <rect x="185" y="90" width="145" height="40" class="card" fill="#ffffff"/>
+      <text x="257.5" y="110" class="subtitle">RAG &amp; Tools</text>
+    </g>
+    
+    <text x="1180" y="30" font-size="12" fill="#adb5bd" text-anchor="end">(物理部署形态)</text>
+  </g>
+
+  <!-- 4. Infrastructure -->
+  <g transform="translate(100, 770)">
+    <rect width="1200" height="140" class="layer-bg" stroke="#b197fc" fill="#ffffff"/>
+    <text x="20" y="30" class="layer-title" fill="#6741d9">4. 基础设施与模型层 (Infrastructure &amp; AI Models)</text>
+    
+    <g transform="translate(30, 55)">
+      <rect width="250" height="60" class="card-purple" filter="url(#shadow-sm)"/>
+      <text x="125" y="22" class="title">PostgreSQL (pgvector)</text>
+      <text x="125" y="42" class="subtitle" fill="#868e96">关系型数据与向量存储</text>
+    </g>
+    
+    <g transform="translate(320, 55)">
+      <rect width="250" height="60" class="card-purple" filter="url(#shadow-sm)"/>
+      <text x="125" y="22" class="title">Redis &amp; Reverb</text>
+      <text x="125" y="42" class="subtitle" fill="#868e96">队列驱动与实时 WebSocket</text>
+    </g>
+    
+    <g transform="translate(610, 55)">
+      <rect width="250" height="60" class="card-purple" filter="url(#shadow-sm)"/>
+      <text x="125" y="22" class="title">Python Env / Vector DB</text>
+      <text x="125" y="42" class="subtitle" fill="#868e96">LangGraph 依赖与本地向量</text>
+    </g>
+
+    <g transform="translate(900, 55)">
+      <rect width="270" height="60" class="card-orange" filter="url(#shadow-sm)"/>
+      <text x="135" y="22" class="title">LLM APIs</text>
+      <text x="135" y="42" class="subtitle" fill="#868e96">OpenAI / Gemini / DeepSeek</text>
+    </g>
+  </g>
+
+  <!-- Vertical Connections (Faint lines to connect layers) -->
+  <path d="M 700 240 L 700 270" class="line" stroke-dasharray="4 4" marker-end="url(#arrow)"/>
+  <path d="M 700 490 L 700 520" class="line" stroke-dasharray="4 4" marker-end="url(#arrow)"/>
+  
+  <path d="M 280 740 L 280 770" class="line" stroke-dasharray="4 4" marker-end="url(#arrow)"/>
+  <path d="M 1120 740 L 1120 770" class="line" stroke-dasharray="4 4" marker-end="url(#arrow)"/>
+
+</svg>

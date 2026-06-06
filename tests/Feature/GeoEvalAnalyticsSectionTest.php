@@ -23,9 +23,27 @@ class GeoEvalAnalyticsSectionTest extends TestCase
 
         $prefix = trim((string) config('geoflow.admin_base_path', 'geo_admin'), '/');
         $this->actingAs($admin, 'admin')
+            ->followingRedirects()
             ->get('/'.$prefix.'/analytics')
             ->assertOk()
             ->assertSee('geo-eval-dashboard', false)
             ->assertSee(__('admin.geo_eval.adoption_rate'), false);
+    }
+
+    public function test_legacy_analytics_route_redirects_to_strategy_hub(): void
+    {
+        $admin = Admin::query()->create([
+            'username' => 'analytics_admin2',
+            'password' => 'secret',
+            'email' => 'analytics2@example.com',
+            'display_name' => 'Analytics',
+            'role' => 'admin',
+            'status' => 'active',
+        ]);
+
+        $prefix = trim((string) config('geoflow.admin_base_path', 'geo_admin'), '/');
+        $this->actingAs($admin, 'admin')
+            ->get('/'.$prefix.'/analytics')
+            ->assertRedirect('/'.$prefix.'/strategy?tab=analytics');
     }
 }

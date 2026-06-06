@@ -18,6 +18,7 @@ final class InternalGeoEvalEngine implements GeoEvalClientInterface
         private readonly SimulationRagService $simulationRagService,
         private readonly AnswerAuditService $answerAuditService,
         private readonly UrlInsightMinerService $urlInsightMinerService,
+        private readonly Simulation\SimulationLlmAnswerService $simulationLlmAnswerService,
     ) {}
 
     public function runSimulation(array $payload, ?string $requestId = null): array
@@ -34,13 +35,13 @@ final class InternalGeoEvalEngine implements GeoEvalClientInterface
         $targetPlain = trim(strip_tags($targetHtml));
         $metrics = $this->simulationRagService->simulate($knowledgeBaseId, $question, $targetPlain);
 
-        $excerpt = mb_substr($targetPlain, 0, 1200, 'UTF-8');
+        $answer = $this->simulationLlmAnswerService->generateAnswer($knowledgeBaseId, $question, $targetPlain);
 
         return [
             'request_id' => $requestId,
             'data' => [
                 'trace_id' => $requestId,
-                'answer' => $excerpt,
+                'answer' => $answer,
                 'metrics' => $metrics,
                 'doc_count' => (int) ($metrics['doc_count'] ?? 0),
             ],

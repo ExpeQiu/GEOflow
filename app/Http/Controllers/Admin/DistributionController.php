@@ -35,7 +35,15 @@ class DistributionController extends Controller
         private readonly SiteThemeCatalog $siteThemeCatalog,
     ) {}
 
-    public function index(): View
+    public function index(): RedirectResponse
+    {
+        return redirect()->route('admin.operations.index', ['tab' => 'distribution']);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function indexViewData(): array
     {
         $channels = DistributionChannel::query()
             ->with('activeSecret')
@@ -60,14 +68,11 @@ class DistributionController extends Controller
             ->limit(10)
             ->get();
 
-        return view('admin.distribution.index', [
-            'pageTitle' => __('admin.distribution.page_title'),
-            'activeMenu' => 'distribution',
-            'adminSiteName' => AdminWeb::siteName(),
+        return [
             'channels' => $channels,
-            'stats' => $stats,
+            'distributionStats' => $stats,
             'logs' => $logs,
-        ]);
+        ];
     }
 
     public function create(): View

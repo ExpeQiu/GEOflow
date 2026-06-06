@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\GeoAdminAlert;
 use App\Services\GeoEval\Adoption\AdoptionMetricsAggregator;
 use App\Services\GeoEval\Alerts\FeishuWebhookNotifier;
+use App\Services\GeoEval\Monitor\MonitorTrendAnalyzer;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Schema;
 
@@ -16,7 +17,8 @@ class GeoCheckAdoptionAlertsCommand extends Command
 
     public function handle(
         AdoptionMetricsAggregator $aggregator,
-        FeishuWebhookNotifier $feishu
+        FeishuWebhookNotifier $feishu,
+        MonitorTrendAnalyzer $monitorTrendAnalyzer,
     ): int {
         if (! config('geo_eval.enabled')) {
             $this->info('GEO eval disabled, skip.');
@@ -37,6 +39,8 @@ class GeoCheckAdoptionAlertsCommand extends Command
         if ($stats['sample_size'] > 0 && $firstPos < $firstFloor) {
             $alerts += $this->recordAlert('low_first_position_rate', $firstFloor, $firstPos, $feishu);
         }
+
+        $alerts += $monitorTrendAnalyzer->checkAndRecordAlerts();
 
         $this->info("Recorded {$alerts} alert(s).");
 

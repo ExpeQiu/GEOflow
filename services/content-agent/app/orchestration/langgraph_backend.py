@@ -1,4 +1,4 @@
-"""LangGraph-backed orchestration (首版：线性 workflow 实现)."""
+"""LangGraph-backed orchestration — reads config/workflows.yml + config/agents.yml."""
 
 from __future__ import annotations
 

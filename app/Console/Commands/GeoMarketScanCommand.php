@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\GeoMarketScanRun;
+use App\Models\GeoWebSource;
 use App\Services\GeoEval\Adoption\AdoptionMetricsAggregator;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Schema;
@@ -26,12 +27,26 @@ class GeoMarketScanCommand extends Command
         $summary = $aggregator->summary($days, '');
         $trend = $aggregator->dailySeries($days, '');
 
+        $webIntelSummary = [];
+        if (Schema::hasTable('geo_web_sources')) {
+            $webIntelSummary = [
+                'sources_total' => GeoWebSource::query()->count(),
+                'sources_stale' => GeoWebSource::query()
+                    ->where(function ($q): void {
+                        $q->whereNull('last_fetched_at')
+                            ->orWhere('fetch_status', 'failed');
+                    })
+                    ->count(),
+            ];
+        }
+
         GeoMarketScanRun::query()->create([
             'scan_type' => $type,
             'status' => 'completed',
             'summary_json' => [
                 'summary' => $summary,
                 'trend_points' => count($trend),
+                'web_intel' => $webIntelSummary,
             ],
             'ran_at' => now(),
         ]);

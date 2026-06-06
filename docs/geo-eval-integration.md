@@ -32,5 +32,6 @@ GEOFlow 为**完整独立项目**，不依赖 GEO-OS HTTP。能力设计参考 G
 2. **P1**：采纳指标从 `article_evaluations` / `geo_strategy_metric_snapshots` 聚合（已实现）。
 3. **P1**：URL 挖掘接 HTTP 抓取 + LLM（对齐 StrategyMiner 规则）。
 4. **P2**：`artisan schedule` 市场扫描 + 飞书/站内告警。
+5. **L1 Hub**（已实现）：`/admin/strategy` 统一入口 — 监控问题库、外部信源、仿真建议、采纳分析。见 `docs/l1-strategy-hub.md`。
 
 详细对照见 `docs/geo-strategy-architecture.md`。

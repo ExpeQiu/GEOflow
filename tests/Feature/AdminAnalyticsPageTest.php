@@ -26,10 +26,16 @@ class AdminAnalyticsPageTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_analytics_page_renders_after_dashboard_nav_item(): void
+    public function test_legacy_analytics_route_redirects_to_strategy_hub(): void
     {
-        $response = $this->actingAs($this->admin(), 'admin')
-            ->get(route('admin.analytics'));
+        $this->actingAs($this->admin(), 'admin')
+            ->get(route('admin.analytics'))
+            ->assertRedirect($this->analyticsHubUrl());
+    }
+
+    public function test_analytics_page_renders_in_strategy_hub(): void
+    {
+        $response = $this->getAnalyticsPage();
 
         $response
             ->assertOk()
@@ -37,7 +43,7 @@ class AdminAnalyticsPageTest extends TestCase
             ->assertSee('按日期、站点、内容和日志来源查看内容生产与访问趋势')
             ->assertSee(__('admin.analytics.filters.apply'))
             ->assertSee(__('admin.analytics.filters.source_pending', ['source' => __('admin.analytics.filters.server')]))
-            ->assertSee(route('admin.analytics'), false)
+            ->assertSee($this->analyticsHubUrl(), false)
             ->assertSee(__('admin.analytics.overall_title'))
             ->assertSee(__('admin.analytics.single_site_title'))
             ->assertSee(__('admin.analytics.multi_site_title'))
@@ -67,7 +73,7 @@ class AdminAnalyticsPageTest extends TestCase
 
         $html = $response->getContent();
         $this->assertStringContainsString(route('admin.dashboard'), $html);
-        $this->assertStringContainsString(route('admin.analytics'), $html);
+        $this->assertStringContainsString($this->analyticsHubUrl(), $html);
         $this->assertLessThan(
             strpos($html, 'data-analytics-multi-site-section'),
             strpos($html, 'data-analytics-single-site-section')
@@ -75,10 +81,6 @@ class AdminAnalyticsPageTest extends TestCase
         $this->assertLessThan(
             strpos($html, 'data-analytics-log-section'),
             strpos($html, 'data-analytics-multi-site-section')
-        );
-        $this->assertLessThan(
-            strpos($html, route('admin.analytics')),
-            strpos($html, route('admin.dashboard'))
         );
         $this->assertStringContainsString('text-blue-600 font-medium', $html);
     }
@@ -89,12 +91,11 @@ class AdminAnalyticsPageTest extends TestCase
 
         $fixtures = $this->contentFixtures();
 
-        $this->actingAs($this->admin(), 'admin')
-            ->get(route('admin.analytics', [
+        $this->getAnalyticsPage([
                 'date_from' => '2026-05-20',
                 'date_to' => '2026-05-21',
                 'channel_id' => (int) $fixtures['channel']->id,
-            ]))
+            ])
             ->assertOk()
             ->assertSee('2026-05-20')
             ->assertSee('2026-05-21')
@@ -146,6 +147,7 @@ class AdminAnalyticsPageTest extends TestCase
         $admin = $this->admin();
 
         $this->actingAs($admin, 'admin')
+            ->followingRedirects()
             ->get(route('admin.analytics', [
                 'preset' => '7d',
                 'date_from' => '2026-01-01',
@@ -157,6 +159,7 @@ class AdminAnalyticsPageTest extends TestCase
             ->assertDontSee('value="2026-01-01"', false);
 
         $this->actingAs($admin, 'admin')
+            ->followingRedirects()
             ->get(route('admin.analytics', [
                 'preset' => 'custom',
                 'date_from' => '2026-05-20',
@@ -174,8 +177,7 @@ class AdminAnalyticsPageTest extends TestCase
     {
         Carbon::setTestNow(Carbon::parse('2026-05-21 12:00:00'));
 
-        $this->actingAs($this->admin(), 'admin')
-            ->get(route('admin.analytics'))
+        $this->getAnalyticsPage()
             ->assertOk()
             ->assertSee('id="analytics-filter-form"', false)
             ->assertSee('type="hidden" name="preset" value="7d"', false)
@@ -252,6 +254,7 @@ class AdminAnalyticsPageTest extends TestCase
         ]);
 
         $this->actingAs($admin, 'admin')
+            ->followingRedirects()
             ->get(route('admin.analytics', [
                 'preset' => 'custom',
                 'date_from' => '2026-05-20',
@@ -273,6 +276,7 @@ class AdminAnalyticsPageTest extends TestCase
             ->assertSee('1');
 
         $this->actingAs($admin, 'admin')
+            ->followingRedirects()
             ->get(route('admin.analytics', [
                 'preset' => 'custom',
                 'date_from' => '2026-05-20',
@@ -291,8 +295,7 @@ class AdminAnalyticsPageTest extends TestCase
     {
         Carbon::setTestNow(Carbon::parse('2026-05-21 12:00:00'));
 
-        $this->actingAs($this->admin(), 'admin')
-            ->get(route('admin.analytics', ['preset' => '30d']))
+        $this->getAnalyticsPage(['preset' => '30d'])
             ->assertOk()
             ->assertSee('data-analytics-axis="compact"', false)
             ->assertSee('data-axis-label="start"', false)
@@ -684,6 +687,24 @@ class AdminAnalyticsPageTest extends TestCase
     /**
      * @return list<array<string, mixed>>
      */
+    /**
+     * @param  array<string, mixed>  $query
+     */
+    private function analyticsHubUrl(array $query = []): string
+    {
+        return route('admin.strategy.index', array_merge(['tab' => 'analytics'], $query));
+    }
+
+    /**
+     * @param  array<string, mixed>  $query
+     */
+    private function getAnalyticsPage(array $query = [])
+    {
+        return $this->actingAs($this->admin(), 'admin')
+            ->followingRedirects()
+            ->get(route('admin.analytics', $query));
+    }
+
     private function viewLogRows(int $articleId, string $path, int $count, string $createdAt): array
     {
         $rows = [];

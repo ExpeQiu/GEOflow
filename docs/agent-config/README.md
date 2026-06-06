@@ -5,6 +5,14 @@ This folder keeps human-readable agent instructions in one place so the reposito
 ## Files
 
 - `AGENTS.md` - General agent instructions for GEOFlow.
+
+## Content Agent (LangGraph)
+
+Runtime workflow agents are **not** in this folder. They live in the Python sidecar:
+
+- `../../services/content-agent/config/agents.yml` — LLM agent prompts and parameters
+- `../../services/content-agent/config/workflows.yml` — LangGraph node topology
+- `../../guide/langgraph-orchestration.md` — orchestration design (Chinese)
 - `CODEX.md` - Codex / GPT-oriented instructions.
 - `CLAUDE.md` - Claude-oriented instructions.
 - `GEMINI.md` - Gemini-oriented instructions.

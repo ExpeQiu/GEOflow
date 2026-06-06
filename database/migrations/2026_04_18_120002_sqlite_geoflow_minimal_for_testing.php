@@ -312,6 +312,101 @@ return new class extends Migration
             $table->timestamp('created_at')->nullable();
         });
 
+        Schema::create('geo_monitor_questions', function (Blueprint $table) {
+            $table->id();
+            $table->text('question_text');
+            $table->string('category', 120)->default('');
+            $table->string('intent_type', 32)->default('factual');
+            $table->string('source', 32)->default('manual');
+            $table->unsignedBigInteger('knowledge_base_id')->nullable();
+            $table->unsignedBigInteger('task_id')->nullable();
+            $table->unsignedBigInteger('target_article_id')->nullable();
+            $table->text('target_content_snapshot')->nullable();
+            $table->integer('is_active')->default(1);
+            $table->unsignedSmallInteger('priority')->default(50);
+            $table->text('tags')->nullable();
+            $table->text('tech_keywords')->nullable();
+            $table->unsignedBigInteger('created_by_admin_id')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('geo_monitor_runs', function (Blueprint $table) {
+            $table->id();
+            $table->string('run_type', 32)->default('scheduled');
+            $table->string('status', 32)->default('pending');
+            $table->unsignedInteger('question_count')->default(0);
+            $table->text('meta')->nullable();
+            $table->timestamp('started_at')->nullable();
+            $table->timestamp('finished_at')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('geo_monitor_results', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('question_id');
+            $table->unsignedBigInteger('run_id');
+            $table->unsignedBigInteger('article_id')->nullable();
+            $table->unsignedSmallInteger('rank')->default(99);
+            $table->integer('found')->default(0);
+            $table->decimal('target_score', 8, 4)->default(0);
+            $table->unsignedSmallInteger('top_k')->default(5);
+            $table->string('audit_status', 32)->nullable();
+            $table->decimal('tech_accuracy', 5, 2)->nullable();
+            $table->decimal('brand_consistency', 5, 2)->nullable();
+            $table->text('snapshot_json')->nullable();
+            $table->text('recommendations')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('geo_monitor_platform_configs', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('ai_model_id');
+            $table->string('label', 120)->default('');
+            $table->integer('is_enabled')->default(1);
+            $table->unsignedSmallInteger('sort_order')->default(50);
+            $table->timestamps();
+        });
+
+        Schema::create('geo_monitor_ai_probe_results', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('question_id');
+            $table->unsignedBigInteger('run_id')->nullable();
+            $table->unsignedBigInteger('ai_model_id');
+            $table->string('platform_label', 120)->default('');
+            $table->text('response_text')->nullable();
+            $table->unsignedSmallInteger('brand_rank')->default(99);
+            $table->integer('brand_mentioned')->default(0);
+            $table->text('brands_ordered')->nullable();
+            $table->text('metrics_json')->nullable();
+            $table->string('status', 32)->default('pending');
+            $table->string('error_message', 500)->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('geo_web_sources', function (Blueprint $table) {
+            $table->id();
+            $table->string('url', 500);
+            $table->string('domain', 255)->default('');
+            $table->string('label', 32)->default('competitor');
+            $table->unsignedBigInteger('question_id')->nullable();
+            $table->timestamp('last_fetched_at')->nullable();
+            $table->text('features_json')->nullable();
+            $table->text('eeat_json')->nullable();
+            $table->string('fetch_status', 32)->default('pending');
+            $table->timestamps();
+        });
+
+        Schema::create('geo_web_insight_reports', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('question_id')->nullable();
+            $table->unsignedBigInteger('self_source_id')->nullable();
+            $table->text('competitor_source_ids')->nullable();
+            $table->text('gap_analysis_json')->nullable();
+            $table->text('recommendations_json')->nullable();
+            $table->unsignedBigInteger('insight_template_id')->nullable();
+            $table->timestamps();
+        });
+
         Schema::create('task_runs', function (Blueprint $table) {
             $table->id();
             $table->foreignId('task_id')->constrained('tasks')->cascadeOnDelete();
@@ -352,6 +447,13 @@ return new class extends Migration
 
         Schema::dropIfExists('task_runs');
         Schema::dropIfExists('content_agent_requests');
+        Schema::dropIfExists('geo_web_insight_reports');
+        Schema::dropIfExists('geo_web_sources');
+        Schema::dropIfExists('geo_monitor_ai_probe_results');
+        Schema::dropIfExists('geo_monitor_platform_configs');
+        Schema::dropIfExists('geo_monitor_results');
+        Schema::dropIfExists('geo_monitor_runs');
+        Schema::dropIfExists('geo_monitor_questions');
         Schema::dropIfExists('geo_admin_alerts');
         Schema::dropIfExists('geo_market_scan_runs');
         Schema::dropIfExists('geo_strategy_metric_snapshots');

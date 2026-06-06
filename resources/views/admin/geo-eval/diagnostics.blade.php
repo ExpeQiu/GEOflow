@@ -11,7 +11,7 @@
                 <p class="mt-1 text-sm text-gray-500">{{ __('admin.geo_eval.diagnostics_subtitle') }}</p>
             </div>
             <div class="flex flex-wrap gap-2">
-                <a href="{{ route('admin.analytics', ['geo_days' => 30]) }}#geo-eval-dashboard" class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                <a href="{{ route('admin.strategy.index', ['tab' => 'analytics', 'geo_days' => 30]) }}#geo-eval-dashboard" class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
                     {{ __('admin.geo_eval.open_adoption_dashboard') }}
                 </a>
                 <a href="{{ route('admin.insight-templates.index') }}" class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">

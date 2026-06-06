@@ -3,8 +3,9 @@ FROM python:3.12-slim-bookworm
 WORKDIR /app
 
 COPY pyproject.toml ./
-RUN pip install --no-cache-dir fastapi uvicorn httpx pydantic
+RUN pip install --no-cache-dir fastapi uvicorn httpx pydantic pyyaml
 
+COPY config ./config
 COPY app ./app
 
 ENV PYTHONUNBUFFERED=1

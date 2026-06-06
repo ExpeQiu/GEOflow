@@ -8,6 +8,7 @@ use App\Models\Prompt;
 use App\Models\Task;
 use App\Support\AdminWeb;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\View\View;
@@ -131,14 +132,12 @@ class LegacyController extends Controller
         return $this->stub('admin.materials.page_title', 'materials');
     }
 
-    public function aiConfigurator(): View
+    public function aiConfigurator(Request $request): RedirectResponse
     {
-        return view('admin.ai-configurator.index', [
-            'pageTitle' => __('admin.ai_configurator.page_title'),
-            'activeMenu' => 'ai_config',
-            'adminSiteName' => AdminWeb::siteName(),
-            'stats' => $this->loadAiConfiguratorStats(),
-        ]);
+        return redirect()->route('admin.production.index', array_merge(
+            ['tab' => 'ai_config'],
+            $request->query()
+        ));
     }
 
     /**

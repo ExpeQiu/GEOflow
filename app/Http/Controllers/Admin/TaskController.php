@@ -42,9 +42,17 @@ class TaskController extends Controller
     ) {}
 
     /**
-     * 任务管理首页：渲染列表与运行面板。
+     * 任务管理入口重定向至 L3 运营 Hub。
      */
-    public function index(): View
+    public function index(): RedirectResponse
+    {
+        return redirect()->route('admin.operations.index', ['tab' => 'tasks']);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function indexViewData(): array
     {
         try {
             $overview = $this->taskMonitoringQueryService->buildAdminOverview();
@@ -61,10 +69,7 @@ class TaskController extends Controller
             $error = __('admin.tasks.message.query_failed', ['message' => $e->getMessage()]);
         }
 
-        return view('admin.tasks.index', [
-            'pageTitle' => __('admin.tasks.page_title'),
-            'activeMenu' => 'tasks',
-            'adminSiteName' => AdminWeb::siteName(),
+        return [
             'tasks' => $tasks,
             'workers' => $workers,
             'queueStats' => $queueStats,
@@ -72,7 +77,7 @@ class TaskController extends Controller
             'legacyError' => $error,
             'taskI18n' => $this->taskI18n(),
             'taskRealtime' => $this->taskRealtimeConfig(),
-        ]);
+        ];
     }
 
     /**
