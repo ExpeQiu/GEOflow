@@ -19,6 +19,10 @@
         'auto' => __('admin.materials.chunk_strategy_auto'),
         'semantic_llm' => __('admin.materials.chunk_strategy_semantic_llm'),
     ];
+    $orch = is_array($orchestrationStats ?? null) ? $orchestrationStats : [];
+    $orchBackend = (string) ($orch['backend'] ?? 'internal');
+    $orchKnowledgePending = (int) ($orch['knowledge_pending'] ?? 0);
+    $orchKnowledgeRecent = is_array($orch['knowledge_recent'] ?? null) ? $orch['knowledge_recent'] : [];
 @endphp
 
 <section class="mb-8 overflow-hidden rounded-lg border border-orange-100 bg-white shadow">
@@ -107,7 +111,35 @@
                 {{ __('admin.materials.knowledge_health_'.$knowledgeHealth) }}
             </div>
 
+            @if ($orchKnowledgePending > 0)
+                <div class="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    <i data-lucide="loader" class="mr-2 inline h-4 w-4"></i>
+                    {{ __('admin.production.orchestration.knowledge_chunking_active', ['count' => $orchKnowledgePending]) }}
+                </div>
+            @endif
+
+            @if ($orchKnowledgeRecent !== [])
+                <div class="mt-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700">
+                    <p class="font-semibold text-slate-900">{{ __('admin.production.orchestration.recent_knowledge_requests') }}</p>
+                    <ul class="mt-2 space-y-1">
+                        @foreach ($orchKnowledgeRecent as $requestRow)
+                            <li>
+                                <span class="font-mono">{{ \Illuminate\Support\Str::limit((string) ($requestRow['request_id'] ?? ''), 12, '') }}</span>
+                                · {{ (string) ($requestRow['status'] ?? '') }}
+                                @if ((string) ($requestRow['error_message'] ?? '') !== '')
+                                    · {{ \Illuminate\Support\Str::limit((string) $requestRow['error_message'], 40) }}
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
             <dl class="mt-6 space-y-4 text-sm">
+                <div class="flex items-start justify-between gap-4">
+                    <dt class="text-gray-500">{{ __('admin.production.orchestration.backend') }}</dt>
+                    <dd class="text-right font-semibold text-gray-900">{{ __('admin.production.orchestration.backend_'.$orchBackend) }}</dd>
+                </div>
                 <div class="flex items-start justify-between gap-4">
                     <dt class="text-gray-500">{{ __('admin.materials.knowledge_hub_embedding_model') }}</dt>
                     <dd class="max-w-[220px] text-right font-semibold text-gray-900">{{ (string) ($stats['default_embedding_model'] ?? '') !== '' ? (string) $stats['default_embedding_model'] : __('admin.materials.knowledge_hub_embedding_missing') }}</dd>

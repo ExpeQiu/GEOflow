@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Admin;
+use App\Models\ContentAgentRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -105,11 +106,77 @@ class ProductionHubPageTest extends TestCase
             ->assertOk()
             ->assertSee(__('admin.ai_configurator.heading'), false)
             ->assertSee(__('admin.ai_configurator.models_action'), false)
+            ->assertSee(__('admin.ai_configurator.orchestration_title'), false)
+            ->assertSee(__('admin.production.orchestration.title'), false)
+            ->assertSee(__('admin.production.orchestration.graph_title'), false)
+            ->assertSee(__('admin.production.orchestration.workflow_content_pipeline'), false)
+            ->assertSee(__('admin.production.orchestration.path_fast_title'), false)
+            ->assertSee(__('admin.production.orchestration.path_deep_title'), false)
+            ->assertSee(__('admin.production.orchestration.phase_fork'), false)
             ->assertDontSee(__('admin.materials.foundation_title'), false);
 
         $this->actingAs($admin, 'admin')
             ->get('/'.$prefix.'/production?tab=ai-config')
             ->assertRedirect(route('admin.production.index', ['tab' => 'ai_config']));
+    }
+
+    public function test_production_hub_overview_renders_orchestration_stats(): void
+    {
+        $admin = Admin::query()->create([
+            'username' => 'production_orch_admin',
+            'password' => 'secret',
+            'email' => 'production-orch@example.com',
+            'display_name' => 'Production Orch',
+            'role' => 'admin',
+            'status' => 'active',
+        ]);
+
+        ContentAgentRequest::query()->create([
+            'request_id' => '11111111-1111-1111-1111-111111111111',
+            'workflow_type' => 'semantic_chunk',
+            'backend' => 'external',
+            'status' => 'running',
+            'correlation_type' => 'knowledge_base',
+            'correlation_id' => 9,
+            'contract_version' => '1.0',
+            'submitted_at' => now(),
+        ]);
+
+        $prefix = trim((string) config('geoflow.admin_base_path', 'geo_admin'), '/');
+        $this->actingAs($admin, 'admin')
+            ->get('/'.$prefix.'/production?tab=overview')
+            ->assertOk()
+            ->assertSee(__('admin.production.orchestration.title'), false)
+            ->assertSee(__('admin.production.orchestration.backend_'.config('geoflow.content_agent.backend', 'internal')), false);
+    }
+
+    public function test_production_hub_knowledge_tab_shows_pending_orchestration(): void
+    {
+        $admin = Admin::query()->create([
+            'username' => 'production_kb_pending_admin',
+            'password' => 'secret',
+            'email' => 'production-kb-pending@example.com',
+            'display_name' => 'Production KB Pending',
+            'role' => 'admin',
+            'status' => 'active',
+        ]);
+
+        ContentAgentRequest::query()->create([
+            'request_id' => '22222222-2222-2222-2222-222222222222',
+            'workflow_type' => 'semantic_chunk',
+            'backend' => 'external',
+            'status' => 'pending',
+            'correlation_type' => 'knowledge_base',
+            'correlation_id' => 3,
+            'contract_version' => '1.0',
+            'submitted_at' => now(),
+        ]);
+
+        $prefix = trim((string) config('geoflow.admin_base_path', 'geo_admin'), '/');
+        $this->actingAs($admin, 'admin')
+            ->get('/'.$prefix.'/production?tab=knowledge')
+            ->assertOk()
+            ->assertSee(__('admin.production.orchestration.knowledge_chunking_active', ['count' => 1]), false);
     }
 
     public function test_dashboard_l2_card_links_to_production_hub(): void

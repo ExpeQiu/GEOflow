@@ -115,6 +115,15 @@
                                 <p class="mt-1 text-sm text-gray-500">{!! $t('task_create.help.model_selection_mode') !!}</p>
                             </div>
                             <div>
+                                <label for="content_pipeline_mode" class="block text-sm font-medium text-gray-700">{{ $t('task_create.field.content_pipeline_mode') }}</label>
+                                <select name="content_pipeline_mode" id="content_pipeline_mode" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="legacy" @selected(old('content_pipeline_mode', (string) ($taskForm['content_pipeline_mode'] ?? 'legacy')) === 'legacy')>{{ $t('task_create.option.content_pipeline_legacy') }}</option>
+                                    <option value="pipeline" @selected(old('content_pipeline_mode', (string) ($taskForm['content_pipeline_mode'] ?? 'legacy')) === 'pipeline')>{{ $t('task_create.option.content_pipeline_pipeline') }}</option>
+                                    <option value="auto" @selected(old('content_pipeline_mode', (string) ($taskForm['content_pipeline_mode'] ?? 'legacy')) === 'auto')>{{ $t('task_create.option.content_pipeline_auto') }}</option>
+                                </select>
+                                <p class="mt-1 text-sm text-gray-500">{{ $t('task_create.help.content_pipeline_mode') }}</p>
+                            </div>
+                            <div>
                                 <label for="knowledge_base_id" class="block text-sm font-medium text-gray-700">{{ $t('task_create.field.knowledge_base') }}</label>
                                 <select name="knowledge_base_id" id="knowledge_base_id" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
                                     <option value="">{{ $t('task_create.option.no_knowledge_base') }}</option>

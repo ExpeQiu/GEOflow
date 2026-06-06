@@ -372,11 +372,12 @@
         </div>
 
         <section class="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <div class="rounded-lg border border-violet-200 bg-violet-50/60 p-5">
+            <div class="group relative rounded-lg border border-violet-200 bg-violet-50/60 p-5 transition hover:border-violet-300 hover:shadow-sm">
+                <a href="{{ route('admin.strategy.index') }}" class="absolute inset-0 rounded-lg" aria-label="{{ __('admin.dashboard.layers.l1_title') }}"></a>
                 <p class="text-xs font-semibold uppercase tracking-wide text-violet-700">{{ __('admin.dashboard.layers.l1_label') }}</p>
-                <h2 class="mt-2 text-lg font-semibold text-gray-900">{{ __('admin.dashboard.layers.l1_title') }}</h2>
+                <h2 class="mt-2 text-lg font-semibold text-gray-900 transition group-hover:text-violet-800">{{ __('admin.dashboard.layers.l1_title') }}</h2>
                 <p class="mt-2 text-sm text-gray-600">{{ __('admin.dashboard.layers.l1_desc') }}</p>
-                <div class="mt-4 flex flex-wrap gap-2">
+                <div class="relative z-10 mt-4 flex flex-wrap gap-2">
                     <a href="{{ route('admin.strategy.index', ['tab' => 'monitor']) }}" class="text-sm font-medium text-violet-800 hover:underline">{{ __('admin.strategy.tabs.monitor') }}</a>
                     <a href="{{ route('admin.strategy.index', ['tab' => 'web-intel']) }}" class="text-sm font-medium text-violet-800 hover:underline">{{ __('admin.strategy.tabs.web_intel') }}</a>
                     <a href="{{ route('admin.strategy.index', ['tab' => 'simulator']) }}" class="text-sm font-medium text-violet-800 hover:underline">{{ __('admin.strategy.tabs.simulator') }}</a>
@@ -384,25 +385,23 @@
                     <a href="{{ route('admin.insight-templates.index') }}" class="text-sm font-medium text-violet-800 hover:underline">{{ __('admin.nav.insight_templates') }}</a>
                 </div>
             </div>
-            <div class="rounded-lg border border-emerald-200 bg-emerald-50/60 p-5">
+            <div class="group relative rounded-lg border border-emerald-200 bg-emerald-50/60 p-5 transition hover:border-emerald-300 hover:shadow-sm">
+                <a href="{{ route('admin.production.index') }}" class="absolute inset-0 rounded-lg" aria-label="{{ __('admin.dashboard.layers.l2_title') }}"></a>
                 <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">{{ __('admin.dashboard.layers.l2_label') }}</p>
-                <h2 class="mt-2 text-lg font-semibold text-gray-900">
-                    <a href="{{ route('admin.production.index') }}" class="hover:text-emerald-800 hover:underline">{{ __('admin.dashboard.layers.l2_title') }}</a>
-                </h2>
+                <h2 class="mt-2 text-lg font-semibold text-gray-900 transition group-hover:text-emerald-800">{{ __('admin.dashboard.layers.l2_title') }}</h2>
                 <p class="mt-2 text-sm text-gray-600">{{ __('admin.dashboard.layers.l2_desc') }}</p>
-                <div class="mt-4 flex flex-wrap gap-2">
+                <div class="relative z-10 mt-4 flex flex-wrap gap-2">
                     <a href="{{ route('admin.production.index', ['tab' => 'ai_config']) }}" class="text-sm font-medium text-emerald-800 hover:underline">{{ __('admin.production.tabs.ai_config') }}</a>
                     <a href="{{ route('admin.production.index', ['tab' => 'materials']) }}" class="text-sm font-medium text-emerald-800 hover:underline">{{ __('admin.production.tabs.materials') }}</a>
                     <a href="{{ route('admin.production.index', ['tab' => 'knowledge']) }}" class="text-sm font-medium text-emerald-800 hover:underline">{{ __('admin.production.tabs.knowledge') }}</a>
                 </div>
             </div>
-            <div class="rounded-lg border border-blue-200 bg-blue-50/60 p-5">
+            <div class="group relative rounded-lg border border-blue-200 bg-blue-50/60 p-5 transition hover:border-blue-300 hover:shadow-sm">
+                <a href="{{ route('admin.operations.index') }}" class="absolute inset-0 rounded-lg" aria-label="{{ __('admin.dashboard.layers.l3_title') }}"></a>
                 <p class="text-xs font-semibold uppercase tracking-wide text-blue-700">{{ __('admin.dashboard.layers.l3_label') }}</p>
-                <h2 class="mt-2 text-lg font-semibold text-gray-900">
-                    <a href="{{ route('admin.operations.index') }}" class="hover:text-blue-800 hover:underline">{{ __('admin.dashboard.layers.l3_title') }}</a>
-                </h2>
+                <h2 class="mt-2 text-lg font-semibold text-gray-900 transition group-hover:text-blue-800">{{ __('admin.dashboard.layers.l3_title') }}</h2>
                 <p class="mt-2 text-sm text-gray-600">{{ __('admin.dashboard.layers.l3_desc') }}</p>
-                <div class="mt-4 flex flex-wrap gap-2">
+                <div class="relative z-10 mt-4 flex flex-wrap gap-2">
                     <a href="{{ route('admin.operations.index', ['tab' => 'tasks']) }}" class="text-sm font-medium text-blue-800 hover:underline">{{ __('admin.operations.tabs.tasks') }}</a>
                     <a href="{{ route('admin.operations.index', ['tab' => 'articles']) }}" class="text-sm font-medium text-blue-800 hover:underline">{{ __('admin.operations.tabs.articles') }}</a>
                     <a href="{{ route('admin.operations.index', ['tab' => 'distribution']) }}" class="text-sm font-medium text-blue-800 hover:underline">{{ __('admin.operations.tabs.distribution') }}</a>

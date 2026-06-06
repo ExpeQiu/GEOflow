@@ -42,8 +42,8 @@ fi
 
 if [ "$MODE" = "content-agent" ]; then
   log "Content Agent 可插拔链路检查"
-  if docker compose ps --status running 2>/dev/null | grep -q content-agent; then
-    if docker compose exec -T content-agent wget -q -O - http://127.0.0.1:8000/v1/health 2>/dev/null | grep -q '"ok"'; then
+  if docker compose ps --status running 2>/dev/null | grep -qE 'content-agent|geoflow-content-agent'; then
+    if docker compose exec -T content-agent python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/v1/health', timeout=3).read().decode())" 2>/dev/null | grep -q ok; then
       log "content-agent health OK"
     else
       log "WARN: content-agent health 未响应"
@@ -58,10 +58,23 @@ if [ "$MODE" = "content-agent" ]; then
   fi
   BACKEND="$(docker compose exec -T app php artisan tinker --execute="echo config('geoflow.content_agent.backend');" 2>/dev/null | tail -1 || true)"
   log "GEOFLOW_CONTENT_AGENT_BACKEND=${BACKEND:-unknown}"
+  if [ "${BACKEND}" = "external" ]; then
+    HEALTH="$(docker compose exec -T app php artisan tinker --execute="echo app(\App\Services\GeoFlow\Contracts\ContentAgentClientInterface::class)->healthCheck() ? 'ok' : 'fail';" 2>/dev/null | tail -1 || true)"
+    if [ "${HEALTH}" = "ok" ]; then
+      log "ContentAgentClient healthCheck OK"
+    else
+      log "WARN: backend=external 但 healthCheck 失败"
+    fi
+  fi
   if docker compose exec -T app php artisan test --filter=ContentAgent 2>/dev/null; then
     log "ContentAgent PHPUnit OK"
   else
     log "WARN: ContentAgent 测试未通过或 PHPUnit 不可用"
+  fi
+  if docker compose exec -T app php artisan test --filter=ProductionHubPageTest 2>/dev/null; then
+    log "ProductionHub orchestration stats render OK"
+  else
+    log "WARN: ProductionHubPageTest 未通过或 PHPUnit 不可用"
   fi
   exit 0
 fi

@@ -73,6 +73,15 @@ def _mock_response(agent: dict, user_message: str) -> str:
             return json.dumps({"keywords": ["示例关键词"]}, ensure_ascii=False)
         if agent_id == "url_title_generator":
             return json.dumps({"titles": ["示例标题"]}, ensure_ascii=False)
+        if agent_id == "chief":
+            return json.dumps(
+                {"mode": "deep", "chief_brief": user_message[:300], "memory_patch": {"summary": "mock"}},
+                ensure_ascii=False,
+            )
+        if agent_id == "deputy_router":
+            return json.dumps({"pipeline_path": "deep"}, ensure_ascii=False)
+        if agent_id == "brand_compliance":
+            return json.dumps({"passed": True, "violations": []}, ensure_ascii=False)
         if agent_id == "semantic_chunk_planner":
             return json.dumps([], ensure_ascii=False)
         if agent_id == "url_cleaner":

@@ -1,0 +1,34 @@
+# 腾讯云 PM2 部署：仅 Postgres(pgvector) + Redis，Laravel 由 PM2 托管
+name: geoflow-tencent
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: geoflow-postgres-tencent
+    environment:
+      POSTGRES_DB: geo_flow
+      POSTGRES_USER: geo_user
+      POSTGRES_PASSWORD: geo_password_tencent
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - ./docker-data/tencent/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U geo_user -d geo_flow"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: geoflow-redis-tencent
+    ports:
+      - "127.0.0.1:6380:6379"
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped

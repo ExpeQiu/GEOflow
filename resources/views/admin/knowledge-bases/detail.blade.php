@@ -91,6 +91,25 @@
             </div>
         </div>
 
+        @if (! empty($contentAgentRequests))
+            <div class="bg-white shadow rounded-lg mb-6">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900">{{ __('admin.production.orchestration.recent_knowledge_requests') }}</h3>
+                </div>
+                <div class="divide-y divide-gray-200">
+                    @foreach ($contentAgentRequests as $requestRow)
+                        <div class="px-6 py-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+                            <span class="font-mono text-gray-700">{{ (string) ($requestRow['request_id'] ?? '') }}</span>
+                            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">{{ (string) ($requestRow['status'] ?? '') }}</span>
+                            @if ((string) ($requestRow['error_message'] ?? '') !== '')
+                                <span class="w-full text-xs text-red-600">{{ (string) $requestRow['error_message'] }}</span>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+
         <div class="bg-white shadow rounded-lg mb-6">
             <div class="px-6 py-4 border-b border-gray-200">
                 <h3 class="text-lg font-medium text-gray-900">{{ __('admin.common.related_tasks') }}</h3>

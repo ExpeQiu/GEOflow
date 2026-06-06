@@ -29,6 +29,7 @@ class Task extends Model
         'article_limit',
         'is_loop',
         'model_selection_mode',
+        'content_pipeline_mode',
         'status',
         'publish_scope',
         'created_count',

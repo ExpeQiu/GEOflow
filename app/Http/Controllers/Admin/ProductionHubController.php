@@ -16,6 +16,8 @@ use App\Models\SiteSetting;
 use App\Models\Task;
 use App\Models\Title;
 use App\Models\TitleLibrary;
+use App\Services\GeoFlow\ContentAgent\ContentAgentOrchestrationStatsService;
+use App\Services\GeoFlow\ContentAgent\ContentAgentWorkflowCatalogService;
 use App\Support\AdminWeb;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
@@ -26,6 +28,11 @@ use Illuminate\View\View;
 class ProductionHubController extends Controller
 {
     private const TABS = ['overview', 'materials', 'knowledge', 'ai_config'];
+
+    public function __construct(
+        private readonly ContentAgentOrchestrationStatsService $orchestrationStatsService,
+        private readonly ContentAgentWorkflowCatalogService $workflowCatalogService,
+    ) {}
 
     public function index(Request $request): View|RedirectResponse
     {
@@ -42,6 +49,8 @@ class ProductionHubController extends Controller
 
         $materialStats = $this->loadMaterialStats();
         $aiStats = $this->loadAiConfiguratorStats();
+        $orchestrationStats = $this->orchestrationStatsService->load();
+        $workflowCatalog = $this->workflowCatalogService->catalog();
 
         return view('admin.production.index', [
             'pageTitle' => __('admin.production.hub_title'),
@@ -51,6 +60,8 @@ class ProductionHubController extends Controller
             'currentTab' => $tab,
             'stats' => $materialStats,
             'aiStats' => $aiStats,
+            'orchestrationStats' => $orchestrationStats,
+            'workflowCatalog' => $workflowCatalog,
         ]);
     }
 

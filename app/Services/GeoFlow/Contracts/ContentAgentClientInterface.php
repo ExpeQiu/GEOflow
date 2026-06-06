@@ -20,7 +20,11 @@ interface ContentAgentClientInterface
 
     public function submitSemanticChunkWorkflow(array $payload): string;
 
+    public function submitContentPipelineWorkflow(array $payload): string;
+
     public function dispatchContentGeneration(array $payload): ContentAgentDispatchResult;
+
+    public function dispatchContentPipelineGeneration(array $payload): ContentAgentDispatchResult;
 
     public function dispatchUrlImportAnalysis(array $payload): ContentAgentDispatchResult;
 

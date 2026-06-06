@@ -202,6 +202,42 @@ Laravel 追踪表：`content_agent_requests`（`workflow_type` + `status` + `eng
 - **L3 任务生成**：`content` workflow 对应 `WorkerExecutionService` 正文阶段；RAG 召回在 Laravel 完成，证据通过 payload 传入
 - **L1 洞察**：`style_guide` 由 `InsightTemplate` 在 Laravel 侧组装后写入 payload
 
+### 8.1 Production Hub 可观测性
+
+L2 页面 `/geo_admin/production` **不执行** LangGraph，但展示编排状态：
+
+- `ContentAgentOrchestrationStatsService` 聚合 `content_agent_requests`
+- Overview Tab：侧车健康、24h 工作流统计、backend 模式
+- Knowledge Tab：进行中的 `semantic_chunk` 请求、最近失败
+
+Docker 启用 external 见 [content-agent-deploy.md](./content-agent-deploy.md)。
+
+---
+
+## 9. Chief-Deputy 编辑部 Pipeline（`content_pipeline`）
+
+任务级开关 `tasks.content_pipeline_mode`：
+
+| 值 | 行为 |
+|----|------|
+| `legacy`（默认） | 现有 `content` workflow |
+| `pipeline` | 强制 `content_pipeline`（需 external） |
+| `auto` | external 时走 `content_pipeline` |
+
+### 9.1 编排拓扑
+
+`Chief` → `Deputy 路由` →（`fast` 直写 / `deep` 并行检索合并）→ `Writer` → 交叉验证 → `Editor` → 交叉验证 → `Brand/Compliance` → `Deputy 终审`。
+
+- **Researcher / Brand 检索**：Laravel `ContentPipelineContextService` 调用 `KnowledgeRetrievalService`，双 query 写入 `research_pack` / `brand_pack`
+- **记忆**：`content_agent_memories` 表；Chief 输出 `memory_patch`，回调后 `ContentAgentMemoryService` 更新
+- **Publisher**：不在侧车；回调后 `ContentPipelinePublishBridge` 在 `review_status ∈ {approved, auto_approved}` 且 `schedule_enabled=1` 时调用 `ArticlePublishService::publishDueDraftForTask`
+
+### 9.2 配置入口
+
+- 任务表单：内容编排模式
+- 观测：`/geo_admin/production` 编排面板含 `content_pipeline` 统计
+- 修改编排：`services/content-agent/config/workflows.yml` + `agents.yml`，重启 `content-agent`
+
 ---
 
 *相关：`guide/解析文档.md` §5.2、`config/geoflow.php` content_agent、`services/content-agent/config/`。*

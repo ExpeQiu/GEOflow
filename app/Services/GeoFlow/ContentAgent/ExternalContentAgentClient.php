@@ -49,6 +49,11 @@ final class ExternalContentAgentClient implements ContentAgentClientInterface
         return $this->submitWorkflow('semantic_chunk', $payload, $payload['correlation'] ?? null);
     }
 
+    public function submitContentPipelineWorkflow(array $payload): string
+    {
+        return $this->submitWorkflow('content_pipeline', $payload, $payload['correlation'] ?? null);
+    }
+
     public function dispatchContentGeneration(array $payload): ContentAgentDispatchResult
     {
         return new ContentAgentDispatchResult('async', $this->submitContentWorkflow($payload));
@@ -62,6 +67,11 @@ final class ExternalContentAgentClient implements ContentAgentClientInterface
     public function dispatchSemanticChunkPlan(array $payload): ContentAgentDispatchResult
     {
         return new ContentAgentDispatchResult('async', $this->submitSemanticChunkWorkflow($payload));
+    }
+
+    public function dispatchContentPipelineGeneration(array $payload): ContentAgentDispatchResult
+    {
+        return new ContentAgentDispatchResult('async', $this->submitContentPipelineWorkflow($payload));
     }
 
     public function healthCheck(): bool

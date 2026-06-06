@@ -84,3 +84,78 @@ workflows:
         to: plan_blocks
       - from: plan_blocks
         to: build_chunks
+
+  content_pipeline:
+    description: Chief-Deputy 编辑部 Pipeline — 并行检索、交叉验证、合规终审
+    trace_key: content_pipeline
+    nodes:
+      - id: chief
+        type: agent
+        agent: chief
+        handler: pipeline_chief
+      - id: deputy_route
+        type: agent
+        agent: deputy_router
+        handler: pipeline_deputy_route
+      - id: parallel_probe
+        type: rule
+        handler: pipeline_parallel_probe
+      - id: writer
+        type: agent
+        agent: pipeline_writer
+        handler: pipeline_writer
+      - id: xval_writer
+        type: rule
+        handler: pipeline_cross_validate_writer
+      - id: editor
+        type: agent
+        agent: pipeline_editor
+        handler: pipeline_editor
+      - id: xval_editor
+        type: rule
+        handler: pipeline_cross_validate_editor
+      - id: compliance
+        type: agent
+        agent: brand_compliance
+        handler: pipeline_compliance
+      - id: deputy_finalize
+        type: rule
+        handler: pipeline_finalize
+    edges:
+      - from: __start__
+        to: chief
+      - from: chief
+        to: deputy_route
+      - from: deputy_route
+        to: writer
+        when: fast_mode
+      - from: deputy_route
+        to: parallel_probe
+        when: deep_mode
+      - from: parallel_probe
+        to: writer
+      - from: writer
+        to: xval_writer
+      - from: xval_writer
+        to: writer
+        when: needs_revision
+      - from: xval_writer
+        to: editor
+        when: ok
+      - from: editor
+        to: xval_editor
+      - from: xval_editor
+        to: editor
+        when: needs_revision
+      - from: xval_editor
+        to: deputy_finalize
+        when: skip_compliance
+      - from: xval_editor
+        to: compliance
+        when: ok
+      - from: compliance
+        to: editor
+        when: compliance_reject
+      - from: compliance
+        to: deputy_finalize
+        when: compliance_pass

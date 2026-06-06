@@ -16,15 +16,15 @@
 
         <div id="production-tab-panel" data-tab="{{ $currentTab }}">
             @if ($currentTab === 'overview')
-                @include('admin.production._overview', ['stats' => $stats, 'aiStats' => $aiStats])
+                @include('admin.production._overview', ['stats' => $stats, 'aiStats' => $aiStats, 'orchestrationStats' => $orchestrationStats ?? [], 'workflowCatalog' => $workflowCatalog ?? []])
             @elseif ($currentTab === 'materials')
                 @include('admin.production._materials', ['stats' => $stats])
             @elseif ($currentTab === 'knowledge')
-                @include('admin.production._knowledge', ['stats' => $stats])
+                @include('admin.production._knowledge', ['stats' => $stats, 'orchestrationStats' => $orchestrationStats ?? [], 'workflowCatalog' => $workflowCatalog ?? []])
             @elseif ($currentTab === 'ai_config')
-                @include('admin.production._ai_config', ['stats' => $aiStats])
+                @include('admin.production._ai_config', ['stats' => $aiStats, 'orchestrationStats' => $orchestrationStats ?? [], 'workflowCatalog' => $workflowCatalog ?? []])
             @else
-                @include('admin.production._overview', ['stats' => $stats, 'aiStats' => $aiStats])
+                @include('admin.production._overview', ['stats' => $stats, 'aiStats' => $aiStats, 'orchestrationStats' => $orchestrationStats ?? [], 'workflowCatalog' => $workflowCatalog ?? []])
             @endif
         </div>
     </div>

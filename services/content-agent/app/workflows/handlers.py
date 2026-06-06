@@ -6,6 +6,8 @@ import json
 from typing import Any
 
 from app.agents.runtime import parse_json_output, run_agent
+from app.workflows.handlers._common import cite_check as _cite_check_fn
+from app.workflows.handlers._common import compose_content_prompt as _compose_content_prompt_fn
 
 
 async def content_draft(state: dict[str, Any]) -> dict[str, Any]:
@@ -15,7 +17,7 @@ async def content_draft(state: dict[str, Any]) -> dict[str, Any]:
     evidence = payload.get("evidence") if isinstance(payload.get("evidence"), list) else []
     model = payload.get("model") if isinstance(payload.get("model"), dict) else {}
 
-    user_message = _compose_content_prompt(prompt, style_guide, evidence)
+    user_message = _compose_content_prompt_fn(prompt, style_guide, evidence)
     draft = await run_agent("content_drafter", user_message, model)
     trace = list(state.get("trace") or [])
     trace.append("draft")
@@ -26,7 +28,7 @@ async def cite_check(state: dict[str, Any]) -> dict[str, Any]:
     payload = state.get("payload") if isinstance(state.get("payload"), dict) else {}
     evidence = payload.get("evidence") if isinstance(payload.get("evidence"), list) else []
     content = str(state.get("content") or "")
-    checked = _cite_check(content, evidence)
+    checked = _cite_check_fn(content, evidence)
     trace = list(state.get("trace") or [])
     trace.append("cite_check")
     return {
@@ -51,7 +53,14 @@ async def content_revise(state: dict[str, Any]) -> dict[str, Any]:
 async def content_finalize(state: dict[str, Any]) -> dict[str, Any]:
     trace = list(state.get("trace") or [])
     trace.append("finalize")
-    return {"trace": trace}
+    citations = state.get("citations") if isinstance(state.get("citations"), list) else []
+    return {
+        "result": {
+            "content": str(state.get("content") or ""),
+            "citations": citations,
+        },
+        "trace": trace,
+    }
 
 
 async def url_clean_page(state: dict[str, Any]) -> dict[str, Any]:
@@ -157,36 +166,6 @@ async def semantic_build_chunks(state: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _compose_content_prompt(prompt: str, style_guide: str, evidence: list) -> str:
-    parts = [prompt]
-    if style_guide:
-        parts.append(style_guide)
-    if evidence:
-        parts.append(
-            "参考证据:\n"
-            + "\n".join(f"[{e.get('id')}]\n{e.get('content')}" for e in evidence if isinstance(e, dict))
-        )
-    return "\n\n".join(parts)
-
-
-def _cite_check(content: str, evidence: list) -> dict:
-    if not evidence:
-        return {"ok": True, "citations": []}
-    citations = []
-    for item in evidence:
-        if not isinstance(item, dict):
-            continue
-        cid = str(item.get("id") or "")
-        if cid and f"[{cid}]" in content:
-            citations.append(cid)
-    ok = len(citations) > 0 or len(evidence) == 0
-    return {
-        "ok": ok,
-        "citations": citations,
-        "instruction": "请在正文中标注 [K1] 等证据编号。",
-    }
-
-
 def _safe_plan(text: str) -> list:
     parsed = parse_json_output(text, [])
     if isinstance(parsed, list):
@@ -232,7 +211,28 @@ def _chunks_from_plan(blocks: list, plan: list) -> list:
     return chunks
 
 
+from app.workflows.handlers.content_pipeline import (  # noqa: E402
+    pipeline_chief,
+    pipeline_compliance,
+    pipeline_cross_validate_editor,
+    pipeline_cross_validate_writer,
+    pipeline_deputy_route,
+    pipeline_editor,
+    pipeline_finalize,
+    pipeline_parallel_probe,
+    pipeline_writer,
+)
+
 HANDLERS: dict[str, Any] = {
+    "pipeline_chief": pipeline_chief,
+    "pipeline_deputy_route": pipeline_deputy_route,
+    "pipeline_parallel_probe": pipeline_parallel_probe,
+    "pipeline_writer": pipeline_writer,
+    "pipeline_cross_validate_writer": pipeline_cross_validate_writer,
+    "pipeline_editor": pipeline_editor,
+    "pipeline_cross_validate_editor": pipeline_cross_validate_editor,
+    "pipeline_compliance": pipeline_compliance,
+    "pipeline_finalize": pipeline_finalize,
     "content_draft": content_draft,
     "cite_check": cite_check,
     "content_revise": content_revise,

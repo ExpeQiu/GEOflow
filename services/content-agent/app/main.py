@@ -41,7 +41,7 @@ async def health():
 
 @app.post("/v1/workflows/{workflow_type}/run_async")
 async def run_async(workflow_type: str, body: RunAsyncRequest, background: BackgroundTasks):
-    if workflow_type not in {"content", "url_import", "semantic_chunk"}:
+    if workflow_type not in {"content", "content_pipeline", "url_import", "semantic_chunk"}:
         raise HTTPException(status_code=404, detail="workflow_not_found")
 
     request_id = body.request_id or str(uuid.uuid4())

@@ -7,6 +7,8 @@ use App\Models\AiModel;
 use App\Models\KnowledgeBase;
 use App\Models\KnowledgeChunk;
 use App\Models\Task;
+use App\Services\GeoFlow\ContentAgent\ContentAgentAsyncSubmittedException;
+use App\Services\GeoFlow\ContentAgent\ContentAgentRequestRepository;
 use App\Services\GeoFlow\KnowledgeChunkSyncService;
 use App\Support\AdminWeb;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -26,7 +28,10 @@ use Illuminate\View\View;
  */
 class KnowledgeBaseController extends Controller
 {
-    public function __construct(private readonly KnowledgeChunkSyncService $chunkSyncService) {}
+    public function __construct(
+        private readonly KnowledgeChunkSyncService $chunkSyncService,
+        private readonly ContentAgentRequestRepository $contentAgentRequestRepository,
+    ) {}
 
     /**
      * 列表页。
@@ -73,6 +78,7 @@ class KnowledgeBaseController extends Controller
             'relatedTasks' => $this->loadRelatedTasks($knowledgeBaseId),
             'chunkStats' => $this->loadChunkStats($knowledgeBaseId),
             'chunkPreviewRows' => $this->loadChunkPreviewRows($knowledgeBaseId),
+            'contentAgentRequests' => $this->contentAgentRequestRepository->recentForKnowledgeBase($knowledgeBaseId),
         ]);
     }
 
@@ -241,6 +247,12 @@ class KnowledgeBaseController extends Controller
                 ->with('message', __('admin.knowledge_bases.message.chunks_refreshed', [
                     'chunks' => $chunkCount,
                     'vectorized' => $vectorizedCount,
+                ]));
+        } catch (ContentAgentAsyncSubmittedException $exception) {
+            return redirect()
+                ->route('admin.knowledge-bases.index')
+                ->with('message', __('admin.knowledge_bases.message.chunks_async_submitted', [
+                    'request_id' => $exception->requestId,
                 ]));
         } catch (\Throwable $exception) {
             report($exception);
@@ -515,6 +527,12 @@ class KnowledgeBaseController extends Controller
             return redirect()
                 ->route($routeName, $routeParameters)
                 ->with('message', __('admin.knowledge_bases.message.'.$successMessageKey, ['count' => $chunkCount]));
+        } catch (ContentAgentAsyncSubmittedException $exception) {
+            return redirect()
+                ->route($routeName, $routeParameters)
+                ->with('message', __('admin.knowledge_bases.message.chunks_async_submitted', [
+                    'request_id' => $exception->requestId,
+                ]));
         } catch (\Throwable $exception) {
             return redirect()
                 ->route($routeName, $routeParameters)

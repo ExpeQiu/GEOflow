@@ -98,9 +98,12 @@ return [
     // 会话空闲超时（秒）
     'session_timeout_seconds' => (int) env('GEOFLOW_SESSION_TIMEOUT', 2592000),
 
-    // Content Agent：internal=进程内 Laravel AI SDK；external=Python 侧车（引擎可插拔）
+    // Content Agent：
+    // - internal：进程内 Laravel AI SDK，适合本地 Mock，无多步 LangGraph 编排
+    // - external：Python 侧车（CONTENT_AGENT_DRIVER=langgraph），生产推荐
     'content_agent' => [
         'backend' => env('GEOFLOW_CONTENT_AGENT_BACKEND', 'internal'),
+        'driver_hint' => env('CONTENT_AGENT_DRIVER', 'langgraph'),
         'service_url' => rtrim(trim((string) env('CONTENT_AGENT_SERVICE_URL', '')), '/'),
         'callback_url' => rtrim(trim((string) env('CONTENT_AGENT_CALLBACK_URL', '')), '/'),
         'callback_secret' => (string) env('CONTENT_AGENT_CALLBACK_SECRET', ''),
@@ -108,6 +111,7 @@ return [
         'submit_timeout_seconds' => max(5, (int) env('CONTENT_AGENT_SUBMIT_TIMEOUT_SECONDS', 30)),
         'fallback_on_error' => filter_var(env('CONTENT_AGENT_FALLBACK_ON_ERROR', true), FILTER_VALIDATE_BOOLEAN),
         'contract_version' => (string) env('CONTENT_AGENT_CONTRACT_VERSION', '1.0'),
+        'pipeline_requires_external' => filter_var(env('CONTENT_AGENT_PIPELINE_REQUIRES_EXTERNAL', true), FILTER_VALIDATE_BOOLEAN),
     ],
 
 ];

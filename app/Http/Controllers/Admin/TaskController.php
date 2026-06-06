@@ -217,6 +217,7 @@ class TaskController extends Controller
                 'publish_interval' => (string) max(1, (int) (($task['publish_interval'] ?? 3600) / 60)),
                 'category_mode' => (string) ($task['category_mode'] ?? 'smart'),
                 'model_selection_mode' => (string) ($task['model_selection_mode'] ?? 'fixed'),
+                'content_pipeline_mode' => (string) ($task['content_pipeline_mode'] ?? 'legacy'),
                 'need_review' => (int) ($task['need_review'] ?? 0),
                 'is_loop' => (int) ($task['is_loop'] ?? 1),
                 'auto_keywords' => (int) ($task['auto_keywords'] ?? 1),
@@ -582,6 +583,7 @@ class TaskController extends Controller
             'publish_interval' => ['nullable', 'integer', 'min:1'],
             'category_mode' => ['nullable', 'string', 'in:smart,fixed,random'],
             'model_selection_mode' => ['nullable', 'string', 'in:fixed,smart_failover'],
+            'content_pipeline_mode' => ['nullable', 'string', 'in:legacy,pipeline,auto'],
             'publish_scope' => ['nullable', 'string', 'in:local_and_distribution,distribution_only,local_only'],
             'distribution_channel_ids' => ['nullable', 'array'],
             'distribution_channel_ids.*' => ['integer', 'min:1'],
@@ -619,6 +621,7 @@ class TaskController extends Controller
             'is_loop' => $request->boolean('is_loop') ? 1 : 0,
             'category_mode' => $categoryMode,
             'model_selection_mode' => (string) ($payload['model_selection_mode'] ?? 'fixed'),
+            'content_pipeline_mode' => (string) ($payload['content_pipeline_mode'] ?? 'legacy'),
             'auto_keywords' => $request->boolean('auto_keywords') ? 1 : 0,
             'auto_description' => $request->boolean('auto_description') ? 1 : 0,
         ];

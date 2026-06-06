@@ -56,6 +56,11 @@ final class ContentAgentClient implements ContentAgentClientInterface
         return $this->externalContentAgentClient->submitSemanticChunkWorkflow($payload);
     }
 
+    public function submitContentPipelineWorkflow(array $payload): string
+    {
+        return $this->externalContentAgentClient->submitContentPipelineWorkflow($payload);
+    }
+
     public function healthCheck(): bool
     {
         if ($this->usesExternalBackend()) {

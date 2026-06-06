@@ -17,6 +17,8 @@ if command -v docker >/dev/null 2>&1 && [ -f docker-compose.yml ]; then
   log "启动 GEOworkflow Docker Compose..."
   docker compose up -d postgres redis
   docker compose run --rm init 2>/dev/null || docker compose up -d init
+  log "构建并启动 Content Agent 侧车..."
+  docker compose up -d --build content-agent
   docker compose up -d app queue scheduler reverb
   docker compose exec -T app php artisan migrate --force 2>/dev/null || true
   docker compose exec -T app php artisan config:clear 2>/dev/null || true

@@ -40,6 +40,14 @@ trait DispatchesContentAgentWorkflows
         );
     }
 
+    public function dispatchContentPipelineGeneration(array $payload): ContentAgentDispatchResult
+    {
+        return $this->dispatchWorkflow(
+            fn (): ContentAgentResult => $this->resolveSyncClient()->generateContent($payload),
+            fn (): string => $this->resolveExternalClient()->submitContentPipelineWorkflow($payload),
+        );
+    }
+
     /**
      * @param  callable(): ContentAgentResult  $sync
      * @param  callable(): string  $async

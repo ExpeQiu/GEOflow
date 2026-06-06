@@ -5,6 +5,9 @@ namespace App\Services\GeoFlow\ContentAgent;
 use App\Models\ContentAgentRequest;
 use App\Models\TaskRun;
 use App\Models\UrlImportJob;
+use App\Models\Task;
+use App\Services\GeoFlow\ContentAgentMemoryService;
+use App\Services\GeoFlow\ContentPipelinePublishBridge;
 use App\Services\GeoFlow\JobQueueService;
 use App\Services\GeoFlow\KnowledgeChunkSyncService;
 use App\Services\GeoFlow\WorkerArticlePersistenceService;
@@ -21,6 +24,8 @@ final class ContentAgentCallbackHandler
         private readonly WorkerExecutionService $workerExecutionService,
         private readonly KnowledgeChunkSyncService $knowledgeChunkSyncService,
         private readonly JobQueueService $jobQueueService,
+        private readonly ContentAgentMemoryService $memoryService,
+        private readonly ContentPipelinePublishBridge $publishBridge,
     ) {}
 
     /**
@@ -60,6 +65,7 @@ final class ContentAgentCallbackHandler
 
         return match ($workflowType) {
             'content' => $this->handleContent($record, $result),
+            'content_pipeline' => $this->handleContentPipeline($record, $result),
             'url_import' => $this->handleUrlImport($record, $result),
             'semantic_chunk' => $this->handleSemanticChunk($record, $result),
             default => throw new RuntimeException('unsupported_workflow_type'),
@@ -88,6 +94,62 @@ final class ContentAgentCallbackHandler
             'request_id' => $record->request_id,
             'status' => 'completed',
             'article_id' => $persisted['article_id'] ?? null,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $result
+     * @return array<string, mixed>
+     */
+    private function handleContentPipeline(ContentAgentRequest $record, array $result): array
+    {
+        $storedPayload = json_decode((string) ($record->payload_json ?? ''), true);
+        if (! is_array($storedPayload)) {
+            throw new RuntimeException('invalid_stored_payload');
+        }
+
+        $storedPayload['content'] = (string) ($result['content'] ?? '');
+        if ($storedPayload['content'] === '') {
+            throw new RuntimeException('empty_content');
+        }
+
+        $contextData = is_array($storedPayload['generation_context'] ?? null) ? $storedPayload['generation_context'] : [];
+        $contextData['generation_meta'] = array_merge(
+            is_array($contextData['generation_meta'] ?? null) ? $contextData['generation_meta'] : [],
+            [
+                'pipeline_mode' => (string) ($result['pipeline_mode'] ?? ''),
+                'cross_validation' => is_array($result['cross_validation'] ?? null) ? $result['cross_validation'] : [],
+                'compliance' => is_array($result['compliance'] ?? null) ? $result['compliance'] : [],
+                'content_workflow' => 'content_pipeline',
+            ]
+        );
+        $storedPayload['generation_context'] = $contextData;
+
+        $persisted = $this->workerExecutionService->completeContentGenerationFromCallback($storedPayload, $record);
+
+        $taskId = (int) ($contextData['task_id'] ?? 0);
+        if ($taskId > 0 && is_array($result['memory_patch'] ?? null)) {
+            $this->memoryService->applyPatch($taskId, $result['memory_patch']);
+        }
+
+        $articleId = (int) ($persisted['article_id'] ?? 0);
+        if ($taskId > 0 && $articleId > 0) {
+            $task = Task::query()->find($taskId);
+            if ($task) {
+                $this->publishBridge->tryPublishAfterPipeline($articleId, $task);
+            }
+        }
+
+        Log::channel('content_agent')->info('content_pipeline.callback_completed', [
+            'request_id' => $record->request_id,
+            'article_id' => $articleId,
+            'pipeline_mode' => (string) ($result['pipeline_mode'] ?? ''),
+        ]);
+
+        return [
+            'request_id' => $record->request_id,
+            'status' => 'completed',
+            'article_id' => $articleId > 0 ? $articleId : null,
         ];
     }
 
@@ -177,9 +239,20 @@ final class ContentAgentCallbackHandler
             ]);
         }
 
+        if ($record->correlation_type === 'knowledge_base' && (int) $record->correlation_id > 0) {
+            Log::channel('content_agent')->warning('content_agent.knowledge_chunk_failed', [
+                'request_id' => $record->request_id,
+                'knowledge_base_id' => (int) $record->correlation_id,
+                'workflow_type' => $record->workflow_type,
+                'error' => $error,
+            ]);
+        }
+
         Log::channel('content_agent')->warning('content_agent.callback_failed', [
             'request_id' => $record->request_id,
             'workflow_type' => $record->workflow_type,
+            'correlation_type' => $record->correlation_type,
+            'correlation_id' => $record->correlation_id,
             'error' => $error,
         ]);
     }

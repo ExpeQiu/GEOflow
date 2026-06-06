@@ -178,6 +178,7 @@ return new class extends Migration
             $table->integer('article_limit')->default(10);
             $table->integer('is_loop')->default(0);
             $table->string('model_selection_mode', 20)->default('fixed');
+            $table->string('content_pipeline_mode', 20)->default('legacy');
             $table->integer('created_count')->default(0);
             $table->integer('published_count')->default(0);
             $table->integer('loop_count')->default(0);
@@ -437,6 +438,15 @@ return new class extends Migration
             $table->timestamp('completed_at')->nullable();
             $table->timestamps();
         });
+
+        Schema::create('content_agent_memories', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('task_id');
+            $table->string('scope', 50)->default('task');
+            $table->json('summary_json')->nullable();
+            $table->timestamps();
+            $table->unique(['task_id', 'scope']);
+        });
     }
 
     public function down(): void
@@ -446,6 +456,7 @@ return new class extends Migration
         }
 
         Schema::dropIfExists('task_runs');
+        Schema::dropIfExists('content_agent_memories');
         Schema::dropIfExists('content_agent_requests');
         Schema::dropIfExists('geo_web_insight_reports');
         Schema::dropIfExists('geo_web_sources');

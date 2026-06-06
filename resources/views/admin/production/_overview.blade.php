@@ -4,6 +4,12 @@
         + (int) ($stats['image_libraries'] ?? 0)
         + (int) ($stats['authors'] ?? 0);
 @endphp
+
+@include('admin.production._orchestration_panel', [
+    'orchestrationStats' => $orchestrationStats ?? [],
+    'workflowCatalog' => $workflowCatalog ?? [],
+])
+
 <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
     <div class="rounded-lg border border-emerald-200 bg-emerald-50/60 p-5">
         <p class="text-xs font-semibold uppercase text-emerald-700">{{ __('admin.production.tabs.knowledge') }}</p>

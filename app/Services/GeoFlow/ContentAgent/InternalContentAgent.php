@@ -85,6 +85,11 @@ final class InternalContentAgent implements ContentAgentClientInterface
         $this->unsupportedAsync('semantic_chunk');
     }
 
+    public function submitContentPipelineWorkflow(array $payload): string
+    {
+        $this->unsupportedAsync('content_pipeline');
+    }
+
     public function dispatchContentGeneration(array $payload): ContentAgentDispatchResult
     {
         return new ContentAgentDispatchResult('sync', null, $this->generateContent($payload));
@@ -98,6 +103,15 @@ final class InternalContentAgent implements ContentAgentClientInterface
     public function dispatchSemanticChunkPlan(array $payload): ContentAgentDispatchResult
     {
         return new ContentAgentDispatchResult('sync', null, $this->generateSemanticChunkPlan($payload));
+    }
+
+    public function dispatchContentPipelineGeneration(array $payload): ContentAgentDispatchResult
+    {
+        if (filter_var(config('geoflow.content_agent.pipeline_requires_external', true), FILTER_VALIDATE_BOOLEAN)) {
+            throw new RuntimeException('content_pipeline 仅 external backend 可用');
+        }
+
+        return new ContentAgentDispatchResult('sync', null, $this->generateContent($payload));
     }
 
     public function healthCheck(): bool

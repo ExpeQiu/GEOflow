@@ -1,0 +1,55 @@
+/**
+ * GEOFlow 腾讯云 PM2（Docker PHP 运行时）
+ */
+module.exports = {
+  apps: [
+    {
+      name: 'geoflow-web',
+      script: '/opt/geoflow/scripts/pm2-artisan.sh',
+      args: 'serve --host=0.0.0.0 --port=3033',
+      interpreter: 'bash',
+      cwd: '/opt/geoflow',
+      error_file: '/opt/geoflow/logs/web-error.log',
+      out_file: '/opt/geoflow/logs/web-out.log',
+      merge_logs: true,
+      max_restarts: 10,
+      min_uptime: '10s',
+    },
+    {
+      name: 'geoflow-queue',
+      script: '/opt/geoflow/scripts/pm2-artisan.sh',
+      args: 'queue:work redis --queue=geoflow,geo_eval,distribution,default --sleep=1 --tries=1 --timeout=300',
+      interpreter: 'bash',
+      cwd: '/opt/geoflow',
+      error_file: '/opt/geoflow/logs/queue-error.log',
+      out_file: '/opt/geoflow/logs/queue-out.log',
+      merge_logs: true,
+      max_restarts: 10,
+      min_uptime: '10s',
+    },
+    {
+      name: 'geoflow-scheduler',
+      script: '/opt/geoflow/scripts/pm2-artisan.sh',
+      args: 'schedule:work',
+      interpreter: 'bash',
+      cwd: '/opt/geoflow',
+      error_file: '/opt/geoflow/logs/scheduler-error.log',
+      out_file: '/opt/geoflow/logs/scheduler-out.log',
+      merge_logs: true,
+      max_restarts: 10,
+      min_uptime: '10s',
+    },
+    {
+      name: 'geoflow-reverb',
+      script: '/opt/geoflow/scripts/pm2-artisan.sh',
+      args: 'reverb:start --host=0.0.0.0 --port=3034',
+      interpreter: 'bash',
+      cwd: '/opt/geoflow',
+      error_file: '/opt/geoflow/logs/reverb-error.log',
+      out_file: '/opt/geoflow/logs/reverb-out.log',
+      merge_logs: true,
+      max_restarts: 10,
+      min_uptime: '10s',
+    },
+  ],
+};

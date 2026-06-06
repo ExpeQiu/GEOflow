@@ -17,7 +17,9 @@ use App\Services\GeoEval\ArticleEvaluationService;
 use App\Services\GeoEval\InsightTemplateService;
 use App\Support\GeoFlow\ApiKeyCrypto;
 use App\Support\GeoFlow\ImageUrlNormalizer;
+use App\Support\GeoFlow\KnowledgeEvidenceFormatter;
 use App\Support\GeoFlow\OpenAiRuntimeProvider;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 use Throwable;
@@ -42,6 +44,7 @@ class WorkerExecutionService
         private readonly WorkerArticlePersistenceService $articlePersistenceService,
         private readonly JobQueueService $jobQueueService,
         private readonly AiModelRuntimeBuilder $aiModelRuntimeBuilder,
+        private readonly ContentPipelineContextService $contentPipelineContextService,
     ) {}
 
     /**
@@ -119,8 +122,21 @@ class WorkerExecutionService
             'model_selection_mode' => (string) ($task->model_selection_mode ?? 'fixed'),
         ];
 
-        $agentPayload = $this->buildContentAgentPayload($task, $contentPrompt, $knowledgeContext, $styleAppendix, $taskRunId, $generationContext);
-        $dispatch = $this->contentAgentClient->dispatchContentGeneration($agentPayload);
+        if ($this->shouldUseContentPipeline($task)) {
+            $agentPayload = $this->contentPipelineContextService->buildPayload(
+                $task,
+                (string) $titleRow->title,
+                $keyword,
+                $prompt,
+                $styleAppendix,
+                $taskRunId,
+                $generationContext,
+            );
+            $dispatch = $this->contentAgentClient->dispatchContentPipelineGeneration($agentPayload);
+        } else {
+            $agentPayload = $this->buildContentAgentPayload($task, $contentPrompt, $knowledgeContext, $styleAppendix, $taskRunId, $generationContext);
+            $dispatch = $this->contentAgentClient->dispatchContentGeneration($agentPayload);
+        }
 
         if ($dispatch->isAsync()) {
             if ($taskRunId !== null && $taskRunId > 0) {
@@ -379,25 +395,35 @@ class WorkerExecutionService
      */
     private function parseEvidenceFromContext(string $knowledgeContext): array
     {
-        if (trim($knowledgeContext) === '') {
-            return [];
+        return KnowledgeEvidenceFormatter::fromContextText($knowledgeContext);
+    }
+
+    private function shouldUseContentPipeline(Task $task): bool
+    {
+        $mode = (string) ($task->content_pipeline_mode ?? 'legacy');
+        if ($mode === 'legacy') {
+            return false;
         }
 
-        $evidence = [];
-        if (preg_match_all('/【证据\s*(K\d+)】\s*(.*?)(?=【证据\s*K\d+】|$)/su', $knowledgeContext, $matches, PREG_SET_ORDER)) {
-            foreach ($matches as $match) {
-                $evidence[] = [
-                    'id' => (string) ($match[1] ?? ''),
-                    'content' => trim((string) ($match[2] ?? '')),
-                ];
+        $external = $this->contentAgentClient->supportedBackend() === 'external';
+        if ($mode === 'pipeline') {
+            if (! $external && filter_var(config('geoflow.content_agent.pipeline_requires_external', true), FILTER_VALIDATE_BOOLEAN)) {
+                Log::channel('content_agent')->warning('content_pipeline.fallback_legacy', [
+                    'task_id' => (int) $task->id,
+                    'reason' => 'pipeline_requires_external',
+                ]);
+
+                return false;
             }
+
+            return $external;
         }
 
-        if ($evidence === []) {
-            $evidence[] = ['id' => 'K1', 'content' => $knowledgeContext];
+        if ($mode === 'auto') {
+            return $external;
         }
 
-        return $evidence;
+        return false;
     }
 
     /**
