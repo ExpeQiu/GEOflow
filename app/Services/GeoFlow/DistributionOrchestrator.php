@@ -38,6 +38,11 @@ class DistributionOrchestrator
         ]);
     }
 
+    public function enqueueDeleteForArticle(int|Article $article): void
+    {
+        $this->enqueueForArticle($article, 'delete');
+    }
+
     public function enqueueForArticle(int|Article $article, string $action = 'publish'): void
     {
         try {

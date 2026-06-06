@@ -301,6 +301,33 @@ class JobQueueService
     }
 
     /**
+     * 外部 Content Agent 已接单：保持 running，等待回调完成。
+     *
+     * @param  array<string, mixed>  $meta
+     */
+    public function markJobAwaitingExternalAgent(int $jobId, int $taskId, string $requestId, array $meta = []): void
+    {
+        $run = TaskRun::query()->whereKey($jobId)->first(['meta']);
+        $runMeta = $this->normalizeMeta($run?->meta);
+
+        TaskRun::query()->whereKey($jobId)->update([
+            'status' => 'running',
+            'meta' => array_merge($runMeta, $meta, [
+                'stage' => 'awaiting_external_agent',
+                'content_agent_request_id' => $requestId,
+            ]),
+            'updated_at' => now(),
+        ]);
+
+        Task::query()->whereKey($taskId)->update([
+            'last_run_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->broadcastOverviewUpdate();
+    }
+
+    /**
      * 主动取消执行（如管理员手动停止任务）。
      */
     public function cancelJob(int $jobId, int $taskId, string $reason = '管理员手动停止'): void

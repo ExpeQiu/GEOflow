@@ -16,6 +16,13 @@ fi
 COMPOSER_NEED_POST_INSTALL=false
 COMPOSER_ON_START="${COMPOSER_ON_START:-true}"
 RUN_COMPOSER=false
+
+# 外置盘 exFAT 等 bind mount 时 vendor 常不完整（有目录但缺 autoload / 包内文件）
+if [ -d vendor ] && [ ! -f vendor/autoload.php ]; then
+  echo "[entrypoint] corrupted vendor detected (missing autoload.php), removing for fresh install"
+  rm -rf vendor
+fi
+
 if [ ! -f vendor/autoload.php ]; then
   RUN_COMPOSER=true
 elif [ "${COMPOSER_ON_START}" = "true" ]; then

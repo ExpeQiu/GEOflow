@@ -76,7 +76,7 @@ class AdminArticlesPageTest extends TestCase
             'slug' => 'tech',
         ]);
         $author = Author::query()->create([
-            'name' => 'GEOFlow',
+            'name' => 'GEOworkflow',
         ]);
 
         $this->actingAs($admin, 'admin')
@@ -116,7 +116,7 @@ class AdminArticlesPageTest extends TestCase
             'slug' => 'tech',
         ]);
         $author = Author::query()->create([
-            'name' => 'GEOFlow',
+            'name' => 'GEOworkflow',
         ]);
         Article::query()->create([
             'title' => '后台标签展示文章',
@@ -154,7 +154,7 @@ class AdminArticlesPageTest extends TestCase
             'slug' => 'distribution-category',
         ]);
         $author = Author::query()->create([
-            'name' => 'GEOFlow',
+            'name' => 'GEOworkflow',
         ]);
         $channel = DistributionChannel::query()->create([
             'name' => '目标站点',
@@ -204,7 +204,7 @@ class AdminArticlesPageTest extends TestCase
             'slug' => 'batch-actions-category',
         ]);
         $author = Author::query()->create([
-            'name' => 'GEOFlow',
+            'name' => 'GEOworkflow',
         ]);
         $article = Article::query()->create([
             'title' => '批量操作相对路径文章',
@@ -278,7 +278,7 @@ class AdminArticlesPageTest extends TestCase
         $this->actingAs($admin, 'admin')
             ->get(route('admin.dashboard'))
             ->assertOk()
-            ->assertSee('GEOFlow')
+            ->assertSee('GEOworkflow')
             ->assertDontSee('Public Frontend Name');
     }
 }

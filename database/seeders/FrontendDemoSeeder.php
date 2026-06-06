@@ -18,7 +18,7 @@ class FrontendDemoSeeder extends Seeder
         $author = Author::query()->updateOrCreate(
             ['email' => 'demo@geoflow.local'],
             [
-                'name' => 'GEOFlow 编辑部',
+                'name' => 'GEOworkflow 编辑部',
                 'bio' => '用于前台模板、分类页和文章页预览的示例作者。',
                 'avatar' => '',
                 'website' => '',
@@ -58,12 +58,12 @@ class FrontendDemoSeeder extends Seeder
     private function seedSiteSettings(): void
     {
         $settings = [
-            'site_name' => 'GEOFlow Support',
-            'site_title' => 'GEOFlow Support',
+            'site_name' => 'GEOworkflow Support',
+            'site_title' => 'GEOworkflow Support',
             'site_subtitle' => '像 Apple Support 一样组织你的内容知识库',
-            'site_description' => '用于预览 GEOFlow 前台模板的示例内容站，覆盖首页、分类列表页和文章详情页。',
-            'site_keywords' => 'GEOFlow,Apple Support,帮助中心,内容知识库,GEO优化',
-            'copyright_info' => '© '.date('Y').' GEOFlow Support Demo. All rights reserved.',
+            'site_description' => '用于预览 GEOworkflow 前台模板的示例内容站，覆盖首页、分类列表页和文章详情页。',
+            'site_keywords' => 'GEOworkflow,Apple Support,帮助中心,内容知识库,GEO优化',
+            'copyright_info' => '© '.date('Y').' GEOworkflow Support Demo. All rights reserved.',
             'site_logo' => '',
             'site_favicon' => '',
             'analytics_code' => '',
@@ -128,7 +128,7 @@ class FrontendDemoSeeder extends Seeder
             [
                 'slug' => 'ai-content-workflow',
                 'name' => 'AI 内容工作流',
-                'description' => '展示 GEOFlow 如何组织选题、生成、审核和发布 AI 内容。',
+                'description' => '展示 GEOworkflow 如何组织选题、生成、审核和发布 AI 内容。',
                 'sort_order' => 30,
             ],
             [

@@ -74,6 +74,9 @@ class DashboardController extends Controller
             'body_prompts' => 0,
             'special_prompts' => 0,
             'pending_review' => 0,
+            'eval_pending' => 0,
+            'eval_failed' => 0,
+            'eval_passed' => 0,
             'approved_articles' => 0,
             'total_views' => 0,
             'total_likes' => 0,
@@ -111,6 +114,11 @@ class DashboardController extends Controller
             $defaults['total_prompts'] = (int) Prompt::query()->count();
             $defaults['body_prompts'] = (int) Prompt::query()->where('type', 'content')->count();
             $defaults['special_prompts'] = (int) Prompt::query()->whereIn('type', ['keyword', 'description'])->count();
+            if (Schema::hasColumn('articles', 'eval_status')) {
+                $defaults['eval_pending'] = (int) Article::query()->where('eval_status', 'pending_eval')->whereNull('deleted_at')->count();
+                $defaults['eval_failed'] = (int) Article::query()->where('eval_status', 'failed')->whereNull('deleted_at')->count();
+                $defaults['eval_passed'] = (int) Article::query()->where('eval_status', 'passed')->whereNull('deleted_at')->count();
+            }
         } catch (\Throwable) {
             return $defaults;
         }

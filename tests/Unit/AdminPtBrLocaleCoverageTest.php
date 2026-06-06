@@ -37,7 +37,6 @@ class AdminPtBrLocaleCoverageTest extends TestCase
             'footer.copyright',
             'dashboard.navigation.heading',
             'dashboard.navigation.analytics_title',
-            'dashboard.skill_resources.title',
             'analytics.heading',
             'analytics.filters.apply',
             'analytics.logs_title',

@@ -355,6 +355,14 @@
                                     'rejected' => 'bg-red-100 text-red-800 border border-red-200',
                                     default => 'bg-yellow-100 text-yellow-800 border border-yellow-200'
                                 };
+                                $evalStatus = (string) ($article->eval_status ?? '');
+                                $evalClass = match($evalStatus) {
+                                    'passed' => 'bg-cyan-100 text-cyan-800 border border-cyan-200',
+                                    'failed' => 'bg-red-100 text-red-800 border border-red-200',
+                                    'pending_eval' => 'bg-amber-100 text-amber-800 border border-amber-200',
+                                    'skipped' => 'bg-gray-100 text-gray-600 border border-gray-200',
+                                    default => '',
+                                };
                                 $distributionTotal = (int) ($article->distribution_total_count ?? 0);
                                 $distributionSynced = (int) ($article->distribution_synced_count ?? 0);
                                 $distributionFailed = (int) ($article->distribution_failed_count ?? 0);
@@ -439,6 +447,11 @@
                                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $reviewClass }}">
                                             {{ __('admin.articles.review_prefix') }}: {{ __('admin.articles.review.'.(string) $article->review_status) }}
                                         </span>
+                                        @if($evalClass !== '' && config('geo_eval.enabled'))
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $evalClass }}">
+                                                {{ __('admin.geo_eval.eval_label') }}: {{ __('admin.geo_eval.'.$evalStatus) }}
+                                            </span>
+                                        @endif
                                     </div>
                                 </td>
                                 @endif

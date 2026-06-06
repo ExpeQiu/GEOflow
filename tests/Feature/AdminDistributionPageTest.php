@@ -748,7 +748,7 @@ class AdminDistributionPageTest extends TestCase
             ->assertSessionHas('message', __('admin.distribution.message.updated_and_settings_synced'));
 
         Http::assertSent(fn ($request): bool => $request->url() === 'https://example.com/geoflow-agent/v1/site-settings'
-            && $request->hasHeader('X-GEOFlow-Event', 'site.settings.update')
+            && $request->hasHeader('X-GEOworkflow-Event', 'site.settings.update')
             && $request['settings']['site_name'] === '更新后的远程门户'
             && $request['settings']['active_theme'] === 'netease-news-20260507'
             && $request['settings']['front_mode'] === 'static'
@@ -796,7 +796,7 @@ class AdminDistributionPageTest extends TestCase
         ]);
         Http::assertSent(fn ($request): bool => $request->url() === 'https://example.com/geoflow/geoflow-agent/v1/site-settings');
         Http::assertSent(fn ($request): bool => $request->url() === 'https://example.com/geoflow/index.php/geoflow-agent/v1/site-settings'
-            && $request->hasHeader('X-GEOFlow-Event', 'site.settings.update'));
+            && $request->hasHeader('X-GEOworkflow-Event', 'site.settings.update'));
     }
 
     public function test_admin_can_pause_distribution_channel_and_hide_it_from_task_form(): void
@@ -1122,7 +1122,7 @@ class AdminDistributionPageTest extends TestCase
 
         Http::assertSent(fn ($request): bool => $request->url() === 'https://example.com/geoflow/geoflow-agent/v1/health');
         Http::assertSent(fn ($request): bool => $request->url() === 'https://example.com/geoflow/index.php/geoflow-agent/v1/health'
-            && $request->hasHeader('X-GEOFlow-Event', 'health.check'));
+            && $request->hasHeader('X-GEOworkflow-Event', 'health.check'));
     }
 
     public function test_super_admin_can_download_channel_target_site_package_with_current_password(): void
@@ -1553,7 +1553,7 @@ class AdminDistributionPageTest extends TestCase
             ->assertRedirect(route('admin.distribution.show', ['channelId' => (int) $channel->id]));
 
         Http::assertSent(fn ($request): bool => $request->url() === 'https://example.com/geoflow-agent/v1/site-settings'
-            && $request->hasHeader('X-GEOFlow-Event', 'site.settings.update')
+            && $request->hasHeader('X-GEOworkflow-Event', 'site.settings.update')
             && $request['settings']['site_name'] === '远程门户'
             && $request['settings']['active_theme'] === 'toutiao-news-20260426'
             && $request['settings']['front_mode'] === 'static'
@@ -1901,9 +1901,9 @@ class AdminDistributionPageTest extends TestCase
             'article-1-channel-1-publish-v1'
         );
 
-        $this->assertSame('article-1-channel-1-publish-v1', $headers['X-GEOFlow-Idempotency-Key']);
-        $this->assertSame(hash('sha256', $body), $headers['X-GEOFlow-Body-SHA256']);
-        $this->assertNotEmpty($headers['X-GEOFlow-Signature']);
+        $this->assertSame('article-1-channel-1-publish-v1', $headers['X-GEOworkflow-Idempotency-Key']);
+        $this->assertSame(hash('sha256', $body), $headers['X-GEOworkflow-Body-SHA256']);
+        $this->assertNotEmpty($headers['X-GEOworkflow-Signature']);
     }
 
     public function test_distribution_post_requests_fall_back_to_index_php_entry_when_rewrite_is_missing(): void
@@ -1964,7 +1964,7 @@ class AdminDistributionPageTest extends TestCase
         ]);
         Http::assertSent(fn ($request): bool => $request->url() === 'https://example.com/geoflow/geoflow-agent/v1/articles');
         Http::assertSent(fn ($request): bool => $request->url() === 'https://example.com/geoflow/index.php/geoflow-agent/v1/articles'
-            && $request->hasHeader('X-GEOFlow-Event', 'article.publish'));
+            && $request->hasHeader('X-GEOworkflow-Event', 'article.publish'));
     }
 
     public function test_distribution_process_sends_signed_payload_and_records_remote_result(): void
@@ -2032,8 +2032,8 @@ MD,
             'remote_id' => 'remote-123',
             'remote_url' => 'https://example.com/article/remote-123',
         ]);
-        Http::assertSent(fn ($request): bool => $request->hasHeader('X-GEOFlow-Key-Id', 'gfk_test')
-            && $request->hasHeader('X-GEOFlow-Idempotency-Key', 'article-'.$article->id.'-channel-'.$channel->id.'-publish-v1')
+        Http::assertSent(fn ($request): bool => $request->hasHeader('X-GEOworkflow-Key-Id', 'gfk_test')
+            && $request->hasHeader('X-GEOworkflow-Idempotency-Key', 'article-'.$article->id.'-channel-'.$channel->id.'-publish-v1')
             && $request->url() === 'https://example.com/geoflow-agent/v1/articles'
             && str_contains((string) $request['article']['content_html'], '<h2>核心摘要</h2>')
             && str_contains((string) $request['article']['content_html'], '<strong>提及率</strong>')
@@ -2304,7 +2304,7 @@ MD,
             'remote_url' => 'https://example.com/article/remote-edit-article/',
         ]);
         Http::assertSent(fn ($request): bool => $request->url() === 'https://example.com/geoflow-agent/v1/articles/remote-edit-article/update'
-            && $request->hasHeader('X-GEOFlow-Event', 'article.update')
+            && $request->hasHeader('X-GEOworkflow-Event', 'article.update')
             && $request['article']['title'] === '远端新标题'
             && str_contains((string) $request['article']['content_html'], '<h2>新正文</h2>'));
     }
@@ -2369,7 +2369,7 @@ MD,
             'title' => '远端待删除文章',
         ]);
         Http::assertSent(fn ($request): bool => $request->url() === 'https://example.com/geoflow-agent/v1/articles/remote-delete-article/delete'
-            && $request->hasHeader('X-GEOFlow-Event', 'article.delete')
+            && $request->hasHeader('X-GEOworkflow-Event', 'article.delete')
             && $request['article']['slug'] === 'remote-delete-article');
     }
 
@@ -2766,7 +2766,7 @@ MD,
             'slug' => 'tech',
         ]);
         $author = Author::query()->create([
-            'name' => 'GEOFlow',
+            'name' => 'GEOworkflow',
         ]);
 
         return [

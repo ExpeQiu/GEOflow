@@ -122,6 +122,13 @@ return [
             'replace_placeholders' => true,
         ],
 
+        'content_agent' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/content_agent.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'replace_placeholders' => true,
+        ],
+
         'null' => [
             'driver' => 'monolog',
             'handler' => NullHandler::class,

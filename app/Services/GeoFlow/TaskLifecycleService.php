@@ -8,6 +8,7 @@ use App\Models\Article;
 use App\Models\Author;
 use App\Models\Category;
 use App\Models\ImageLibrary;
+use App\Models\InsightTemplate;
 use App\Models\KnowledgeBase;
 use App\Models\Prompt;
 use App\Models\Task;
@@ -96,6 +97,7 @@ class TaskLifecycleService
                 'status' => $normalized['status'],
                 'publish_scope' => $normalized['publish_scope'],
                 'knowledge_base_id' => $normalized['knowledge_base_id'],
+                'insight_template_id' => $normalized['insight_template_id'] ?? null,
                 'category_mode' => $normalized['category_mode'],
                 'fixed_category_id' => $normalized['fixed_category_id'],
             ]);
@@ -446,6 +448,7 @@ class TaskLifecycleService
             'ai_model_id' => ['model' => AiModel::class, 'message' => '选择的AI模型不存在或未激活', 'required' => ! $isUpdate, 'ai_active_chat' => true],
             'author_id' => ['model' => Author::class, 'message' => '选择的作者不存在', 'required' => false],
             'knowledge_base_id' => ['model' => KnowledgeBase::class, 'message' => '选择的知识库不存在', 'required' => false],
+            'insight_template_id' => ['model' => InsightTemplate::class, 'message' => '选择的洞察模板不存在', 'required' => false],
             'fixed_category_id' => ['model' => Category::class, 'message' => '固定分类不存在', 'required' => false],
         ];
 

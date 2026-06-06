@@ -71,6 +71,18 @@
                     __('admin.materials.author_usage_label') => __('admin.materials.author_usage_desc'),
                 ],
             ],
+            [
+                'title' => __('admin.materials.prompt_manage_title'),
+                'summary' => __('admin.materials.prompts_summary'),
+                'icon' => 'message-square-text',
+                'tone' => 'bg-violet-50 text-violet-600',
+                'href' => route('admin.ai-prompts'),
+                'action' => __('admin.materials.manage_prompts'),
+                'metrics' => [
+                    __('admin.materials.prompt_body_count') => __('admin.materials.unit_items', ['count' => (int) ($stats['body_prompts'] ?? 0)]),
+                    __('admin.materials.prompt_special_count') => __('admin.materials.unit_items', ['count' => (int) ($stats['special_prompts'] ?? 0)]),
+                ],
+            ],
         ];
     @endphp
 
@@ -203,8 +215,12 @@
 
                     <div class="mt-6 grid grid-cols-1 gap-3">
                         <a href="{{ route('admin.knowledge-bases.index') }}" class="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
-                            <i data-lucide="refresh-cw" class="mr-2 h-4 w-4"></i>
-                            {{ __('admin.materials.knowledge_hub_refresh_chunks') }}
+                            <i data-lucide="database" class="mr-2 h-4 w-4"></i>
+                            {{ __('admin.materials.knowledge_hub_manage') }}
+                        </a>
+                        <a href="{{ route('admin.knowledge-bases.rag-sandbox') }}" class="inline-flex items-center justify-center rounded-md border border-orange-200 bg-orange-50 px-4 py-2 text-sm font-semibold text-orange-700 hover:bg-orange-100">
+                            <i data-lucide="search" class="mr-2 h-4 w-4"></i>
+                            {{ __('admin.knowledge_bases.rag_sandbox_title') }}
                         </a>
                         <a href="{{ route('admin.url-import') }}" class="inline-flex items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100">
                             <i data-lucide="globe" class="mr-2 h-4 w-4"></i>
@@ -244,6 +260,13 @@
                 @endforeach
             </div>
         </section>
+
+        <div class="mb-8 rounded-lg border border-indigo-100 bg-indigo-50/60 px-4 py-3 text-sm text-indigo-900">
+            <span>{{ __('admin.geo_eval.materials_hub_l1_hint') }}</span>
+            <a href="{{ route('admin.geo-eval.diagnostics') }}" class="ml-2 font-medium underline">{{ __('admin.nav.geo_eval') }}</a>
+            <span class="text-indigo-700">·</span>
+            <a href="{{ route('admin.insight-templates.index') }}" class="font-medium underline">{{ __('admin.nav.insight_templates') }}</a>
+        </div>
 
         <section class="mb-8 overflow-hidden rounded-lg border border-gray-200 bg-white shadow">
             <div class="p-6 lg:p-8">

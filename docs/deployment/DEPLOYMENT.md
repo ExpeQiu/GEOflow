@@ -26,6 +26,18 @@
 - 开发：`docker-compose.yml`，继续使用 `php artisan serve`
 - 生产：`docker-compose.prod.yml`，改为 `nginx + php-fpm`
 
+### 开发 Docker 升级（含 GEO 评估表）
+
+本地已运行 `docker compose` 时，拉取含 GEO 评估集成的代码后执行：
+
+```bash
+./scripts/docker-upgrade.sh
+# 或
+./scripts/verify.sh docker
+```
+
+说明见 [DOCKER-DEV-GEO-EVAL.md](./DOCKER-DEV-GEO-EVAL.md)。
+
 ## 1.1 一键部署脚本
 
 如果希望在常见云服务器、VPS 或面板服务器上先做环境自检，再自动完成生产 Docker 部署，可以使用仓库中的参考脚本：
@@ -73,6 +85,11 @@ DB_PASSWORD=change-this-password
 REDIS_PASSWORD=
 WEB_PORT=18080
 REVERB_EXPOSE_PORT=18081
+
+# L1 策略层（生产建议开启；门禁可按 GEO_EVAL_GATE_ROLLOUT_PERCENT 灰度）
+GEO_EVAL_ENABLED=true
+GEO_EVAL_GATE_ENABLED=true
+GEO_EVAL_GATE_ROLLOUT_PERCENT=100
 ```
 
 说明：

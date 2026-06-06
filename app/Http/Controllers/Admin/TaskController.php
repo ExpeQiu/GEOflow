@@ -8,6 +8,7 @@ use App\Models\Author;
 use App\Models\Category;
 use App\Models\DistributionChannel;
 use App\Models\ImageLibrary;
+use App\Models\InsightTemplate;
 use App\Models\KnowledgeBase;
 use App\Models\Prompt;
 use App\Models\Task;
@@ -19,6 +20,7 @@ use App\Support\AdminWeb;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 use Throwable;
 
@@ -149,6 +151,7 @@ class TaskController extends Controller
         }
 
         $payload = $this->validateTaskForm($request);
+        $this->assertDistributionScopeValid($request);
         $taskData = $this->buildTaskPayload($request, $payload);
 
         try {
@@ -201,6 +204,7 @@ class TaskController extends Controller
                 'image_library_id' => (string) (($task['image_library_id'] ?? '') ?: ''),
                 'image_count' => (string) ($task['image_count'] ?? 0),
                 'knowledge_base_id' => (string) (($task['knowledge_base_id'] ?? '') ?: ''),
+                'insight_template_id' => (string) (($task['insight_template_id'] ?? '') ?: ''),
                 'fixed_category_id' => (string) (($task['fixed_category_id'] ?? '') ?: ''),
                 'status' => (string) ($task['status'] ?? 'active'),
                 'article_limit' => (string) ($task['article_limit'] ?? 10),
@@ -230,6 +234,7 @@ class TaskController extends Controller
         }
 
         $payload = $this->validateTaskForm($request);
+        $this->assertDistributionScopeValid($request);
         $taskData = $this->buildTaskPayload($request, $payload);
 
         try {
@@ -342,7 +347,15 @@ class TaskController extends Controller
             'waiting' => __('admin.tasks.status.waiting'),
             'waitingPublish' => __('admin.tasks.status.waiting_publish'),
             'draftPoolFull' => __('admin.tasks.status.draft_pool_full'),
+            'draftPoolEvalBlocked' => __('admin.tasks.status.draft_pool_eval_blocked'),
             'limitReached' => __('admin.tasks.status.limit_reached'),
+            'publishScopeLocalAndDistribution' => __('admin.tasks.publish_scope.local_and_distribution'),
+            'publishScopeDistributionOnly' => __('admin.tasks.publish_scope.distribution_only'),
+            'publishScopeLocalOnly' => __('admin.tasks.publish_scope.local_only'),
+            'evalPending' => __('admin.tasks.eval_blocked.pending', ['count' => '__COUNT__']),
+            'evalFailed' => __('admin.tasks.eval_blocked.failed', ['count' => '__COUNT__']),
+            'openDiagnostics' => __('admin.tasks.eval_blocked.open_diagnostics'),
+            'geoEvalDiagnosticsUrl' => route('admin.geo-eval.diagnostics'),
             'queued' => __('admin.tasks.status.pending'),
             'running' => __('admin.tasks.status.running'),
             'nextRunAt' => __('admin.tasks.label.next_run_at', ['time' => '__TIME__']),
@@ -503,12 +516,23 @@ class TaskController extends Controller
             ])
             ->all();
 
+        $insightTemplates = [];
+        if (Schema::hasTable('insight_templates')) {
+            $insightTemplates = InsightTemplate::query()
+                ->select(['id', 'name'])
+                ->orderByDesc('id')
+                ->get()
+                ->map(static fn (InsightTemplate $row): array => ['id' => (int) $row->id, 'name' => (string) $row->name])
+                ->all();
+        }
+
         return [
             'titleLibraries' => $titleLibraries,
             'prompts' => $prompts,
             'aiModels' => $aiModels,
             'imageLibraries' => $imageLibraries,
             'knowledgeBases' => $knowledgeBases,
+            'insightTemplates' => $insightTemplates,
             'authors' => $authors,
             'categories' => $categories,
             'distributionChannels' => $distributionChannels,
@@ -545,6 +569,7 @@ class TaskController extends Controller
             'image_library_id' => ['nullable', 'integer', 'min:1'],
             'image_count' => ['nullable', 'integer', 'min:0', 'max:5'],
             'knowledge_base_id' => ['nullable', 'integer', 'min:1'],
+            'insight_template_id' => ['nullable', 'integer', 'min:1'],
             'fixed_category_id' => ['nullable', 'integer', 'min:1'],
             'status' => ['required', 'string', 'in:active,paused'],
             'article_limit' => ['nullable', 'integer', 'min:1', 'max:99999'],
@@ -578,6 +603,7 @@ class TaskController extends Controller
             'ai_model_id' => (int) $payload['ai_model_id'],
             'author_id' => isset($payload['author_id']) && (int) $payload['author_id'] > 0 ? (int) $payload['author_id'] : null,
             'knowledge_base_id' => isset($payload['knowledge_base_id']) ? (int) $payload['knowledge_base_id'] : null,
+            'insight_template_id' => isset($payload['insight_template_id']) ? (int) $payload['insight_template_id'] : null,
             'fixed_category_id' => isset($payload['fixed_category_id']) ? (int) $payload['fixed_category_id'] : null,
             'status' => (string) $payload['status'],
             'publish_scope' => (string) ($payload['publish_scope'] ?? 'local_and_distribution'),
@@ -591,6 +617,18 @@ class TaskController extends Controller
             'auto_keywords' => $request->boolean('auto_keywords') ? 1 : 0,
             'auto_description' => $request->boolean('auto_description') ? 1 : 0,
         ];
+    }
+
+    private function assertDistributionScopeValid(Request $request): void
+    {
+        $publishScope = (string) $request->input('publish_scope', 'local_and_distribution');
+        if ($publishScope !== 'distribution_only') {
+            return;
+        }
+
+        if ($this->selectedDistributionChannelIds($request) === []) {
+            throw new \InvalidArgumentException(__('admin.task_create.error.distribution_only_requires_channel'));
+        }
     }
 
     /**

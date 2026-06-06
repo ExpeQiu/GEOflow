@@ -295,7 +295,7 @@ class AdminTasksPageTest extends TestCase
             'slug' => 'task-distribution-category',
         ]);
         $author = Author::query()->create([
-            'name' => 'GEOFlow',
+            'name' => 'GEOworkflow',
         ]);
         $channel = DistributionChannel::query()->create([
             'name' => '失败目标站点',

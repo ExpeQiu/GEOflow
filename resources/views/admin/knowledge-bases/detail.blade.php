@@ -12,6 +12,18 @@
                     <p class="mt-1 text-sm text-gray-600">{{ $knowledgeBase->name }}</p>
                 </div>
             </div>
+            <div class="flex items-center gap-2">
+                <form method="POST" action="{{ route('admin.knowledge-bases.chunks.refresh', ['knowledgeBaseId' => (int) $knowledgeBase->id]) }}">
+                    @csrf
+                    <button type="submit" class="inline-flex items-center px-3 py-2 border border-orange-200 rounded-md text-sm text-orange-700 bg-orange-50 hover:bg-orange-100">
+                        <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
+                        {{ __('admin.knowledge_bases.refresh_chunks') }}
+                    </button>
+                </form>
+                <a href="{{ route('admin.knowledge-bases.rag-sandbox', ['knowledge_base_id' => (int) $knowledgeBase->id]) }}" class="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-700 bg-white hover:bg-gray-50">
+                    {{ __('admin.knowledge_bases.rag_sandbox_title') }}
+                </a>
+            </div>
         </div>
 
         <div class="bg-white shadow rounded-lg mb-6">
@@ -25,6 +37,18 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('admin.knowledge_detail.field_name') }}</label>
                         <input type="text" name="name" value="{{ old('name', (string) $knowledgeBase->name) }}" class="w-full border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500 text-sm" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('admin.knowledge_bases.field_source_name') }}</label>
+                        <input type="text" name="source_name" value="{{ old('source_name', (string) ($knowledgeBase->source_name ?? '')) }}" class="w-full border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('admin.knowledge_bases.field_risk_level') }}</label>
+                        <select name="risk_level" class="w-full border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500 text-sm">
+                            @foreach (['low' => __('admin.knowledge_bases.risk_level_low'), 'medium' => __('admin.knowledge_bases.risk_level_medium'), 'high' => __('admin.knowledge_bases.risk_level_high')] as $value => $label)
+                                <option value="{{ $value }}" @selected(old('risk_level', (string) ($knowledgeBase->risk_level ?? 'medium')) === $value)>{{ $label }}</option>
+                            @endforeach
+                        </select>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('admin.knowledge_bases.field_doc_type') }}</label>

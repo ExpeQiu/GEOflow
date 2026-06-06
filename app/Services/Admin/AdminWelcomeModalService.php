@@ -5,7 +5,7 @@ namespace App\Services\Admin;
 use App\Models\Admin;
 
 /**
- * 后台「欢迎使用 GEOFlow」弹窗：负责版本态判断、自动打开一次、以及关闭落库所需的数据。
+ * 后台「欢迎使用 GEOworkflow」弹窗：负责版本态判断、自动打开一次、以及关闭落库所需的数据。
  */
 class AdminWelcomeModalService
 {

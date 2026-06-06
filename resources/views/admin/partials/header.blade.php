@@ -5,25 +5,39 @@
     $adminRoleLabel = $isSuperAdmin ? __('admin.header.super_admin') : __('admin.header.admin');
     $updateNotification = is_array($adminUpdateNotificationPayload ?? null) ? $adminUpdateNotificationPayload : [];
     $updateState = is_array($updateNotification['state'] ?? null) ? $updateNotification['state'] : [];
-    $updateLinks = is_array($updateNotification['links'] ?? null) ? $updateNotification['links'] : [];
     $hasVersionUpdate = !empty($updateState['is_update_available']);
     $localeForChangelog = app()->getLocale() === 'en' ? 'en' : 'zh-CN';
     $updatePayload = is_array($updateState['payload'] ?? null) ? $updateState['payload'] : [];
     $updateSummary = (string) ($localeForChangelog === 'en'
         ? ($updatePayload['summary_en'] ?? '')
         : ($updatePayload['summary_zh'] ?? ''));
-    $changelogLinks = is_array($updateLinks['changelog'] ?? null) ? $updateLinks['changelog'] : [];
-    $notificationChangelogUrl = (string) ($changelogLinks[$localeForChangelog] ?? $changelogLinks['zh-CN'] ?? 'https://github.com/yaojingang/GEOFlow/blob/main/docs/CHANGELOG.md');
-    $notificationGithubUrl = (string) ($updateLinks['github'] ?? 'https://github.com/yaojingang/GEOFlow');
     $notificationStatus = (string) ($updateState['status'] ?? 'disabled');
+    $menuGroups = [
+        'l2' => ['label' => __('admin.nav.group_production'), 'items' => [
+            'materials' => ['route' => 'admin.materials.index', 'name' => __('admin.nav.materials')],
+            'ai_config' => ['route' => 'admin.ai.configurator', 'name' => __('admin.nav.ai_config')],
+        ]],
+        'l3' => ['label' => __('admin.nav.group_operations'), 'items' => [
+            'tasks' => ['route' => 'admin.tasks.index', 'name' => __('admin.nav.tasks')],
+            'articles' => ['route' => 'admin.articles.index', 'name' => __('admin.nav.articles')],
+            'distribution' => ['route' => 'admin.distribution.index', 'name' => __('admin.nav.distribution')],
+        ]],
+        'l1' => ['label' => __('admin.nav.group_strategy'), 'items' => [
+            'insight_templates' => ['route' => 'admin.insight-templates.index', 'name' => __('admin.nav.insight_templates')],
+            'geo_eval' => ['route' => 'admin.geo-eval.diagnostics', 'name' => __('admin.nav.geo_eval')],
+            'analytics' => ['route' => 'admin.analytics', 'name' => __('admin.nav.analytics')],
+        ]],
+    ];
     $menu = [
         'dashboard' => ['route' => 'admin.dashboard', 'name' => __('admin.nav.dashboard')],
-        'analytics' => ['route' => 'admin.analytics', 'name' => __('admin.nav.analytics')],
-        'tasks' => ['route' => 'admin.tasks.index', 'name' => __('admin.nav.tasks')],
-        'distribution' => ['route' => 'admin.distribution.index', 'name' => __('admin.nav.distribution')],
-        'articles' => ['route' => 'admin.articles.index', 'name' => __('admin.nav.articles')],
         'materials' => ['route' => 'admin.materials.index', 'name' => __('admin.nav.materials')],
         'ai_config' => ['route' => 'admin.ai.configurator', 'name' => __('admin.nav.ai_config')],
+        'tasks' => ['route' => 'admin.tasks.index', 'name' => __('admin.nav.tasks')],
+        'articles' => ['route' => 'admin.articles.index', 'name' => __('admin.nav.articles')],
+        'distribution' => ['route' => 'admin.distribution.index', 'name' => __('admin.nav.distribution')],
+        'insight_templates' => ['route' => 'admin.insight-templates.index', 'name' => __('admin.nav.insight_templates')],
+        'geo_eval' => ['route' => 'admin.geo-eval.diagnostics', 'name' => __('admin.nav.geo_eval')],
+        'analytics' => ['route' => 'admin.analytics', 'name' => __('admin.nav.analytics')],
         'site_settings' => ['route' => 'admin.site-settings.index', 'name' => __('admin.nav.site_settings')],
     ];
     if ($isSuperAdmin) {
@@ -31,6 +45,21 @@
     }
     $subMap = [
         'admin.analytics' => 'analytics',
+        'admin.geo-eval.diagnostics' => 'geo_eval',
+        'admin.geo-eval.alerts' => 'geo_eval',
+        'admin.geo-eval.reevaluate' => 'geo_eval',
+        'admin.geo-eval.reevaluate-failed' => 'geo_eval',
+        'admin.knowledge-settings.index' => 'ai_config',
+        'admin.knowledge-settings.update' => 'ai_config',
+        'admin.insight-templates.index' => 'insight_templates',
+        'admin.insight-templates.create' => 'insight_templates',
+        'admin.insight-templates.store' => 'insight_templates',
+        'admin.insight-templates.show' => 'insight_templates',
+        'admin.insight-templates.edit' => 'insight_templates',
+        'admin.insight-templates.update' => 'insight_templates',
+        'admin.insight-templates.destroy' => 'insight_templates',
+        'admin.insight-templates.remine' => 'insight_templates',
+        'admin.knowledge-bases.rag-sandbox' => 'materials',
         'admin.tasks.create' => 'tasks',
         'admin.tasks.edit' => 'tasks',
         'admin.distribution.index' => 'distribution',
@@ -108,13 +137,22 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex h-16 items-center gap-3 lg:gap-4 min-w-0">
             <a href="{{ route('admin.dashboard') }}" class="shrink-0 text-lg sm:text-xl font-semibold text-gray-900">{{ $adminBrandName }}</a>
-            <nav class="hidden md:flex flex-1 min-w-0 items-center">
+            <nav class="hidden flex-1 min-w-0 items-center">
                 <div class="flex w-full min-w-0 items-center gap-3 lg:gap-5 overflow-x-auto overscroll-x-contain py-2 -my-2 [scrollbar-width:thin]">
-                    @foreach ($menu as $key => $item)
-                        <a href="{{ route($item['route']) }}"
-                           class="@if($resolvedActive === $key) text-blue-600 font-medium @else text-gray-500 hover:text-gray-700 @endif shrink-0 whitespace-nowrap text-[15px] transition-colors duration-200">
-                            {{ $item['name'] }}
-                        </a>
+                    @php
+                        $orderedNavKeys = ['dashboard', 'materials', 'ai_config', 'tasks', 'articles', 'distribution', 'insight_templates', 'geo_eval', 'analytics', 'site_settings'];
+                    @endphp
+                    @foreach ($orderedNavKeys as $navIndex => $key)
+                        @if ($navIndex === 1 || $navIndex === 3 || $navIndex === 6)
+                            <span class="hidden lg:inline shrink-0 text-gray-300" aria-hidden="true">|</span>
+                        @endif
+                        @if (isset($menu[$key]))
+                            <a href="{{ route($menu[$key]['route']) }}"
+                               class="@if($resolvedActive === $key) text-blue-600 font-medium @else text-gray-500 hover:text-gray-700 @endif shrink-0 whitespace-nowrap text-[15px] transition-colors duration-200"
+                               title="{{ $navIndex < 3 ? $menuGroups['l2']['label'] ?? '' : ($navIndex < 6 ? $menuGroups['l3']['label'] ?? '' : $menuGroups['l1']['label'] ?? '') }}">
+                                {{ $menu[$key]['name'] }}
+                            </a>
+                        @endif
                     @endforeach
                 </div>
             </nav>
@@ -137,6 +175,19 @@
                             </div>
                         </div>
                         <div class="px-4 py-4">
+                            @php $geoAlerts = $geoAlertNotificationPayload ?? ['count' => 0, 'items' => []]; @endphp
+                            @if(($geoAlerts['count'] ?? 0) > 0)
+                                <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                                    <div class="text-xs font-semibold text-amber-900">{{ __('admin.geo_eval.header_alerts_title') }}</div>
+                                    @foreach (array_slice($geoAlerts['items'] ?? [], 0, 3) as $geoAlert)
+                                        <p class="mt-1 text-xs text-amber-800">{{ \Illuminate\Support\Str::limit($geoAlert['message'] ?? '', 80) }}</p>
+                                    @endforeach
+                                    <div class="mt-2 flex flex-wrap gap-3 text-xs font-medium">
+                                        <a href="{{ route('admin.geo-eval.diagnostics') }}" class="text-amber-900 hover:underline">{{ __('admin.geo_eval.open_diagnostics') }}</a>
+                                        <a href="{{ route('admin.geo-eval.alerts') }}" class="text-amber-900 hover:underline">{{ __('admin.geo_eval.view_all_alerts') }}</a>
+                                    </div>
+                                </div>
+                            @endif
                             @if($hasVersionUpdate)
                                 <div class="text-sm font-semibold text-gray-900">
                                     {{ __('admin.header.notifications.update_available', ['version' => (string) ($updateState['latest_version'] ?? '')]) }}
@@ -165,15 +216,6 @@
                                 @if(!empty($updateState['checked_at']))
                                     <div>{{ __('admin.header.notifications.checked_at', ['time' => (string) $updateState['checked_at']]) }}</div>
                                 @endif
-                            </div>
-
-                            <div class="mt-4 flex flex-wrap gap-2">
-                                <a href="{{ $notificationChangelogUrl }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700">
-                                    {{ __('admin.header.notifications.view_changelog') }}
-                                </a>
-                                <a href="{{ $notificationGithubUrl }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50">
-                                    {{ __('admin.header.notifications.open_github') }}
-                                </a>
                             </div>
                         </div>
                     </div>
@@ -242,13 +284,38 @@
     </div>
 
     <div id="mobile-menu" class="hidden md:hidden">
-        <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-gray-50 border-t">
-            @foreach ($menu as $key => $item)
-                <a href="{{ route($item['route']) }}"
-                   class="@if($resolvedActive === $key) bg-blue-100 text-blue-600 @else text-gray-600 hover:bg-gray-100 @endif block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200">
-                    {{ $item['name'] }}
+        <div class="px-2 pt-2 pb-3 space-y-3 sm:px-3 bg-gray-50 border-t">
+            @if (isset($menu['dashboard']))
+                <a href="{{ route($menu['dashboard']['route']) }}"
+                   class="@if($resolvedActive === 'dashboard') bg-blue-100 text-blue-600 @else text-gray-600 hover:bg-gray-100 @endif block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200">
+                    {{ $menu['dashboard']['name'] }}
                 </a>
+            @endif
+            @foreach ($menuGroups as $groupKey => $group)
+                <div>
+                    <div class="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gray-400">{{ $group['label'] }}</div>
+                    <div class="space-y-1">
+                        @foreach ($group['items'] as $key => $item)
+                            <a href="{{ route($item['route']) }}"
+                               class="@if($resolvedActive === $key) bg-blue-100 text-blue-600 @else text-gray-600 hover:bg-gray-100 @endif block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200">
+                                {{ $item['name'] }}
+                            </a>
+                        @endforeach
+                    </div>
+                </div>
             @endforeach
+            @if (isset($menu['site_settings']))
+                <a href="{{ route($menu['site_settings']['route']) }}"
+                   class="@if($resolvedActive === 'site_settings') bg-blue-100 text-blue-600 @else text-gray-600 hover:bg-gray-100 @endif block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200">
+                    {{ $menu['site_settings']['name'] }}
+                </a>
+            @endif
+            @if ($isSuperAdmin && isset($menu['admin_users']))
+                <a href="{{ route($menu['admin_users']['route']) }}"
+                   class="@if($resolvedActive === 'admin_users') bg-blue-100 text-blue-600 @else text-gray-600 hover:bg-gray-100 @endif block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200">
+                    {{ $menu['admin_users']['name'] }}
+                </a>
+            @endif
         </div>
     </div>
 </nav>

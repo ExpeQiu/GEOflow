@@ -53,7 +53,7 @@ class GenericHttpApiPublisherTest extends TestCase
             return $request->method() === 'POST'
                 && $request->url() === 'https://api.example.com/articles'
                 && $request->hasHeader('Authorization', 'Bearer api-token')
-                && $request->hasHeader('X-GEOFlow-Event', 'article.publish')
+                && $request->hasHeader('X-GEOworkflow-Event', 'article.publish')
                 && $request['article']['title'] === 'Hello Generic API';
         });
 
@@ -148,11 +148,11 @@ class GenericHttpApiPublisherTest extends TestCase
         Http::assertSent(function ($request): bool {
             return $request->method() === 'POST'
                 && $request->url() === 'https://api.example.com/articles'
-                && $request->hasHeader('X-GEOFlow-Key-Id', 'gapi_test')
-                && $request->hasHeader('X-GEOFlow-Signature')
-                && $request->hasHeader('X-GEOFlow-Timestamp')
-                && $request->hasHeader('X-GEOFlow-Nonce')
-                && $request->hasHeader('X-GEOFlow-Body-SHA256')
+                && $request->hasHeader('X-GEOworkflow-Key-Id', 'gapi_test')
+                && $request->hasHeader('X-GEOworkflow-Signature')
+                && $request->hasHeader('X-GEOworkflow-Timestamp')
+                && $request->hasHeader('X-GEOworkflow-Nonce')
+                && $request->hasHeader('X-GEOworkflow-Body-SHA256')
                 && ! $request->hasHeader('Authorization');
         });
     }
@@ -223,7 +223,7 @@ class GenericHttpApiPublisherTest extends TestCase
             'slug' => 'tech',
         ]);
         $author = Author::query()->create([
-            'name' => 'GEOFlow',
+            'name' => 'GEOworkflow',
         ]);
         $article = Article::query()->create([
             'title' => 'Hello Generic API',

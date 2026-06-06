@@ -1,6 +1,10 @@
 # postgres 凭据由 DB_* 插值映射为官方镜像的 POSTGRES_*；redis 使用 REDIS_PASSWORD。推荐 docker compose --env-file .env.prod …
 name: geoflow-laravel-prod
 
+x-geoflow-php-prod-common: &geoflow-php-prod-common
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+
 services:
   postgres:
     image: ${PGVECTOR_IMAGE:-pgvector/pgvector:pg16}
@@ -43,6 +47,7 @@ services:
     restart: unless-stopped
 
   init:
+    <<: *geoflow-php-prod-common
     image: geoflow-app-prod:latest
     build:
       context: .
@@ -71,6 +76,7 @@ services:
     restart: "no"
 
   app:
+    <<: *geoflow-php-prod-common
     image: geoflow-app-prod:latest
     build:
       context: .
@@ -119,6 +125,7 @@ services:
     restart: unless-stopped
 
   queue:
+    <<: *geoflow-php-prod-common
     image: geoflow-app-prod:latest
     build:
       context: .
@@ -131,7 +138,7 @@ services:
     working_dir: /var/www/html
     env_file:
       - ./.env.prod
-    command: ["php", "artisan", "queue:work", "redis", "--queue=geoflow,distribution,default", "--sleep=1", "--tries=1", "--timeout=300"]
+    command: ["php", "artisan", "queue:work", "redis", "--queue=geoflow,geo_eval,distribution,default", "--sleep=1", "--tries=1", "--timeout=300"]
     volumes:
       - ./.env.prod:/var/www/html/.env
       - ./storage:/var/www/html/storage
@@ -143,6 +150,7 @@ services:
     restart: unless-stopped
 
   scheduler:
+    <<: *geoflow-php-prod-common
     image: geoflow-app-prod:latest
     build:
       context: .
@@ -165,6 +173,7 @@ services:
     restart: unless-stopped
 
   reverb:
+    <<: *geoflow-php-prod-common
     image: geoflow-app-prod:latest
     build:
       context: .
@@ -188,4 +197,20 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+    restart: unless-stopped
+
+  content-agent:
+    build:
+      context: ./services/content-agent
+      dockerfile: Dockerfile
+    container_name: geoflow-content-agent-prod
+    env_file:
+      - ./.env.prod
+    environment:
+      CONTENT_AGENT_DRIVER: ${CONTENT_AGENT_DRIVER:-langgraph}
+      CONTENT_AGENT_CONTRACT_VERSION: ${CONTENT_AGENT_CONTRACT_VERSION:-1.0}
+      LARAVEL_CALLBACK_URL: ${CONTENT_AGENT_CALLBACK_URL:-http://app:8080/internal/content-agent/callback}
+    depends_on:
+      app:
+        condition: service_started
     restart: unless-stopped

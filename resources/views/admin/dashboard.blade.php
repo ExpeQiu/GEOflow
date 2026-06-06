@@ -68,7 +68,10 @@
         $todayArticles = (int) ($todayStats['today_articles'] ?? 0);
         $todayVisits = (int) ($todayStats['today_views'] ?? 0);
         $aiBotCount = (int) ($todayStats['today_ai_bot_views'] ?? 0);
-        $riskCount = $failedJobs + $distributionFailed + $urlImportFailed;
+        $evalPending = (int) ($stats['eval_pending'] ?? 0);
+        $evalFailed = (int) ($stats['eval_failed'] ?? 0);
+        $evalPassed = (int) ($stats['eval_passed'] ?? 0);
+        $riskCount = $failedJobs + $distributionFailed + $urlImportFailed + $evalFailed;
 
         $aiStatus = ($chatModels + $embeddingModels) > 0 ? 'ready' : 'warning';
         $materialsStatus = $unvectorizedChunks > 0 ? 'warning' : ($materialLibraryCount > 0 ? 'ready' : 'available');
@@ -76,6 +79,7 @@
         $taskStatus = $failedJobs > 0 ? 'error' : (($runningJobs + $pendingJobs) > 0 ? 'running' : ($activeTasks > 0 ? 'ready' : 'available'));
         $contentStatus = $todayArticles > 0 ? 'running' : (($publishedArticles + $draftArticles) > 0 ? 'ready' : 'available');
         $reviewStatus = $pendingReview > 0 ? 'warning' : 'ready';
+        $geoEvalStatus = $evalFailed > 0 ? 'error' : ($evalPending > 0 ? 'running' : ($evalPassed > 0 ? 'ready' : 'available'));
         $distributionStatus = $distributionFailed > 0 ? 'error' : ($distributionPending > 0 ? 'warning' : ($channelsActive > 0 ? 'ready' : 'available'));
         $feedbackStatus = $todayVisits > 0 ? 'running' : 'available';
         $runningBadgeCount = (int) (($runningJobs + $pendingJobs) > 0)
@@ -85,7 +89,8 @@
             + (int) ($unvectorizedChunks > 0)
             + (int) ($pendingReview > 0)
             + (int) ($distributionFailed > 0)
-            + (int) ($urlImportFailed > 0);
+            + (int) ($urlImportFailed > 0)
+            + (int) ($evalFailed > 0);
 
         $flowNodes = [
             [
@@ -181,6 +186,22 @@
                 ],
             ],
             [
+                'title' => __('admin.dashboard.automation.node_geo_eval_title'),
+                'desc' => __('admin.dashboard.automation.node_geo_eval_desc'),
+                'icon' => 'shield-check',
+                'tone' => 'cyan',
+                'status' => $geoEvalStatus,
+                'metrics' => [
+                    __('admin.dashboard.automation.metric_eval_pending', ['count' => $evalPending]),
+                    __('admin.dashboard.automation.metric_eval_failed', ['count' => $evalFailed]),
+                    __('admin.dashboard.automation.metric_eval_passed', ['count' => $evalPassed]),
+                ],
+                'actions' => [
+                    ['label' => __('admin.dashboard.automation.action_geo_eval'), 'href' => route('admin.geo-eval.diagnostics'), 'primary' => true, 'warning' => $evalFailed > 0],
+                    ['label' => __('admin.dashboard.automation.action_insight_templates'), 'href' => route('admin.insight-templates.index'), 'primary' => false],
+                ],
+            ],
+            [
                 'title' => __('admin.dashboard.automation.node_distribution_title'),
                 'desc' => __('admin.dashboard.automation.node_distribution_desc'),
                 'icon' => 'radio-tower',
@@ -213,6 +234,17 @@
         ];
 
         $recommendations = [
+            [
+                'title' => __('admin.dashboard.automation.rec_eval_failed_title'),
+                'desc' => __('admin.dashboard.automation.rec_eval_failed_desc'),
+                'count' => $evalFailed,
+                'icon' => 'shield-alert',
+                'style' => 'border-cyan-200 bg-cyan-50',
+                'badge' => 'error',
+                'href' => route('admin.geo-eval.diagnostics'),
+                'button' => __('admin.dashboard.automation.action_geo_eval'),
+                'buttonStyle' => 'border-cyan-300 bg-cyan-600 text-white hover:bg-cyan-700',
+            ],
             [
                 'title' => __('admin.dashboard.automation.rec_distribution_title'),
                 'desc' => __('admin.dashboard.automation.rec_distribution_desc'),
@@ -312,35 +344,13 @@
                 'desc' => __('admin.dashboard.automation.lane_feedback_desc'),
                 'rows' => [
                     ['title' => __('admin.dashboard.navigation.analytics_title'), 'desc' => __('admin.dashboard.automation.lane_analytics_desc'), 'href' => route('admin.analytics'), 'icon' => 'chart-no-axes-combined', 'count' => $todayVisits],
+                    ['title' => __('admin.geo_eval.diagnostics_title'), 'desc' => __('admin.geo_eval.diagnostics_subtitle'), 'href' => route('admin.geo-eval.diagnostics'), 'icon' => 'shield-check', 'count' => $evalFailed],
                     ['title' => __('admin.dashboard.automation.lane_ai_bot_title'), 'desc' => __('admin.dashboard.automation.lane_ai_bot_desc'), 'href' => route('admin.analytics'), 'icon' => 'bot', 'count' => $aiBotCount],
                     ['title' => __('admin.dashboard.automation.lane_risk_title'), 'desc' => __('admin.dashboard.automation.lane_risk_desc'), 'href' => route('admin.analytics'), 'icon' => 'triangle-alert', 'count' => $riskCount],
                 ],
             ],
         ];
 
-        $skillResourceCards = [
-            [
-                'title' => __('admin.dashboard.skill_resources.template_title'),
-                'desc' => __('admin.dashboard.skill_resources.template_desc'),
-                'href' => 'https://github.com/yaojingang/yao-geo-skills/tree/main/skills/yao-geoflow-template',
-                'icon' => 'layers-3',
-                'tone' => 'blue',
-            ],
-            [
-                'title' => __('admin.dashboard.skill_resources.design_title'),
-                'desc' => __('admin.dashboard.skill_resources.design_desc'),
-                'href' => 'https://github.com/yaojingang/yao-geo-skills/tree/main/skills/yao-geoflow-design',
-                'icon' => 'palette',
-                'tone' => 'violet',
-            ],
-            [
-                'title' => __('admin.dashboard.skill_resources.cli_title'),
-                'desc' => __('admin.dashboard.skill_resources.cli_desc'),
-                'href' => 'https://github.com/yaojingang/yao-geo-skills/tree/main/skills/yao-geoflow-cli',
-                'icon' => 'terminal',
-                'tone' => 'slate',
-            ],
-        ];
     @endphp
 
     <div class="px-4 sm:px-0">
@@ -360,6 +370,38 @@
                 </a>
             </div>
         </div>
+
+        <section class="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div class="rounded-lg border border-violet-200 bg-violet-50/60 p-5">
+                <p class="text-xs font-semibold uppercase tracking-wide text-violet-700">{{ __('admin.dashboard.layers.l1_label') }}</p>
+                <h2 class="mt-2 text-lg font-semibold text-gray-900">{{ __('admin.dashboard.layers.l1_title') }}</h2>
+                <p class="mt-2 text-sm text-gray-600">{{ __('admin.dashboard.layers.l1_desc') }}</p>
+                <div class="mt-4 flex flex-wrap gap-2">
+                    <a href="{{ route('admin.insight-templates.index') }}" class="text-sm font-medium text-violet-800 hover:underline">{{ __('admin.nav.insight_templates') }}</a>
+                    <a href="{{ route('admin.geo-eval.diagnostics') }}" class="text-sm font-medium text-violet-800 hover:underline">{{ __('admin.nav.geo_eval') }}</a>
+                    <a href="{{ route('admin.analytics') }}" class="text-sm font-medium text-violet-800 hover:underline">{{ __('admin.nav.analytics') }}</a>
+                </div>
+            </div>
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50/60 p-5">
+                <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">{{ __('admin.dashboard.layers.l2_label') }}</p>
+                <h2 class="mt-2 text-lg font-semibold text-gray-900">{{ __('admin.dashboard.layers.l2_title') }}</h2>
+                <p class="mt-2 text-sm text-gray-600">{{ __('admin.dashboard.layers.l2_desc') }}</p>
+                <div class="mt-4 flex flex-wrap gap-2">
+                    <a href="{{ route('admin.materials.index') }}" class="text-sm font-medium text-emerald-800 hover:underline">{{ __('admin.nav.materials') }}</a>
+                    <a href="{{ route('admin.ai.configurator') }}" class="text-sm font-medium text-emerald-800 hover:underline">{{ __('admin.nav.ai_config') }}</a>
+                </div>
+            </div>
+            <div class="rounded-lg border border-blue-200 bg-blue-50/60 p-5">
+                <p class="text-xs font-semibold uppercase tracking-wide text-blue-700">{{ __('admin.dashboard.layers.l3_label') }}</p>
+                <h2 class="mt-2 text-lg font-semibold text-gray-900">{{ __('admin.dashboard.layers.l3_title') }}</h2>
+                <p class="mt-2 text-sm text-gray-600">{{ __('admin.dashboard.layers.l3_desc') }}</p>
+                <div class="mt-4 flex flex-wrap gap-2">
+                    <a href="{{ route('admin.tasks.index') }}" class="text-sm font-medium text-blue-800 hover:underline">{{ __('admin.nav.tasks') }}</a>
+                    <a href="{{ route('admin.articles.index') }}" class="text-sm font-medium text-blue-800 hover:underline">{{ __('admin.nav.articles') }}</a>
+                    <a href="{{ route('admin.distribution.index') }}" class="text-sm font-medium text-blue-800 hover:underline">{{ __('admin.nav.distribution') }}</a>
+                </div>
+            </div>
+        </section>
 
         <section class="mb-8 overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
             <div class="flex flex-col gap-4 border-b border-gray-100 px-6 py-5 lg:flex-row lg:items-start lg:justify-between">
@@ -555,33 +597,6 @@
                     </div>
                 </div>
             @endforeach
-        </section>
-
-        <section>
-            <div class="mb-5">
-                <h2 class="text-xl font-semibold text-gray-900">{{ __('admin.dashboard.skill_resources.title') }}</h2>
-                <p class="mt-1 text-sm text-gray-600">{{ __('admin.dashboard.skill_resources.desc') }}</p>
-            </div>
-            <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
-                @foreach ($skillResourceCards as $card)
-                    @php($toneClass = $toneStyles[$card['tone']] ?? $toneStyles['slate'])
-                    <a href="{{ $card['href'] }}" target="_blank" rel="noopener noreferrer" class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200 transition hover:-translate-y-0.5 hover:shadow-md">
-                        <div class="flex items-start gap-4">
-                            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ $toneClass }}">
-                                <i data-lucide="{{ $card['icon'] }}" class="h-5 w-5"></i>
-                            </div>
-                            <div class="min-w-0">
-                                <h3 class="text-base font-semibold text-gray-900">{{ $card['title'] }}</h3>
-                                <p class="mt-2 text-sm leading-6 text-gray-500">{{ $card['desc'] }}</p>
-                                <span class="mt-4 inline-flex items-center text-sm font-medium text-blue-600">
-                                    {{ __('admin.dashboard.skill_resources.open') }}
-                                    <i data-lucide="external-link" class="ml-1.5 h-4 w-4"></i>
-                                </span>
-                            </div>
-                        </div>
-                    </a>
-                @endforeach
-            </div>
         </section>
     </div>
 @endsection

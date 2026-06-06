@@ -18,9 +18,14 @@ use App\Http\Controllers\Admin\AuthorController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DistributionController;
+use App\Http\Controllers\Admin\GeoEvalAlertsController;
+use App\Http\Controllers\Admin\GeoEvalDiagnosticsController;
+use App\Http\Controllers\Admin\KnowledgeSettingsController;
 use App\Http\Controllers\Admin\ImageLibraryController;
+use App\Http\Controllers\Admin\InsightTemplateController;
 use App\Http\Controllers\Admin\KeywordLibraryController;
 use App\Http\Controllers\Admin\KnowledgeBaseController;
+use App\Http\Controllers\Admin\KnowledgeRagSandboxController;
 use App\Http\Controllers\Admin\LegacyController;
 use App\Http\Controllers\Admin\MaterialsController;
 use App\Http\Controllers\Admin\SecuritySettingsController;
@@ -28,12 +33,16 @@ use App\Http\Controllers\Admin\SiteSettingsController;
 use App\Http\Controllers\Admin\TaskController;
 use App\Http\Controllers\Admin\TitleLibraryController;
 use App\Http\Controllers\Admin\UrlImportController;
+use App\Http\Controllers\Internal\ContentAgentCallbackController;
 use App\Http\Controllers\Site\ArchiveController;
 use App\Http\Controllers\Site\ArticleController as SiteArticleController;
 use App\Http\Controllers\Site\CategoryController as SiteCategoryController;
 use App\Http\Controllers\Site\HomeController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+
+Route::post('/internal/content-agent/callback', ContentAgentCallbackController::class)
+    ->name('internal.content-agent.callback');
 
 Route::middleware(['site.locale', 'site.view_log'])->group(function (): void {
     Route::get('/', [HomeController::class, 'index'])->name('site.home');
@@ -70,6 +79,28 @@ Route::prefix($adminPrefix)->name('admin.')->middleware(['admin.locale'])->group
         Route::post('welcome/dismiss', [AdminWelcomeController::class, 'dismiss'])->name('welcome.dismiss');
         Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
         Route::get('analytics', [AnalyticsController::class, 'index'])->name('analytics');
+        Route::prefix('geo-eval')->name('geo-eval.')->group(function () {
+            Route::get('diagnostics', [GeoEvalDiagnosticsController::class, 'index'])->name('diagnostics');
+            Route::get('alerts', [GeoEvalAlertsController::class, 'index'])->name('alerts');
+            Route::post('articles/{articleId}/reevaluate', [GeoEvalDiagnosticsController::class, 'reevaluate'])
+                ->name('reevaluate')
+                ->whereNumber('articleId');
+            Route::post('reevaluate-failed', [GeoEvalDiagnosticsController::class, 'batchReevaluate'])->name('reevaluate-failed');
+        });
+        Route::prefix('knowledge-settings')->name('knowledge-settings.')->group(function () {
+            Route::get('/', [KnowledgeSettingsController::class, 'index'])->name('index');
+            Route::put('/', [KnowledgeSettingsController::class, 'update'])->name('update');
+        });
+        Route::prefix('insight-templates')->name('insight-templates.')->group(function () {
+            Route::get('/', [InsightTemplateController::class, 'index'])->name('index');
+            Route::get('create', [InsightTemplateController::class, 'create'])->name('create');
+            Route::post('create', [InsightTemplateController::class, 'store'])->name('store');
+            Route::get('{templateId}', [InsightTemplateController::class, 'show'])->name('show')->whereNumber('templateId');
+            Route::get('{templateId}/edit', [InsightTemplateController::class, 'edit'])->name('edit')->whereNumber('templateId');
+            Route::put('{templateId}', [InsightTemplateController::class, 'update'])->name('update')->whereNumber('templateId');
+            Route::post('{templateId}/delete', [InsightTemplateController::class, 'destroy'])->name('destroy')->whereNumber('templateId');
+            Route::post('{templateId}/re-mine', [InsightTemplateController::class, 'remine'])->name('remine')->whereNumber('templateId');
+        });
 
         // 任务管理（Blade 新路径）
         Route::prefix('tasks')->name('tasks.')->group(function () {
@@ -191,6 +222,7 @@ Route::prefix($adminPrefix)->name('admin.')->middleware(['admin.locale'])->group
 
         // 素材管理：知识库管理
         Route::prefix('knowledge-bases')->name('knowledge-bases.')->group(function () {
+            Route::get('rag-sandbox', [KnowledgeRagSandboxController::class, 'index'])->name('rag-sandbox');
             Route::get('/', [KnowledgeBaseController::class, 'index'])->name('index');
             Route::get('create', [KnowledgeBaseController::class, 'create'])->name('create');
             Route::post('create', [KnowledgeBaseController::class, 'store'])->name('store');

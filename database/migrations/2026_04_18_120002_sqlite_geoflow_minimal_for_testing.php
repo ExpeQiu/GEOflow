@@ -1,7 +1,7 @@
 <?php
 
 /**
- * 仅在 PHPUnit（APP_ENV=testing）且 SQLite 内存库下创建 GEOFlow 最小表结构，
+ * 仅在 PHPUnit（APP_ENV=testing）且 SQLite 内存库下创建 GEOworkflow 最小表结构，
  * 供 API 契约测试使用。生产/开发 PostgreSQL 仍以 120000 全量 SQL 为准，勿依赖本迁移。
  */
 
@@ -165,6 +165,7 @@ return new class extends Migration
             $table->foreignId('title_library_id')->nullable()->constrained('title_libraries');
             $table->foreignId('image_library_id')->nullable()->constrained('image_libraries');
             $table->foreignId('knowledge_base_id')->nullable()->constrained('knowledge_bases');
+            $table->unsignedBigInteger('insight_template_id')->nullable();
             $table->foreignId('prompt_id')->nullable()->constrained('prompts');
             $table->foreignId('ai_model_id')->nullable()->constrained('ai_models');
             $table->integer('image_count')->default(0);
@@ -228,11 +229,87 @@ return new class extends Migration
             $table->text('meta_description')->nullable();
             $table->string('status', 20)->default('draft');
             $table->string('review_status', 20)->default('pending');
+            $table->string('eval_status', 32)->default('skipped');
+            $table->text('eval_meta')->nullable();
             $table->integer('view_count')->default(0);
             $table->integer('is_ai_generated')->default(0);
             $table->timestamps();
             $table->timestamp('published_at')->nullable();
             $table->softDeletes();
+        });
+
+        Schema::create('article_evaluations', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('article_id')->constrained('articles')->cascadeOnDelete();
+            $table->unsignedBigInteger('task_run_id')->nullable();
+            $table->string('idempotency_key', 191);
+            $table->string('eval_type', 32)->default('simulation');
+            $table->string('status', 32)->default('pending_eval');
+            $table->string('request_id', 64)->nullable();
+            $table->text('metrics')->nullable();
+            $table->string('failure_reason', 500)->nullable();
+            $table->text('raw_response')->nullable();
+            $table->timestamps();
+            $table->unique(['article_id', 'idempotency_key']);
+        });
+
+        Schema::create('insight_templates', function (Blueprint $table) {
+            $table->id();
+            $table->string('name', 120);
+            $table->string('source_url', 500)->nullable();
+            $table->text('style_guide')->nullable();
+            $table->text('features')->nullable();
+            $table->decimal('eeat_score', 5, 2)->nullable();
+            $table->unsignedBigInteger('created_by_admin_id')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('geo_eval_event_logs', function (Blueprint $table) {
+            $table->id();
+            $table->string('request_id', 64);
+            $table->unsignedBigInteger('task_id')->nullable();
+            $table->unsignedBigInteger('article_id')->nullable();
+            $table->unsignedBigInteger('channel_id')->nullable();
+            $table->string('eval_status', 32)->nullable();
+            $table->string('event', 120);
+            $table->string('level', 16)->default('info');
+            $table->string('message', 500)->nullable();
+            $table->text('context')->nullable();
+            $table->timestamp('created_at')->nullable();
+        });
+
+        Schema::create('geo_strategy_metric_snapshots', function (Blueprint $table) {
+            $table->id();
+            $table->date('metric_date');
+            $table->string('platform', 64)->default('');
+            $table->decimal('adoption_rate', 8, 4)->default(0);
+            $table->decimal('first_position_rate', 8, 4)->default(0);
+            $table->unsignedInteger('sample_size')->default(0);
+            $table->unsignedInteger('passed_count')->default(0);
+            $table->text('meta')->nullable();
+            $table->timestamps();
+            $table->unique(['metric_date', 'platform']);
+        });
+
+        Schema::create('geo_market_scan_runs', function (Blueprint $table) {
+            $table->id();
+            $table->string('scan_type', 32)->default('weekly');
+            $table->string('status', 32)->default('completed');
+            $table->text('summary_json')->nullable();
+            $table->timestamp('ran_at')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('geo_admin_alerts', function (Blueprint $table) {
+            $table->id();
+            $table->string('alert_type', 64);
+            $table->string('severity', 16)->default('warning');
+            $table->decimal('threshold', 8, 4)->nullable();
+            $table->decimal('current_value', 8, 4)->nullable();
+            $table->string('message', 500)->nullable();
+            $table->text('channels')->nullable();
+            $table->integer('notified_feishu')->default(0);
+            $table->timestamp('created_at')->nullable();
         });
 
         Schema::create('task_runs', function (Blueprint $table) {
@@ -247,6 +324,24 @@ return new class extends Migration
             $table->timestamp('finished_at')->nullable();
             $table->timestamp('created_at')->nullable();
         });
+
+        Schema::create('content_agent_requests', function (Blueprint $table) {
+            $table->id();
+            $table->uuid('request_id')->unique();
+            $table->string('workflow_type', 32);
+            $table->string('backend', 16)->default('external');
+            $table->string('engine_hint', 64)->nullable();
+            $table->string('status', 20)->default('pending');
+            $table->string('correlation_type', 32)->nullable();
+            $table->unsignedBigInteger('correlation_id')->nullable();
+            $table->string('contract_version', 16)->default('1.0');
+            $table->longText('payload_json')->nullable();
+            $table->longText('result_json')->nullable();
+            $table->text('error_message')->nullable();
+            $table->timestamp('submitted_at')->nullable();
+            $table->timestamp('completed_at')->nullable();
+            $table->timestamps();
+        });
     }
 
     public function down(): void
@@ -256,6 +351,13 @@ return new class extends Migration
         }
 
         Schema::dropIfExists('task_runs');
+        Schema::dropIfExists('content_agent_requests');
+        Schema::dropIfExists('geo_admin_alerts');
+        Schema::dropIfExists('geo_market_scan_runs');
+        Schema::dropIfExists('geo_strategy_metric_snapshots');
+        Schema::dropIfExists('geo_eval_event_logs');
+        Schema::dropIfExists('insight_templates');
+        Schema::dropIfExists('article_evaluations');
         Schema::dropIfExists('articles');
         Schema::dropIfExists('tasks');
         Schema::dropIfExists('images');

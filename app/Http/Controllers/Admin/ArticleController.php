@@ -4,10 +4,11 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Article;
+use App\Models\ArticleEvaluation;
 use App\Models\Author;
 use App\Models\Category;
 use App\Models\Task;
-use App\Services\GeoFlow\DistributionOrchestrator;
+use App\Services\GeoFlow\ArticlePublishService;
 use App\Support\AdminWeb;
 use App\Support\GeoFlow\ArticleWorkflow;
 use Illuminate\Database\QueryException;
@@ -26,7 +27,7 @@ use Throwable;
  */
 class ArticleController extends Controller
 {
-    public function __construct(private readonly DistributionOrchestrator $distributionOrchestrator) {}
+    public function __construct(private readonly ArticlePublishService $articlePublishService) {}
 
     /**
      * 文章管理首页：渲染筛选与列表。
@@ -234,9 +235,7 @@ class ArticleController extends Controller
                 'is_hot' => (bool) ($payload['is_hot'] ?? false),
                 'is_featured' => (bool) ($payload['is_featured'] ?? false),
             ]);
-            if ($workflowState['status'] === 'published') {
-                $this->distributionOrchestrator->enqueueForArticle($article);
-            }
+            $this->syncDistributionAfterWorkflowChange($article, 'publish');
         } catch (Throwable $e) {
             return back()->withInput()->withErrors(__('admin.article_create.error.create_exception', ['message' => $e->getMessage()]));
         }
@@ -252,9 +251,19 @@ class ArticleController extends Controller
     public function edit(int $articleId): View|RedirectResponse
     {
         $article = Article::query()
-            ->with(['task:id,name', 'author:id,name', 'category:id,name'])
+            ->with(['task:id,name,publish_scope', 'author:id,name', 'category:id,name'])
             ->whereKey($articleId)
             ->firstOrFail();
+
+        $evalStatus = (string) ($article->eval_status ?? '');
+        $evalFailureReason = '';
+        if ($evalStatus === 'failed') {
+            $evalFailureReason = (string) (ArticleEvaluation::query()
+                ->where('article_id', $articleId)
+                ->where('status', 'failed')
+                ->orderByDesc('id')
+                ->value('failure_reason') ?? '');
+        }
 
         return view('admin.articles.form', [
             'pageTitle' => __('admin.article_edit.page_title'),
@@ -275,6 +284,12 @@ class ArticleController extends Controller
                 'slug' => (string) $article->slug,
                 'published_at' => $article->published_at?->format('Y-m-d H:i:s'),
                 'task_name' => (string) ($article->task->name ?? ''),
+                'task_id' => (int) ($article->task_id ?? 0),
+                'publish_scope' => (string) ($article->task?->publish_scope ?? 'local_and_distribution'),
+                'eval_status' => $evalStatus,
+                'eval_failure_reason' => $evalFailureReason,
+                'geo_eval_enabled' => (bool) config('geo_eval.enabled'),
+                'geo_eval_gate_enabled' => (bool) config('geo_eval.enabled') && (bool) config('geo_eval.gate_enabled'),
                 'is_hot' => (bool) ($article->is_hot ?? false),
                 'is_featured' => (bool) ($article->is_featured ?? false),
             ],
@@ -297,6 +312,7 @@ class ArticleController extends Controller
         );
 
         try {
+            $previousStatus = (string) $article->status;
             $article->fill([
                 'title' => $payload['title'],
                 'slug' => $payload['title'] === $article->title
@@ -314,8 +330,11 @@ class ArticleController extends Controller
                 'is_hot' => (bool) ($payload['is_hot'] ?? false),
                 'is_featured' => (bool) ($payload['is_featured'] ?? false),
             ])->save();
-            if ($workflowState['status'] === 'published') {
-                $this->distributionOrchestrator->enqueueForArticle($article);
+            $distributionAction = in_array($workflowState['status'], ['published', 'private'], true)
+                ? ($previousStatus !== $workflowState['status'] ? 'publish' : 'update')
+                : null;
+            if ($distributionAction !== null) {
+                $this->syncDistributionAfterWorkflowChange($article->fresh(), $distributionAction);
             }
         } catch (Throwable $e) {
             return back()->withInput()->withErrors(__('admin.article_edit.error.update_exception', ['message' => $e->getMessage()]));
@@ -629,8 +648,9 @@ class ArticleController extends Controller
                 'published_at' => $workflowState['published_at'],
             ]);
 
-            if ($workflowState['status'] === 'published') {
-                $this->distributionOrchestrator->enqueueForArticle((int) $article->id);
+            $fresh = Article::query()->whereKey((int) $article->id)->first();
+            if ($fresh) {
+                $this->syncDistributionAfterWorkflowChange($fresh, 'publish');
             }
         }
 
@@ -654,17 +674,7 @@ class ArticleController extends Controller
             ->get();
 
         foreach ($articles as $article) {
-            $desiredStatus = (string) ($article->status ?? 'draft');
-            $needsReview = (int) ($article->task->need_review ?? 0);
-            if (in_array($reviewStatus, ['approved', 'auto_approved'], true) && ($reviewStatus === 'auto_approved' || $needsReview === 0)) {
-                $desiredStatus = 'published';
-            }
-
-            $workflowState = ArticleWorkflow::normalizeState(
-                $desiredStatus,
-                $reviewStatus,
-                $article->published_at?->format('Y-m-d H:i:s')
-            );
+            $workflowState = $this->articlePublishService->resolveWorkflowForApproval($article, $reviewStatus);
 
             Article::query()->whereKey((int) $article->id)->update([
                 'status' => $workflowState['status'],
@@ -672,8 +682,9 @@ class ArticleController extends Controller
                 'published_at' => $workflowState['published_at'],
             ]);
 
-            if ($workflowState['status'] === 'published') {
-                $this->distributionOrchestrator->enqueueForArticle((int) $article->id);
+            $fresh = Article::query()->whereKey((int) $article->id)->first();
+            if ($fresh) {
+                $this->syncDistributionAfterWorkflowChange($fresh, 'publish');
             }
         }
 
@@ -687,10 +698,20 @@ class ArticleController extends Controller
     {
         $articles = Article::query()->whereIn('id', $articleIds)->get();
         foreach ($articles as $article) {
+            $this->articlePublishService->enqueueDistributionAfterDelete($article);
             Article::query()->whereKey((int) $article->id)->delete();
         }
 
         return back()->with('message', __('admin.articles.message.batch_delete_success', ['count' => count($articleIds)]));
+    }
+
+    private function syncDistributionAfterWorkflowChange(Article $article, string $action): void
+    {
+        if (! in_array((string) $article->status, ['published', 'private'], true)) {
+            return;
+        }
+
+        $this->articlePublishService->enqueueDistributionAfterPublish($article, $action);
     }
 
     /**

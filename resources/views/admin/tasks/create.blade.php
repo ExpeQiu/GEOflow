@@ -123,6 +123,19 @@
                                     @endforeach
                                 </select>
                             </div>
+                            @if (!empty($formOptions['insightTemplates']))
+                            <div>
+                                <label for="insight_template_id" class="block text-sm font-medium text-gray-700">{{ $t('task_create.field.insight_template') }}</label>
+                                <select name="insight_template_id" id="insight_template_id" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="">{{ $t('task_create.option.no_insight_template') }}</option>
+                                    @foreach ($formOptions['insightTemplates'] as $tpl)
+                                        <option value="{{ $tpl['id'] }}" @selected((string) old('insight_template_id', (string) ($taskForm['insight_template_id'] ?? '')) === (string) $tpl['id'])>{{ $tpl['name'] }}</option>
+                                    @endforeach
+                                </select>
+                                <p class="mt-1 text-sm text-gray-500">{!! $t('task_create.help.insight_template') !!}</p>
+                                <a href="{{ route('admin.insight-templates.index') }}" class="mt-1 inline-block text-sm text-blue-600 hover:text-blue-800">{{ __('admin.geo_eval.insight_templates_title') }}</a>
+                            </div>
+                            @endif
                             <div>
                                 <label for="author_id" class="block text-sm font-medium text-gray-700">{{ $t('task_create.field.author') }}</label>
                                 <select name="author_id" id="author_id" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
@@ -236,7 +249,7 @@
                                 <a href="{{ route('admin.distribution.create') }}" class="font-medium text-blue-600 hover:text-blue-700">{{ $t('task_create.distribution.create_link') }}</a>
                             </div>
                         @else
-                            <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                            <div id="distribution-channels-panel" class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                                 @foreach ($formOptions['distributionChannels'] as $channel)
                                     @php($channelId = (string) $channel['id'])
                                     <label data-distribution-channel-card @class([
@@ -473,6 +486,15 @@
             function syncDistributionChannelsByScope() {
                 const selectedScope = document.querySelector('input[name="publish_scope"]:checked');
                 const isLocalOnly = selectedScope && selectedScope.value === 'local_only';
+                const isDistributionOnly = selectedScope && selectedScope.value === 'distribution_only';
+                const channelsPanel = document.getElementById('distribution-channels-panel');
+
+                if (channelsPanel) {
+                    channelsPanel.classList.toggle('ring-2', isDistributionOnly);
+                    channelsPanel.classList.toggle('ring-amber-300', isDistributionOnly);
+                    channelsPanel.classList.toggle('rounded-lg', isDistributionOnly);
+                    channelsPanel.classList.toggle('p-2', isDistributionOnly);
+                }
 
                 distributionChannelInputs.forEach((input) => {
                     input.disabled = isLocalOnly;
@@ -529,6 +551,16 @@
                     alert(@json(__('admin.task_create.error.draft_limit_too_large')));
                     event.preventDefault();
                     return;
+                }
+
+                const selectedScope = document.querySelector('input[name="publish_scope"]:checked');
+                if (selectedScope && selectedScope.value === 'distribution_only') {
+                    const hasChannel = Array.from(distributionChannelInputs).some((input) => input.checked && !input.disabled);
+                    if (!hasChannel) {
+                        alert(@json(__('admin.task_create.error.distribution_only_requires_channel')));
+                        event.preventDefault();
+                        return;
+                    }
                 }
 
                 if (!isEditMode && !confirm(@json(__('admin.task_create.confirm.create')))) {

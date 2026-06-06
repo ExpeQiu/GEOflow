@@ -115,11 +115,26 @@
                                 $failureInfo = $describeTaskFailure($task['batch_error_message'] ?? '');
                                 $failureClasses = $getFailureToneClasses($failureInfo['tone']);
                                 $hasVisibleFailure = !empty($task['batch_error_message']) && in_array($task['batch_status'], ['failed', 'cancelled'], true);
+                                $publishScope = (string) ($task['publish_scope'] ?? 'local_and_distribution');
+                                $publishScopeClass = match ($publishScope) {
+                                    'distribution_only' => 'bg-violet-50 text-violet-700 ring-violet-100',
+                                    'local_only' => 'bg-slate-50 text-slate-700 ring-slate-200',
+                                    default => 'bg-blue-50 text-blue-700 ring-blue-100',
+                                };
+                                $publishScopeLabel = match ($publishScope) {
+                                    'distribution_only' => __('admin.tasks.publish_scope.distribution_only'),
+                                    'local_only' => __('admin.tasks.publish_scope.local_only'),
+                                    default => __('admin.tasks.publish_scope.local_and_distribution'),
+                                };
                             @endphp
                             <tr class="hover:bg-gray-50">
                                 <td class="px-5 py-4 align-top">
                                     <div class="text-sm font-medium leading-6 text-gray-900 break-words">{{ $task['name'] ?? '' }}</div>
+                                    <div class="mt-1 flex flex-wrap items-center gap-2">
+                                        <span id="task-publish-scope-{{ (int) $task['id'] }}" class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 {{ $publishScopeClass }}">{{ $publishScopeLabel }}</span>
+                                    </div>
                                     <div class="mt-1 text-sm text-gray-500 break-words">{{ __('admin.tasks.label.title_library') }}: {{ $task['title_library_name'] ?? '' }}</div>
+                                    <div id="task-eval-hint-{{ (int) $task['id'] }}" class="mt-2"></div>
                                     @if ($hasVisibleFailure)
                                         <div class="mt-2 rounded-md border px-3 py-2 text-xs {{ $failureClasses['card'] }}">
                                             <span class="inline-flex items-center rounded-full border px-2 py-0.5 font-medium {{ $failureClasses['chip'] }}">{{ $failureInfo['label'] }}</span>
@@ -439,6 +454,52 @@ function escapeHtml(value) { return String(value).replaceAll('&', '&amp;').repla
 function truncateText(value, maxLength) { return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`; }
 function normalizeRuntimeError(message) { return String(message || '').trim(); }
 function getFailureMeta() { return {label: TASK_I18N.recentFailed, chipClasses: 'bg-red-50 text-red-700 border-red-200', detailClasses: 'text-red-700'}; }
+
+function publishScopeLabel(scope) {
+    if (scope === 'distribution_only') return TASK_I18N.publishScopeDistributionOnly;
+    if (scope === 'local_only') return TASK_I18N.publishScopeLocalOnly;
+    return TASK_I18N.publishScopeLocalAndDistribution;
+}
+
+function publishScopeClasses(scope) {
+    if (scope === 'distribution_only') return 'bg-violet-50 text-violet-700 ring-violet-100';
+    if (scope === 'local_only') return 'bg-slate-50 text-slate-700 ring-slate-200';
+    return 'bg-blue-50 text-blue-700 ring-blue-100';
+}
+
+function buildEvalHintHtml(task) {
+    const pending = Number(task.eval_pending_count || 0);
+    const failed = Number(task.eval_failed_count || 0);
+    if (pending <= 0 && failed <= 0) return '';
+    const parts = [];
+    if (pending > 0) parts.push(`<span class="text-amber-700">${escapeHtml(TASK_I18N.evalPending.replace('__COUNT__', pending))}</span>`);
+    if (failed > 0) parts.push(`<span class="text-red-700">${escapeHtml(TASK_I18N.evalFailed.replace('__COUNT__', failed))}</span>`);
+    const diagnosticsUrl = TASK_I18N.geoEvalDiagnosticsUrl || '#';
+    return `<div class="flex flex-col gap-1 text-xs">${parts.join(' · ')}<a href="${escapeHtml(diagnosticsUrl)}" class="font-medium text-cyan-700 hover:underline">${escapeHtml(TASK_I18N.openDiagnostics)}</a></div>`;
+}
+
+function updatePublishScopeBadge(task) {
+    const badge = document.getElementById(`task-publish-scope-${task.id}`);
+    if (!badge) return;
+    const scope = String(task.publish_scope || 'local_and_distribution');
+    badge.textContent = publishScopeLabel(scope);
+    badge.className = `inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${publishScopeClasses(scope)}`;
+}
+
+function updateEvalHint(task) {
+    const hint = document.getElementById(`task-eval-hint-${task.id}`);
+    if (!hint) return;
+    const batchStatus = String(task.batch_status || '');
+    const pending = Number(task.eval_pending_count || 0);
+    const failed = Number(task.eval_failed_count || 0);
+    const showHint = pending > 0 || failed > 0;
+    if (!showHint || !['draft_pool_full', 'waiting_publish', 'waiting'].includes(batchStatus)) {
+        hint.innerHTML = '';
+        return;
+    }
+    hint.innerHTML = buildEvalHintHtml(task);
+}
+
 function formatTaskDateTime(value) {
     if (!value) return '';
     const date = new Date(String(value).replace(' ', 'T'));
@@ -469,7 +530,9 @@ function updateBatchStatus(task) {
             const nextPublishAt = formatTaskDateTime(task.next_publish_at || task.next_run_at || '');
             statusDiv.innerHTML = `<div class="flex flex-col gap-1 text-xs"><span class="inline-flex w-fit items-center rounded-full border px-2 py-1 bg-cyan-50 text-cyan-700 border-cyan-200">${escapeHtml(TASK_I18N.waitingPublish)}</span>${nextPublishAt ? `<div class="text-gray-500">${escapeHtml(TASK_I18N.nextRunAt.replace('__TIME__', nextPublishAt))}</div>` : ''}</div>`;
         } else if (task.batch_status === 'draft_pool_full') {
-            statusDiv.innerHTML = `<span class="text-xs text-orange-700 bg-orange-50 px-2 py-1 rounded-full border border-orange-200">${escapeHtml(TASK_I18N.draftPoolFull)}</span>`;
+            const evalBlocked = Number(task.eval_blocked_drafts || 0) > 0;
+            const poolLabel = evalBlocked ? TASK_I18N.draftPoolEvalBlocked : TASK_I18N.draftPoolFull;
+            statusDiv.innerHTML = `<span class="text-xs text-orange-700 bg-orange-50 px-2 py-1 rounded-full border border-orange-200">${escapeHtml(poolLabel)}</span>`;
         } else if (task.batch_status === 'limit_reached') {
             statusDiv.innerHTML = `<span class="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded-full border border-amber-200">${escapeHtml(TASK_I18N.limitReached)}</span>`;
         } else { statusDiv.innerHTML = ''; }
@@ -487,7 +550,9 @@ function updateTaskUI(task) {
     const isActive = task.status === 'active';
     updateBatchButton(btn, task.id, task.name, isActive);
     updateTaskStatusToggle(task.id, isActive);
+    updatePublishScopeBadge(task);
     updateBatchStatus(task);
+    updateEvalHint(task);
 }
 
 function updateTaskStatusToggle(taskId, isActive) {

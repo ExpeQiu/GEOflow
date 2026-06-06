@@ -14,6 +14,9 @@ use Illuminate\Support\Facades\DB;
 
 class ArticleGeoFlowService
 {
+    public function __construct(
+        private readonly ArticlePublishService $articlePublishService,
+    ) {}
     public function listArticles(int $page = 1, int $perPage = 20, array $filters = []): array
     {
         $page = max(1, $page);
@@ -159,25 +162,12 @@ class ArticleGeoFlowService
             ]);
         }
 
-        $desiredStatus = $article['status'] ?? 'draft';
-        if (in_array($reviewStatus, ['approved', 'auto_approved'], true)) {
-            $taskNeedReview = 1;
-            if (! empty($article['task_id'])) {
-                $taskNeedReview = (int) (Task::query()
-                    ->whereKey((int) $article['task_id'])
-                    ->value('need_review') ?? 1);
-            }
-
-            if ($reviewStatus === 'auto_approved' || $taskNeedReview === 0) {
-                $desiredStatus = 'published';
-            }
+        $articleModel = Article::query()->whereKey($articleId)->first();
+        if (! $articleModel) {
+            throw new ApiException('article_not_found', '文章不存在', 404);
         }
 
-        $workflowState = ArticleWorkflow::normalizeState(
-            $desiredStatus,
-            $reviewStatus,
-            $article['published_at'] ?? null
-        );
+        $workflowState = $this->articlePublishService->resolveWorkflowForApproval($articleModel, $reviewStatus);
 
         DB::transaction(function () use ($articleId, $workflowState, $reviewStatus, $reviewNote, $auditAdminId) {
             Article::query()->whereKey($articleId)->update([
@@ -195,22 +185,26 @@ class ArticleGeoFlowService
             ]);
         });
 
+        $fresh = Article::query()->whereKey($articleId)->first();
+        if ($fresh && in_array((string) $fresh->status, ['published', 'private'], true)) {
+            $this->articlePublishService->enqueueDistributionAfterPublish($fresh, 'publish');
+        }
+
         return $this->getArticle($articleId);
     }
 
     public function publishArticle(int $articleId): array
     {
-        $article = $this->getArticleRecord($articleId);
-        $reviewStatus = $article['review_status'] ?? 'pending';
-        if (! in_array($reviewStatus, ['approved', 'auto_approved'], true)) {
-            throw new ApiException('article_not_publishable', '当前文章状态不允许直接发布', 409);
+        $articleModel = Article::query()->whereKey($articleId)->first();
+        if (! $articleModel) {
+            throw new ApiException('article_not_found', '文章不存在', 404);
         }
 
-        $workflowState = ArticleWorkflow::normalizeState(
-            'published',
-            $reviewStatus,
-            $article['published_at'] ?? null
-        );
+        try {
+            $workflowState = $this->articlePublishService->resolveWorkflowForExplicitPublish($articleModel);
+        } catch (\RuntimeException $e) {
+            throw new ApiException('article_not_publishable', $e->getMessage(), 409);
+        }
 
         Article::query()->whereKey($articleId)->update([
             'status' => $workflowState['status'],
@@ -218,6 +212,11 @@ class ArticleGeoFlowService
             'published_at' => $workflowState['published_at'],
             'updated_at' => now(),
         ]);
+
+        $fresh = Article::query()->whereKey($articleId)->first();
+        if ($fresh) {
+            $this->articlePublishService->enqueueDistributionAfterPublish($fresh, 'publish');
+        }
 
         return $this->getArticle($articleId);
     }
@@ -229,6 +228,7 @@ class ArticleGeoFlowService
             throw new ApiException('article_not_found', '文章不存在', 404);
         }
 
+        $this->articlePublishService->enqueueDistributionAfterDelete($article);
         $article->delete();
 
         return [

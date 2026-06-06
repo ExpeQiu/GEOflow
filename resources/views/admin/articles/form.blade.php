@@ -19,6 +19,12 @@
         'slug' => (string) ($articleForm['slug'] ?? ''),
         'published_at' => (string) ($articleForm['published_at'] ?? ''),
         'task_name' => (string) ($articleForm['task_name'] ?? ''),
+        'task_id' => (int) ($articleForm['task_id'] ?? 0),
+        'publish_scope' => (string) ($articleForm['publish_scope'] ?? 'local_and_distribution'),
+        'eval_status' => (string) ($articleForm['eval_status'] ?? ''),
+        'eval_failure_reason' => (string) ($articleForm['eval_failure_reason'] ?? ''),
+        'geo_eval_enabled' => !empty($articleForm['geo_eval_enabled']),
+        'geo_eval_gate_enabled' => !empty($articleForm['geo_eval_gate_enabled']),
         'is_hot' => old('is_hot', !empty($articleForm['is_hot']) ? '1' : '0'),
         'is_featured' => old('is_featured', !empty($articleForm['is_featured']) ? '1' : '0'),
     ];
@@ -41,6 +47,53 @@
                 </p>
             </div>
         </div>
+
+        @if($isEdit && $formData['geo_eval_enabled'] && $formData['eval_status'] !== '')
+            @php
+                $evalBannerClass = match ($formData['eval_status']) {
+                    'passed' => 'border-cyan-200 bg-cyan-50 text-cyan-900',
+                    'skipped' => 'border-slate-200 bg-slate-50 text-slate-800',
+                    'failed' => 'border-red-200 bg-red-50 text-red-900',
+                    'pending_eval' => 'border-amber-200 bg-amber-50 text-amber-900',
+                    default => 'border-gray-200 bg-gray-50 text-gray-800',
+                };
+                $evalBannerMessage = match ($formData['eval_status']) {
+                    'pending_eval' => __('admin.article_edit.eval_banner.pending_eval'),
+                    'failed' => __('admin.article_edit.eval_banner.failed'),
+                    'passed' => __('admin.article_edit.eval_banner.passed'),
+                    'skipped' => __('admin.article_edit.eval_banner.skipped'),
+                    default => '',
+                };
+            @endphp
+            <div class="mb-6 rounded-lg border px-4 py-3 text-sm {{ $evalBannerClass }}">
+                <p class="font-semibold">{{ __('admin.article_edit.eval_banner.title') }}: {{ $formData['eval_status'] }}</p>
+                @if ($evalBannerMessage !== '')
+                    <p class="mt-1">{{ $evalBannerMessage }}</p>
+                @endif
+                @if ($formData['eval_status'] === 'failed' && $formData['eval_failure_reason'] !== '')
+                    <p class="mt-1">{{ __('admin.article_edit.eval_banner.failure_reason', ['reason' => $formData['eval_failure_reason']]) }}</p>
+                @endif
+                @if (! $formData['geo_eval_gate_enabled'])
+                    <p class="mt-1 text-xs opacity-80">{{ __('admin.article_edit.eval_banner.gate_off') }}</p>
+                @endif
+                @if ($formData['publish_scope'] === 'distribution_only')
+                    <p class="mt-2 text-xs">{{ __('admin.article_edit.eval_banner.distribution_only') }}</p>
+                @endif
+                <div class="mt-3 flex flex-wrap gap-3">
+                    <a href="{{ route('admin.geo-eval.diagnostics') }}" class="font-medium underline">{{ __('admin.article_edit.eval_banner.open_diagnostics') }}</a>
+                    @if ($formData['eval_status'] === 'failed')
+                        <form method="POST" action="{{ route('admin.geo-eval.reevaluate', ['articleId' => (int) $articleId]) }}" class="inline">
+                            @csrf
+                            <button type="submit" class="font-medium underline">{{ __('admin.article_edit.eval_banner.reevaluate') }}</button>
+                        </form>
+                    @endif
+                </div>
+            </div>
+        @elseif($isEdit && $formData['publish_scope'] === 'distribution_only')
+            <div class="mb-6 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
+                <p>{{ __('admin.article_edit.eval_banner.distribution_only') }}</p>
+            </div>
+        @endif
 
         <form method="POST" action="{{ $formAction }}" class="space-y-8">
             @csrf

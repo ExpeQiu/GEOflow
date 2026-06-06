@@ -1,5 +1,13 @@
 name: geoflow-laravel
 
+# vendor 使用命名卷，避免外置盘（exFAT 等）bind mount 导致 composer 解压/符号链接不完整
+volumes:
+  geoflow-vendor:
+
+x-geoflow-php-common: &geoflow-php-common
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+
 services:
   postgres:
     image: ${PGVECTOR_IMAGE:-pgvector/pgvector:pg16}
@@ -27,6 +35,7 @@ services:
     restart: unless-stopped
 
   init:
+    <<: *geoflow-php-common
     image: geoflow-app:latest
     build:
       context: .
@@ -45,6 +54,7 @@ services:
       AUTO_INIT_ONCE: "true"
     volumes:
       - ./:/var/www/html
+      - geoflow-vendor:/var/www/html/vendor
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,6 +63,7 @@ services:
     restart: "no"
 
   app:
+    <<: *geoflow-php-common
     image: geoflow-app:latest
     build:
       context: .
@@ -69,12 +80,14 @@ services:
       - "${APP_PORT:-18080}:8080"
     volumes:
       - ./:/var/www/html
+      - geoflow-vendor:/var/www/html/vendor
     depends_on:
       init:
         condition: service_completed_successfully
     restart: unless-stopped
 
   queue:
+    <<: *geoflow-php-common
     image: geoflow-app:latest
     build:
       context: .
@@ -86,15 +99,17 @@ services:
     working_dir: /var/www/html
     env_file:
       - ./.env
-    command: ["php", "artisan", "queue:work", "redis", "--queue=geoflow,distribution,default", "--sleep=1", "--tries=1", "--timeout=300"]
+    command: ["php", "artisan", "queue:work", "redis", "--queue=geoflow,geo_eval,distribution,default", "--sleep=1", "--tries=1", "--timeout=300"]
     volumes:
       - ./:/var/www/html
+      - geoflow-vendor:/var/www/html/vendor
     depends_on:
       init:
         condition: service_completed_successfully
     restart: unless-stopped
 
   scheduler:
+    <<: *geoflow-php-common
     image: geoflow-app:latest
     build:
       context: .
@@ -109,12 +124,14 @@ services:
     command: ["php", "artisan", "schedule:work"]
     volumes:
       - ./:/var/www/html
+      - geoflow-vendor:/var/www/html/vendor
     depends_on:
       init:
         condition: service_completed_successfully
     restart: unless-stopped
 
   reverb:
+    <<: *geoflow-php-common
     image: geoflow-app:latest
     build:
       context: .
@@ -131,7 +148,26 @@ services:
       - "${REVERB_EXPOSE_PORT:-18081}:8080"
     volumes:
       - ./:/var/www/html
+      - geoflow-vendor:/var/www/html/vendor
     depends_on:
       init:
         condition: service_completed_successfully
+    restart: unless-stopped
+
+  content-agent:
+    build:
+      context: ./services/content-agent
+      dockerfile: Dockerfile
+    container_name: geoflow-content-agent
+    environment:
+      CONTENT_AGENT_DRIVER: ${CONTENT_AGENT_DRIVER:-langgraph}
+      CONTENT_AGENT_CONTRACT_VERSION: ${CONTENT_AGENT_CONTRACT_VERSION:-1.0}
+      CONTENT_AGENT_CALLBACK_SECRET: ${CONTENT_AGENT_CALLBACK_SECRET:-}
+      LARAVEL_CALLBACK_URL: ${CONTENT_AGENT_CALLBACK_URL:-http://app:8080/internal/content-agent/callback}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+    depends_on:
+      app:
+        condition: service_started
     restart: unless-stopped

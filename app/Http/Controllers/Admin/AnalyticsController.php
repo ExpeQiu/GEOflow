@@ -10,6 +10,7 @@ use App\Models\Task;
 use App\Services\Admin\Analytics\AnalyticsFilter;
 use App\Services\Admin\Analytics\AnalyticsLogQueryService;
 use App\Services\Admin\Analytics\AnalyticsOverviewService;
+use App\Services\Admin\Analytics\GeoEvalAnalyticsService;
 use App\Support\AdminWeb;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -19,11 +20,14 @@ class AnalyticsController extends Controller
     public function __construct(
         private readonly AnalyticsOverviewService $overviewService,
         private readonly AnalyticsLogQueryService $logQueryService,
+        private readonly GeoEvalAnalyticsService $geoEvalAnalyticsService,
     ) {}
 
     public function index(Request $request): View
     {
         $filter = AnalyticsFilter::fromRequest($request->query());
+        $geoDays = max(7, min(90, (int) $request->query('geo_days', 30)));
+        $geoPlatform = trim((string) $request->query('geo_platform', ''));
 
         return view('admin.analytics.index', [
             'pageTitle' => __('admin.analytics.page_title'),
@@ -47,6 +51,11 @@ class AnalyticsController extends Controller
             'aiHealth' => $this->overviewService->aiHealth(),
             'urlImportHealth' => $this->overviewService->urlImportHealth($filter),
             'logSummary' => $this->logQueryService->summary($filter),
+            'geoEvalSummary' => $this->geoEvalAnalyticsService->summary(),
+            'geoAdoptionDashboard' => $this->geoEvalAnalyticsService->adoptionDashboard($geoDays, $geoPlatform),
+            'geoDays' => $geoDays,
+            'geoPlatform' => $geoPlatform,
+            'geoPlatformOptions' => DistributionChannel::query()->orderBy('name')->pluck('name', 'id'),
         ]);
     }
 

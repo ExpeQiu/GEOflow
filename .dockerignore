@@ -2,6 +2,9 @@
 .github
 .idea
 .vscode
+**/._*
+._*
+.DS_Store
 vendor
 node_modules
 .env

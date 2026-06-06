@@ -78,15 +78,20 @@ class ProcessGeoFlowTaskJob implements ShouldQueue
 
         $startedAt = microtime(true);
         try {
-            $result = $workerExecutionService->executeTask($taskId);
+            $result = $workerExecutionService->executeTask($taskId, $this->taskRunId);
             $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
+            $meta = is_array(Arr::get($result, 'meta')) ? Arr::get($result, 'meta') : [];
+
+            if (($meta['action'] ?? '') === 'awaiting_external_agent') {
+                return;
+            }
 
             $queueService->completeJob(
                 jobId: $this->taskRunId,
                 taskId: $taskId,
                 articleId: Arr::get($result, 'article_id') !== null ? (int) Arr::get($result, 'article_id') : null,
                 durationMs: $durationMs,
-                meta: is_array(Arr::get($result, 'meta')) ? Arr::get($result, 'meta') : []
+                meta: $meta
             );
         } catch (Throwable $exception) {
             $durationMs = (int) round((microtime(true) - $startedAt) * 1000);

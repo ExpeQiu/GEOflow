@@ -20,13 +20,18 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use App\Services\GeoFlow\Contracts\ContentAgentClientInterface;
+use App\Services\GeoFlow\ContentAgent\ContentAgentAsyncSubmittedException;
 use Throwable;
 
 final class UrlImportProcessingService
 {
     private const AI_ANALYSIS_MAX_ATTEMPTS = 3;
 
-    public function __construct(private readonly ApiKeyCrypto $apiKeyCrypto) {}
+    public function __construct(
+        private readonly ApiKeyCrypto $apiKeyCrypto,
+        private readonly ContentAgentClientInterface $contentAgentClient,
+    ) {}
 
     /**
      * @return array{url:string,host:string}
@@ -141,6 +146,10 @@ final class UrlImportProcessingService
             $this->log($job, 'info', __('admin.url_import.log.page_json_done', [
                 'chars' => mb_strlen((string) data_get($parsed, 'raw_json.text', ''), 'UTF-8'),
             ]));
+
+            if ($this->contentAgentClient->supportedBackend() === 'external') {
+                return $this->submitExternalAnalysis($parsed, $fetched, $job);
+            }
 
             $analysis = $this->buildAnalysis($parsed, $job);
 
@@ -345,7 +354,7 @@ final class UrlImportProcessingService
         $response = Http::timeout(20)
             ->connectTimeout(8)
             ->withHeaders([
-                'User-Agent' => 'GEOFlow URL Importer/1.0',
+                'User-Agent' => 'GEOworkflow URL Importer/1.0',
                 'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             ])
             ->get($url);
@@ -407,6 +416,44 @@ final class UrlImportProcessingService
                 'text' => Str::limit($text, 20000, ''),
             ],
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $parsed
+     * @param  array<string, mixed>  $fetched
+     */
+    private function submitExternalAnalysis(array $parsed, array $fetched, UrlImportJob $job): UrlImportJob
+    {
+        $model = $this->assertAnalysisModelReady();
+        $pageJson = $this->buildPageJson($parsed, $job);
+        $runtimeBuilder = app(\App\Services\GeoFlow\ContentAgent\AiModelRuntimeBuilder::class);
+
+        $dispatch = $this->contentAgentClient->dispatchUrlImportAnalysis([
+            'page_json' => $pageJson,
+            'ai_model_id' => (int) $model->id,
+            'model' => $runtimeBuilder->buildForExternalPayload($model),
+            'correlation' => ['type' => 'url_import_job', 'id' => (int) $job->id],
+            'job_context' => [
+                'source' => [
+                    'url' => (string) $job->url,
+                    'normalized_url' => (string) $job->normalized_url,
+                    'domain' => (string) $job->source_domain,
+                    'fetched_at' => now()->toIso8601String(),
+                    'status' => $fetched['status'] ?? 200,
+                ],
+                'page' => $parsed,
+            ],
+        ]);
+
+        $this->updateStep($job, 'awaiting_external_agent', 80, [
+            'status' => 'running',
+            'result_json' => json_encode([
+                'pending_content_agent_request_id' => $dispatch->requestId,
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+        $this->log($job, 'info', '已提交 Content Agent URL 导入分析: '.$dispatch->requestId, 'awaiting_external_agent');
+
+        return $job->refresh();
     }
 
     /**
@@ -708,7 +755,7 @@ final class UrlImportProcessingService
     private function buildCleanSystemPrompt(): string
     {
         return <<<'PROMPT'
-你是 GEOFlow 的网页正文清洗器。只输出 JSON，不要输出 Markdown 代码块。
+你是 GEOworkflow 的网页正文清洗器。只输出 JSON，不要输出 Markdown 代码块。
 字段固定为：clean_title, clean_summary, clean_text, core_business, entities, facts, noise_removed。
 目标：从页面 JSON 中去掉导航、菜单、广告、版权、按钮、登录、推荐流、重复模板文案，只保留页面主体内容和可被知识库引用的事实，并识别页面背后的真实核心业务。
 core_business 必须描述页面主体对应的行业、产品/服务、目标客户、商业场景、价值主张和可验证边界。
@@ -756,7 +803,7 @@ PROMPT;
     private function buildKeywordsSystemPrompt(): string
     {
         return <<<'PROMPT'
-你是 GEOFlow 的核心业务关键词提炼器。只输出 JSON，不要输出 Markdown 代码块。
+你是 GEOworkflow 的核心业务关键词提炼器。只输出 JSON，不要输出 Markdown 代码块。
 字段固定为：keywords。
 keywords 最多 10 个，必须是短关键词或短语。中文关键词优先 2-5 个字，英文关键词优先 1-3 个单词。
 只允许输出基于知识库反推出来的核心业务词根、产品/服务词、行业词、需求场景词、问题词、解决方案词。
@@ -773,7 +820,7 @@ PROMPT;
     private function buildKeywordsUserPrompt(array $pageJson, array $cleaned, string $knowledgeMarkdown): string
     {
         return "请只基于已清洗知识库，提取 5-10 个最核心的业务词根或业务关键词。不要从原网页机械摘词，要先判断业务本质，再输出能带来商业检索价值的短关键词。\n\n"
-            ."GEOFlow 内置规则：\n".$this->builtInGeoCollectionPrompt()."\n\n"
+            ."GEOworkflow 内置规则：\n".$this->builtInGeoCollectionPrompt()."\n\n"
             ."后台关键词提示词：\n".$this->latestPromptContent('keyword')."\n\n"
             ."页面来源与清洗结果：\n".json_encode([
                 'source_url' => $pageJson['source_url'] ?? '',
@@ -789,7 +836,7 @@ PROMPT;
     private function buildTitlesSystemPrompt(): string
     {
         return <<<'PROMPT'
-你是 GEOFlow 的 GEO 标题库构建器。只输出 JSON，不要输出 Markdown 代码块。
+你是 GEOworkflow 的 GEO 标题库构建器。只输出 JSON，不要输出 Markdown 代码块。
 字段固定为：titles。
 titles 最多 50 个，必须基于页面真实信息、知识库和 10 个核心业务词生成，适合后续生成真实可信的 GEO 内容。
 标题角度要多样：是什么、为什么、怎么做、选型、对比、指南、清单、常见问题、场景拆解、趋势判断、2026 趋势或商业价值。
@@ -805,7 +852,7 @@ PROMPT;
      */
     private function buildTitlesUserPrompt(array $pageJson, array $cleaned, string $knowledgeMarkdown, array $keywords): string
     {
-        return "请为 GEOFlow 标题库生成 50 个可用于内容任务的标题。标题要围绕核心业务词展开，必须服务于用户在 AI 搜索中的真实问题、比较、选型、采购、实施或运营决策。\n\n"
+        return "请为 GEOworkflow 标题库生成 50 个可用于内容任务的标题。标题要围绕核心业务词展开，必须服务于用户在 AI 搜索中的真实问题、比较、选型、采购、实施或运营决策。\n\n"
             ."后台正文提示词参考：\n".$this->latestPromptContent('content')."\n\n"
             ."输入：\n".json_encode([
                 'source_url' => $pageJson['source_url'] ?? '',
@@ -820,7 +867,7 @@ PROMPT;
     private function buildKnowledgeSystemPrompt(): string
     {
         return <<<'PROMPT'
-你是 GEOFlow 的知识库构建器。只输出 JSON，不要输出 Markdown 代码块。
+你是 GEOworkflow 的知识库构建器。只输出 JSON，不要输出 Markdown 代码块。
 字段固定为：summary, library_name, knowledge_markdown。
 knowledge_markdown 必须围绕“核心业务”构建，是真实可追溯、结构化、原子化的知识库内容，保留来源 URL，只沉淀页面明确出现或可由页面内容直接归纳的信息。
 必须优先抽取：核心业务、产品/服务、目标用户、业务场景、能力/优势、可验证事实、使用边界、适合支撑的 GEO 内容方向。
@@ -835,7 +882,7 @@ PROMPT;
      */
     private function buildKnowledgeUserPrompt(array $pageJson, array $cleaned, array $keywords): string
     {
-        return "请基于页面 JSON 和清洗正文生成可直接入库的 GEOFlow 知识库 Markdown。先识别核心业务，再把页面信息拆成结构化、原子化事实，最后归纳 GEO 内容可用方向和使用边界。\n\n"
+        return "请基于页面 JSON 和清洗正文生成可直接入库的 GEOworkflow 知识库 Markdown。先识别核心业务，再把页面信息拆成结构化、原子化事实，最后归纳 GEO 内容可用方向和使用边界。\n\n"
             ."后台描述提示词参考：\n".$this->latestPromptContent('description')."\n\n"
             ."输入：\n".json_encode([
                 'source_url' => $pageJson['source_url'] ?? '',
@@ -854,7 +901,7 @@ PROMPT;
     private function builtInGeoCollectionPrompt(): string
     {
         return <<<'PROMPT'
-你正在为 GEOFlow 构建可复用素材库。请把网页内容拆成三类资产：
+你正在为 GEOworkflow 构建可复用素材库。请把网页内容拆成三类资产：
 
 关键词库：
 - 输出短词或短语，不要输出完整句子。

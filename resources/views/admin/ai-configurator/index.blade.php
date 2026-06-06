@@ -9,7 +9,7 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <div class="bg-white overflow-hidden shadow rounded-lg">
                 <div class="p-6">
                     <div class="flex items-center">
@@ -80,6 +80,31 @@
                     <div class="text-sm">
                         <a href="{{ route('admin.ai-special-prompts') }}" class="font-medium text-purple-600 hover:text-purple-500">
                             {{ __('admin.ai_configurator.special_action') }} <span aria-hidden="true">&rarr;</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white overflow-hidden shadow rounded-lg">
+                <div class="p-6">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <div class="w-8 h-8 bg-orange-500 rounded-md flex items-center justify-center">
+                                <i data-lucide="layers" class="w-5 h-5 text-white"></i>
+                            </div>
+                        </div>
+                        <div class="ml-5 w-0 flex-1">
+                            <dl>
+                                <dt class="text-sm font-medium text-gray-500 truncate">{{ __('admin.ai_configurator.rag_title') }}</dt>
+                                <dd class="text-lg font-medium text-gray-900">{{ __('admin.ai_configurator.rag_desc') }}</dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 px-6 py-3">
+                    <div class="text-sm">
+                        <a href="{{ route('admin.knowledge-settings.index') }}" class="font-medium text-orange-600 hover:text-orange-500">
+                            {{ __('admin.ai_configurator.rag_action') }} <span aria-hidden="true">&rarr;</span>
                         </a>
                     </div>
                 </div>

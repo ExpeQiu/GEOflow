@@ -94,9 +94,11 @@ class GeoFlowScheduleTasksCommand extends Command
             $stats = $articleStats->get($taskId, ['draft_articles' => 0, 'publishable_drafts' => 0]);
             $draftCount = (int) ($stats['draft_articles'] ?? 0);
             $publishableDrafts = (int) ($stats['publishable_drafts'] ?? 0);
+            $evalReadyDrafts = $this->countEvalReadyPublishableDrafts($taskId);
             $nextPublishAt = $task->next_publish_at instanceof Carbon ? $task->next_publish_at : null;
-            $canGenerate = $createdCount < $articleLimit && $draftCount < $draftLimit;
-            $canPublishNow = $publishableDrafts > 0 && ($nextPublishAt === null || ! $nextPublishAt->greaterThan($now));
+            $canGenerate = $createdCount < $articleLimit && $draftCount < $draftLimit
+                && ! $this->hasEvalBlockedDraft($taskId);
+            $canPublishNow = $evalReadyDrafts > 0 && ($nextPublishAt === null || ! $nextPublishAt->greaterThan($now));
 
             if (! $canGenerate && ! $canPublishNow) {
                 if ($publishableDrafts > 0 && $nextPublishAt instanceof Carbon) {
@@ -154,5 +156,35 @@ class GeoFlowScheduleTasksCommand extends Command
         ));
 
         return self::SUCCESS;
+    }
+
+    private function countEvalReadyPublishableDrafts(int $taskId): int
+    {
+        $query = \App\Models\Article::query()
+            ->where('task_id', $taskId)
+            ->where('status', 'draft')
+            ->whereIn('review_status', ['approved', 'auto_approved'])
+            ->whereNull('deleted_at');
+
+        if (config('geo_eval.enabled') && config('geo_eval.gate_enabled')) {
+            $query->whereIn('eval_status', ['passed', 'skipped']);
+        }
+
+        return (int) $query->count();
+    }
+
+    private function hasEvalBlockedDraft(int $taskId): bool
+    {
+        if (! config('geo_eval.enabled') || ! config('geo_eval.gate_enabled')) {
+            return false;
+        }
+
+        return \App\Models\Article::query()
+            ->where('task_id', $taskId)
+            ->where('status', 'draft')
+            ->whereIn('review_status', ['approved', 'auto_approved'])
+            ->whereNotIn('eval_status', ['passed', 'skipped'])
+            ->whereNull('deleted_at')
+            ->exists();
     }
 }

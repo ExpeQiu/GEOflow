@@ -133,7 +133,11 @@ class TaskMonitoringQueryService
                 COUNT(*) AS total_articles,
                 SUM(CASE WHEN status = 'published' THEN 1 ELSE 0 END) AS published_articles,
                 SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) AS draft_articles,
-                SUM(CASE WHEN status = 'draft' AND review_status IN ('approved','auto_approved') THEN 1 ELSE 0 END) AS publishable_drafts
+                SUM(CASE WHEN status = 'draft' AND review_status IN ('approved','auto_approved')".(
+                config('geo_eval.enabled') && config('geo_eval.gate_enabled')
+                    ? " AND eval_status IN ('passed','skipped')"
+                    : ''
+            )." THEN 1 ELSE 0 END) AS publishable_drafts
             ")
             ->whereIn('task_id', $taskIds)
             ->whereNull('deleted_at')
@@ -208,7 +212,9 @@ class TaskMonitoringQueryService
             ->whereIn('id', $tasks->pluck('ai_model_id')->filter()->all())
             ->pluck('name', 'id');
 
-        return $tasks->map(function (Task $task) use ($articleStats, $distributionStats, $runStats, $latestRuns, $titleNames, $modelNames): array {
+        $evalStats = $this->aggregateEvalStatsByTask($taskIds);
+
+        return $tasks->map(function (Task $task) use ($articleStats, $distributionStats, $runStats, $latestRuns, $titleNames, $modelNames, $evalStats): array {
             $taskId = (int) $task->id;
             $articles = $articleStats->get($taskId, ['total_articles' => 0, 'published_articles' => 0, 'draft_articles' => 0, 'publishable_drafts' => 0]);
             $distributions = $distributionStats->get($taskId, ['distribution_total_count' => 0, 'distribution_synced_count' => 0, 'distribution_failed_count' => 0]);
@@ -221,6 +227,11 @@ class TaskMonitoringQueryService
             $batchStatus = $this->resolveBatchStatus($task, $runs, $latestRun, $articles);
             // 错误信息优先取最近 run 的 error_message，其次退回 tasks.last_error_message。
             $batchErrorMessage = (string) ($latestRun?->error_message ?: ($task->last_error_message ?? ''));
+            $eval = $evalStats->get($taskId, [
+                'eval_pending_count' => 0,
+                'eval_failed_count' => 0,
+                'eval_blocked_drafts' => 0,
+            ]);
 
             return [
                 'id' => $taskId,
@@ -262,6 +273,9 @@ class TaskMonitoringQueryService
                 'published_articles' => (int) $articles['published_articles'],
                 'draft_articles' => (int) $articles['draft_articles'],
                 'publishable_drafts' => (int) $articles['publishable_drafts'],
+                'eval_pending_count' => (int) $eval['eval_pending_count'],
+                'eval_failed_count' => (int) $eval['eval_failed_count'],
+                'eval_blocked_drafts' => (int) $eval['eval_blocked_drafts'],
                 'distribution_total_count' => (int) $distributions['distribution_total_count'],
                 'distribution_synced_count' => (int) $distributions['distribution_synced_count'],
                 'distribution_failed_count' => (int) $distributions['distribution_failed_count'],
@@ -395,5 +409,39 @@ class TaskMonitoringQueryService
         }
 
         return (int) $value;
+    }
+
+    /**
+     * @param  list<int>  $taskIds
+     * @return Collection<int, array{eval_pending_count:int,eval_failed_count:int,eval_blocked_drafts:int}>
+     */
+    private function aggregateEvalStatsByTask(array $taskIds): Collection
+    {
+        if ($taskIds === [] || ! config('geo_eval.enabled')) {
+            return collect([]);
+        }
+
+        $blockedClause = config('geo_eval.gate_enabled')
+            ? " AND eval_status NOT IN ('passed','skipped')"
+            : '';
+
+        return DB::table('articles')
+            ->selectRaw("
+                task_id,
+                SUM(CASE WHEN eval_status = 'pending_eval' THEN 1 ELSE 0 END) AS eval_pending_count,
+                SUM(CASE WHEN eval_status = 'failed' THEN 1 ELSE 0 END) AS eval_failed_count,
+                SUM(CASE WHEN status = 'draft' AND review_status IN ('approved','auto_approved'){$blockedClause} THEN 1 ELSE 0 END) AS eval_blocked_drafts
+            ")
+            ->whereIn('task_id', $taskIds)
+            ->whereNull('deleted_at')
+            ->groupBy('task_id')
+            ->get()
+            ->mapWithKeys(fn ($row): array => [
+                (int) $row->task_id => [
+                    'eval_pending_count' => (int) ($row->eval_pending_count ?? 0),
+                    'eval_failed_count' => (int) ($row->eval_failed_count ?? 0),
+                    'eval_blocked_drafts' => (int) ($row->eval_blocked_drafts ?? 0),
+                ],
+            ]);
     }
 }

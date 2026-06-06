@@ -21,3 +21,8 @@ Schedule::command('horizon:snapshot')->everyFiveMinutes();
  * GeoFlow 任务调度：每分钟扫描一次可执行任务并入队（对齐 bak cron 逻辑）。
  */
 Schedule::command('geoflow:schedule-tasks')->everyMinute();
+
+Schedule::command('geo:aggregate-adoption-metrics')->dailyAt('02:00');
+Schedule::command('geo:market-scan --type=weekly')->weeklyOn(1, '03:00');
+Schedule::command('geo:check-adoption-alerts')->dailyAt('08:30');
+Schedule::command('geoflow:expire-content-agent-requests')->everyFiveMinutes();

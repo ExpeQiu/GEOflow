@@ -578,7 +578,7 @@ class AiModelController extends Controller
                             'model' => 'models/'.$this->normalizeGeminiModelName($modelName),
                             'content' => [
                                 'parts' => [
-                                    ['text' => $this->formatGeminiRetrievalQuery('GEOFlow embedding connection test')],
+                                    ['text' => $this->formatGeminiRetrievalQuery('GEOworkflow embedding connection test')],
                                 ],
                             ],
                             'output_dimensionality' => 3072,
@@ -615,7 +615,7 @@ class AiModelController extends Controller
         if ($modelType === 'embedding') {
             return [
                 'model' => $modelName,
-                'input' => 'GEOFlow embedding connection test',
+                'input' => 'GEOworkflow embedding connection test',
             ];
         }
 

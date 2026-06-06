@@ -27,6 +27,8 @@ class Article extends Model
         'meta_description',
         'status',
         'review_status',
+        'eval_status',
+        'eval_meta',
         'view_count',
         'is_ai_generated',
         'is_hot',
@@ -45,7 +47,13 @@ class Article extends Model
             'is_hot' => 'boolean',
             'is_featured' => 'boolean',
             'published_at' => 'datetime',
+            'eval_meta' => 'array',
         ];
+    }
+
+    public function evaluations(): HasMany
+    {
+        return $this->hasMany(ArticleEvaluation::class, 'article_id');
     }
 
     public function category(): BelongsTo

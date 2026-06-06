@@ -860,13 +860,13 @@ class DistributionController extends Controller
      */
     private function normalizeChannelSiteSettings(array $payload, ?DistributionChannel $channel = null): array
     {
-        $defaultName = trim((string) ($payload['name'] ?? 'GEOFlow Target Site'));
+        $defaultName = trim((string) ($payload['name'] ?? 'GEOworkflow Target Site'));
         $defaults = $channel?->resolvedSiteSettings() ?? [
-            'site_name' => $defaultName !== '' ? $defaultName : 'GEOFlow Target Site',
+            'site_name' => $defaultName !== '' ? $defaultName : 'GEOworkflow Target Site',
             'site_subtitle' => '',
-            'site_description' => '由 GEOFlow 自动分发和管理的目标站点。',
+            'site_description' => '由 GEOworkflow 自动分发和管理的目标站点。',
             'site_keywords' => '',
-            'copyright_info' => '© '.date('Y').' '.($defaultName !== '' ? $defaultName : 'GEOFlow Target Site'),
+            'copyright_info' => '© '.date('Y').' '.($defaultName !== '' ? $defaultName : 'GEOworkflow Target Site'),
             'site_logo' => '',
             'site_favicon' => '',
             'seo_title_template' => '{title} - {site_name}',

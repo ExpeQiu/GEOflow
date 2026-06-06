@@ -20,7 +20,7 @@ class AdminUserSeeder extends Seeder
         $exists = Admin::query()->where('username', $username)->exists();
 
         if ($exists) {
-            $this->command?->info('GEOFlow default admin already exists; seeding skipped without overwriting credentials.');
+            $this->command?->info('GEOworkflow default admin already exists; seeding skipped without overwriting credentials.');
 
             return;
         }
@@ -30,7 +30,7 @@ class AdminUserSeeder extends Seeder
         if ($password === '') {
             if (app()->environment('production')) {
                 $password = Str::password(24);
-                $this->command?->warn('GEOFlow created default admin ['.$username.'] with a one-time generated password: '.$password);
+                $this->command?->warn('GEOworkflow created default admin ['.$username.'] with a one-time generated password: '.$password);
                 $this->command?->warn('Set GEOFLOW_ADMIN_PASSWORD before production deployment, or change this password immediately after first login.');
                 Log::warning('GEOFLOW_ADMIN_PASSWORD is empty in production. A random password was generated for a newly seeded default admin.');
             } else {

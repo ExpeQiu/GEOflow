@@ -2,7 +2,7 @@
 
 /**
  * Laravel 队列连接（database/redis/sqs 等）。
- * GEOFlow 当前默认使用 Redis 队列驱动，业务执行记录写入 task_runs。
+ * GEOworkflow 当前默认使用 Redis 队列驱动，业务执行记录写入 task_runs。
  */
 
 return [

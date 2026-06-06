@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 /**
- * Checks upstream GEOFlow release metadata for admin update notifications.
+ * Checks upstream GEOworkflow release metadata for admin update notifications.
  */
 class AdminUpdateMetadataService
 {

@@ -11,6 +11,7 @@ use App\Models\Keyword;
 use App\Models\KeywordLibrary;
 use App\Models\KnowledgeBase;
 use App\Models\KnowledgeChunk;
+use App\Models\Prompt;
 use App\Models\SiteSetting;
 use App\Models\Task;
 use App\Models\Title;
@@ -108,6 +109,8 @@ class MaterialsController extends Controller
             'reviewed_knowledge_bases' => $this->reviewedKnowledgeBaseCount(),
             'high_risk_pending_count' => $this->highRiskPendingKnowledgeBaseCount(),
             'authors' => Author::query()->count(),
+            'body_prompts' => Prompt::query()->where('type', 'body')->count(),
+            'special_prompts' => Prompt::query()->where('type', 'special')->count(),
         ];
     }
 

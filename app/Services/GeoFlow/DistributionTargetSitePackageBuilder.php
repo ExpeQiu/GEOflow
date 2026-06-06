@@ -161,7 +161,7 @@ HTACCESS;
             .'<link rel="stylesheet" href="assets/css/site.css?v='.$assetVersion.'"><script defer src="assets/js/site.js?v='.$assetVersion.'"></script>'
             .'</head><body class="'.htmlspecialchars($themeClass, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'"><header><div class="wrap bar"><div class="brand">'.htmlspecialchars($siteName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</div></div></header><main class="wrap">'
             .'<section class="hero"><h1>'.htmlspecialchars($siteName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</h1><p>'.htmlspecialchars($description, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</p></section>'
-            .'<div class="empty">暂无文章。请先从 GEOFlow 发布一篇绑定此渠道的文章。</div></main>'
+            .'<div class="empty">暂无文章。请先从 GEOworkflow 发布一篇绑定此渠道的文章。</div></main>'
             .'<footer><div class="wrap">'.htmlspecialchars($copyright, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</div></footer></body></html>';
     }
 
@@ -380,15 +380,15 @@ function imageAssetsDir(array $config): string
 
 function normalizeSiteSettings(array $settings, array $config = []): array
 {
-    $siteName = trim((string) ($settings['site_name'] ?? $config['site_name'] ?? 'GEOFlow Target Site'));
-    $siteName = $siteName !== '' ? $siteName : 'GEOFlow Target Site';
+    $siteName = trim((string) ($settings['site_name'] ?? $config['site_name'] ?? 'GEOworkflow Target Site'));
+    $siteName = $siteName !== '' ? $siteName : 'GEOworkflow Target Site';
     $frontMode = (string) ($settings['front_mode'] ?? $config['front_mode'] ?? 'static');
     $frontMode = in_array($frontMode, ['static', 'rewrite'], true) ? $frontMode : 'static';
 
     return [
         'site_name' => $siteName,
         'site_subtitle' => trim((string) ($settings['site_subtitle'] ?? $config['site_subtitle'] ?? '')),
-        'site_description' => trim((string) ($settings['site_description'] ?? $config['site_description'] ?? '由 GEOFlow 自动分发和管理的目标站点。')),
+        'site_description' => trim((string) ($settings['site_description'] ?? $config['site_description'] ?? '由 GEOworkflow 自动分发和管理的目标站点。')),
         'site_keywords' => trim((string) ($settings['site_keywords'] ?? $config['site_keywords'] ?? '')),
         'copyright_info' => trim((string) ($settings['copyright_info'] ?? $config['copyright_info'] ?? '© '.date('Y').' '.$siteName)),
         'site_logo' => trim((string) ($settings['site_logo'] ?? $config['site_logo'] ?? '')),
@@ -1384,7 +1384,7 @@ function renderHomePage(array $config): void
     ]);
     echo '<section class="hero"><h1>'.h($siteName).'</h1><p>'.h((string) $settings['site_description']).'</p></section>';
     if ($articles === []) {
-        echo '<div class="card empty">暂无文章。请先从 GEOFlow 发布一篇绑定此渠道的文章。</div>';
+        echo '<div class="card empty">暂无文章。请先从 GEOworkflow 发布一篇绑定此渠道的文章。</div>';
         pageFooter($config);
         return;
     }
@@ -1615,7 +1615,7 @@ function renderArticlePage(array $config, string $slug): void
         "mainEntityOfPage"=>frontSiteUrl($config, '/article/'.rawurlencode($slug)),
         "author"=>[
             "@type"=>"Person",
-            "name"=>is_array($article['author'] ?? null) ? (string) ($article['author']['name'] ?? 'GEOFlow') : 'GEOFlow',
+            "name"=>is_array($article['author'] ?? null) ? (string) ($article['author']['name'] ?? 'GEOworkflow') : 'GEOworkflow',
         ],
         "publisher"=>[
             "@type"=>"Organization",
@@ -1690,7 +1690,7 @@ function renderLlmsText(array $config): string
     $siteName = textMapLine((string) $settings['site_name']);
     $description = textMapLine((string) $settings['site_description']);
     $lines = [
-        '# '.($siteName !== '' ? $siteName : 'GEOFlow Target Site'),
+        '# '.($siteName !== '' ? $siteName : 'GEOworkflow Target Site'),
         '',
     ];
     if ($description !== '') {

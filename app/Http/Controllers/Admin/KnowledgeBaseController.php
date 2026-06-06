@@ -88,6 +88,9 @@ class KnowledgeBaseController extends Controller
             'description' => ['nullable', 'string'],
             'content' => ['required', 'string'],
             'file_type' => ['required', 'in:markdown,word,text'],
+            'source_name' => ['nullable', 'string', 'max:150'],
+            'risk_level' => ['nullable', 'in:low,medium,high'],
+            'review_status' => ['nullable', 'in:pending,approved,rejected'],
         ], [
             'name.required' => __('admin.knowledge_bases.error.name_required'),
             'content.required' => __('admin.knowledge_bases.error.content_required'),
@@ -99,6 +102,9 @@ class KnowledgeBaseController extends Controller
             'description' => trim((string) ($payload['description'] ?? '')),
             'content' => $content,
             'file_type' => (string) $payload['file_type'],
+            'source_name' => trim((string) ($payload['source_name'] ?? '')),
+            'risk_level' => (string) ($payload['risk_level'] ?? $knowledgeBase->risk_level ?? 'medium'),
+            'review_status' => (string) ($payload['review_status'] ?? $knowledgeBase->review_status ?? 'pending'),
             'character_count' => mb_strlen($content, 'UTF-8'),
             'word_count' => mb_strlen(strip_tags($content), 'UTF-8'),
         ]);

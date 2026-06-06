@@ -10,6 +10,8 @@ use App\Models\SiteSetting;
 use App\Support\GeoFlow\ApiKeyCrypto;
 use App\Support\GeoFlow\OpenAiRuntimeProvider;
 use Illuminate\Support\Facades\DB;
+use App\Services\GeoFlow\Contracts\ContentAgentClientInterface;
+use App\Services\GeoFlow\ContentAgent\ContentAgentAsyncSubmittedException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Ai\Embeddings;
@@ -45,7 +47,7 @@ class KnowledgeChunkSyncService
             return 0;
         }
 
-        $plannedChunks = $this->planChunks($knowledgeBaseId, $content);
+        $plannedChunks = $this->planChunks($knowledgeBaseId, $content, $requireRealEmbedding);
         $chunks = array_values(array_map(
             static fn (array $chunk): string => (string) ($chunk['content'] ?? ''),
             $plannedChunks
@@ -154,7 +156,7 @@ class KnowledgeChunkSyncService
      *
      * @return list<array{content:string,title:string,section_path:string,strategy:string,metadata:array<string,mixed>}>
      */
-    private function planChunks(int $knowledgeBaseId, string $content): array
+    private function planChunks(int $knowledgeBaseId, string $content, bool $requireRealEmbedding = false): array
     {
         $blocks = $this->expandOversizedBlocks($this->splitStructuredBlocks($content));
         if ($blocks === []) {
@@ -179,7 +181,7 @@ class KnowledgeChunkSyncService
                 : $this->buildStructuredRuleChunks($blocks, 'semantic_fallback');
         }
 
-        $semanticChunks = $this->buildSemanticChunks($knowledgeBaseId, $blocks);
+        $semanticChunks = $this->buildSemanticChunks($knowledgeBaseId, $blocks, $requireRealEmbedding);
 
         if ($semanticChunks !== []) {
             return $semanticChunks;
@@ -505,11 +507,92 @@ class KnowledgeChunkSyncService
     }
 
     /**
+     * 供 Content Agent internal / 回调落库使用的语义切片规划入口。
+     *
      * @param  list<array<string,mixed>>  $blocks
      * @return list<array{content:string,title:string,section_path:string,strategy:string,metadata:array<string,mixed>}>
      */
-    private function buildSemanticChunks(int $knowledgeBaseId, array $blocks): array
+    public function planSemanticChunksWithAgent(int $knowledgeBaseId, array $blocks): array
     {
+        return $this->buildSemanticChunks($knowledgeBaseId, $blocks);
+    }
+
+    /**
+     * 回调收到 chunk plan 后继续 embedding 写入（external 异步路径）。
+     *
+     * @param  list<array{content:string,title:string,section_path:string,strategy:string,metadata:array<string,mixed>}>  $plannedChunks
+     */
+    public function syncFromPlannedChunks(int $knowledgeBaseId, array $plannedChunks, bool $requireRealEmbedding = false): int
+    {
+        if ($knowledgeBaseId <= 0 || $plannedChunks === []) {
+            return 0;
+        }
+
+        $chunks = array_values(array_map(
+            static fn (array $chunk): string => (string) ($chunk['content'] ?? ''),
+            $plannedChunks
+        ));
+        $knowledgeMetadata = $this->resolveKnowledgeBaseMetadata($knowledgeBaseId);
+        $embeddingMetadata = $this->resolveEmbeddingMetadata();
+        $embeddingDocumentTitle = $this->resolveEmbeddingDocumentTitle($knowledgeBaseId);
+        $generatedEmbeddings = $this->generateEmbeddingsForChunks($chunks, $embeddingMetadata, $requireRealEmbedding, $embeddingDocumentTitle);
+
+        if ($requireRealEmbedding && count($generatedEmbeddings) !== count($chunks)) {
+            throw new \RuntimeException(__('admin.knowledge_bases.error.embedding_sync_failed'));
+        }
+
+        DB::transaction(function () use ($knowledgeBaseId, $plannedChunks, $generatedEmbeddings, $knowledgeMetadata): void {
+            KnowledgeChunk::query()->where('knowledge_base_id', $knowledgeBaseId)->delete();
+
+            foreach ($plannedChunks as $index => $chunk) {
+                $chunkContent = (string) ($chunk['content'] ?? '');
+                $fallbackVector = $this->buildFallbackVector($chunkContent, 256);
+                $realEmbedding = $generatedEmbeddings[$index] ?? null;
+                $isRealEmbedding = is_array($realEmbedding);
+                $embeddingJson = $isRealEmbedding
+                    ? json_encode($realEmbedding['vector'] ?? [], JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION)
+                    : json_encode($fallbackVector, JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION);
+
+                KnowledgeChunk::query()->create([
+                    'knowledge_base_id' => $knowledgeBaseId,
+                    'chunk_index' => $index,
+                    'content' => $chunkContent,
+                    'content_hash' => hash('sha256', $chunkContent),
+                    'chunk_title' => mb_substr((string) ($chunk['title'] ?? ''), 0, 255, 'UTF-8'),
+                    'section_path' => mb_substr((string) ($chunk['section_path'] ?? ''), 0, 500, 'UTF-8'),
+                    'chunk_strategy' => mb_substr((string) ($chunk['strategy'] ?? 'structured_rule'), 0, 50, 'UTF-8'),
+                    'metadata_json' => json_encode($this->mergeChunkMetadata($chunk['metadata'] ?? [], $knowledgeMetadata), JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION),
+                    'source_hash' => hash('sha256', (string) ($chunk['section_path'] ?? '').'|'.$chunkContent),
+                    'token_count' => $this->estimateTokenCount($chunkContent),
+                    'embedding_json' => $embeddingJson ?: '[]',
+                    'embedding_model_id' => $isRealEmbedding ? (int) ($realEmbedding['model_id'] ?? 0) : null,
+                    'embedding_dimensions' => $isRealEmbedding ? (int) ($realEmbedding['dimensions'] ?? 0) : 0,
+                    'embedding_provider' => $isRealEmbedding ? (string) ($realEmbedding['provider'] ?? '') : '',
+                    'embedding_vector' => $isRealEmbedding ? ($realEmbedding['vector_literal'] ?? null) : null,
+                ]);
+            }
+        });
+
+        return count($plannedChunks);
+    }
+
+    /**
+     * @param  list<array<string,mixed>>  $blocks
+     * @return list<array{content:string,title:string,section_path:string,strategy:string,metadata:array<string,mixed>}>
+     */
+    private function buildSemanticChunks(int $knowledgeBaseId, array $blocks, bool $requireRealEmbedding = false): array
+    {
+        if ((string) config('geoflow.content_agent.backend', 'internal') === 'external') {
+            $client = app(ContentAgentClientInterface::class);
+            $dispatch = $client->dispatchSemanticChunkPlan([
+                'knowledge_base_id' => $knowledgeBaseId,
+                'blocks' => $blocks,
+                'require_real_embedding' => $requireRealEmbedding,
+                'correlation' => ['type' => 'knowledge_base', 'id' => $knowledgeBaseId],
+            ]);
+            throw new ContentAgentAsyncSubmittedException((string) $dispatch->requestId);
+        }
+
         $models = $this->resolveSemanticChunkingModels();
         if ($models === []) {
             return [];
@@ -664,7 +747,7 @@ class KnowledgeChunkSyncService
 
     private function semanticChunkingSystemPrompt(): string
     {
-        return 'You are GEOFlow\'s knowledge-base semantic chunk planner. You only group original block indexes into chunks. Do not rewrite, summarize, translate, add facts, or return source text. Output strict JSON only.';
+        return 'You are GEOworkflow\'s knowledge-base semantic chunk planner. You only group original block indexes into chunks. Do not rewrite, summarize, translate, add facts, or return source text. Output strict JSON only.';
     }
 
     /**

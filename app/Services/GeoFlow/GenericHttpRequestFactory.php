@@ -28,7 +28,7 @@ class GenericHttpRequestFactory
         $headers = [
             'Accept' => 'application/json',
             'Content-Type' => 'application/json',
-            'User-Agent' => 'GEOFlow/2.0 Generic API Publisher',
+            'User-Agent' => 'GEOworkflow/2.0 Generic API Publisher',
             'X-GEOFlow-Event' => $event,
             'X-GEOFlow-Idempotency-Key' => $idempotencyKey,
             'X-GEOFlow-Payload-SHA256' => hash('sha256', $body),

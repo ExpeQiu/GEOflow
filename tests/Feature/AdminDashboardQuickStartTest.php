@@ -49,10 +49,10 @@ class AdminDashboardQuickStartTest extends TestCase
             ->assertSee(__('admin.dashboard.navigation.admin_users_title'))
             ->assertSee(__('admin.dashboard.navigation.distribution_channels_title'))
             ->assertSee(__('admin.dashboard.navigation.distribution_jobs_title'))
-            ->assertSee(__('admin.dashboard.skill_resources.title'))
-            ->assertSee(__('admin.dashboard.skill_resources.template_title'))
-            ->assertSee(__('admin.dashboard.skill_resources.design_title'))
-            ->assertSee(__('admin.dashboard.skill_resources.cli_title'))
+            ->assertDontSee(__('admin.dashboard.skill_resources.title'))
+            ->assertDontSee(__('admin.dashboard.skill_resources.template_title'))
+            ->assertDontSee(__('admin.dashboard.skill_resources.design_title'))
+            ->assertDontSee(__('admin.dashboard.skill_resources.cli_title'))
             ->assertSee(__('admin.dashboard.quick_start.title'))
             ->assertSee(__('admin.dashboard.quick_start.api_title'))
             ->assertSee(__('admin.dashboard.quick_start.material_title'))
@@ -84,9 +84,9 @@ class AdminDashboardQuickStartTest extends TestCase
             ->assertSee(route('admin.distribution.index'), false)
             ->assertSee(route('admin.distribution.create'), false)
             ->assertSee(route('admin.distribution.jobs'), false)
-            ->assertSee('https://github.com/yaojingang/yao-geo-skills/tree/main/skills/yao-geoflow-template', false)
-            ->assertSee('https://github.com/yaojingang/yao-geo-skills/tree/main/skills/yao-geoflow-design', false)
-            ->assertSee('https://github.com/yaojingang/yao-geo-skills/tree/main/skills/yao-geoflow-cli', false);
+            ->assertDontSee('https://github.com/yaojingang/yao-geo-skills/tree/main/skills/yao-geoflow-template', false)
+            ->assertDontSee('https://github.com/yaojingang/yao-geo-skills/tree/main/skills/yao-geoflow-design', false)
+            ->assertDontSee('https://github.com/yaojingang/yao-geo-skills/tree/main/skills/yao-geoflow-cli', false);
 
         $html = $response->getContent();
         $this->assertGreaterThanOrEqual(1, substr_count($html, route('admin.knowledge-bases.index')));
@@ -132,7 +132,7 @@ class AdminDashboardQuickStartTest extends TestCase
         $this->assertStringNotContainsString('https://configured.example'.$dismissPath, $html);
     }
 
-    public function test_project_intro_auto_opens_once_and_footer_link_remains_available(): void
+    public function test_project_intro_auto_opens_once(): void
     {
         $admin = Admin::query()->create([
             'username' => 'dashboard_project_intro_admin',
@@ -160,8 +160,7 @@ class AdminDashboardQuickStartTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString('data-open-admin-welcome', $secondHtml);
         $this->assertStringContainsString('"shouldAutoOpen":false', $secondHtml);
-        $this->assertStringContainsString(__('admin.footer.project_intro_link'), $secondHtml);
+        $this->assertStringNotContainsString(__('admin.footer.project_intro_link'), $secondHtml);
     }
 }

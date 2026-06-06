@@ -1,7 +1,7 @@
 <?php
 
 /**
- * GEOFlow 业务相关配置（站点信息、后台路径、上传、缓存、会话与安全）。
+ * GEOworkflow 业务相关配置（站点信息、后台路径、上传、缓存、会话与安全）。
  *
  * 环境变量键名与默认值见各条目旁注释；修改后建议 `php artisan config:clear`。
  */
@@ -14,9 +14,9 @@ $updateMetadataUrl = $updateMetadataUrl !== '' ? $updateMetadataUrl : $defaultUp
 return [
 
     // 站点展示名称（页眉、标题等）
-    'site_name' => env('SITE_NAME', 'GEOFlow'),
+    'site_name' => env('SITE_NAME', 'GEOworkflow'),
     // 站点完整/副标题文案
-    'site_full_name' => env('SITE_FULL_NAME', 'GEOFlow'),
+    'site_full_name' => env('SITE_FULL_NAME', 'GEOworkflow'),
     // 站点根 URL，用于生成绝对链接（末尾无斜杠）
     'site_url' => rtrim((string) env('SITE_URL', 'http://localhost'), '/'),
     // SEO 描述
@@ -52,7 +52,7 @@ return [
     // 后端出站 HTTP 代理；Docker 内访问宿主机代理通常使用 http://host.docker.internal:端口。
     'outbound_http_proxy' => trim((string) env('GEOFLOW_HTTP_PROXY', '')),
     'outbound_https_proxy' => trim((string) env('GEOFLOW_HTTPS_PROXY', env('GEOFLOW_HTTP_PROXY', ''))),
-    'outbound_no_proxy' => env('GEOFLOW_NO_PROXY', 'localhost,127.0.0.1,::1,postgres,redis'),
+    'outbound_no_proxy' => env('GEOFLOW_NO_PROXY', 'localhost,127.0.0.1,::1,postgres,redis,content-agent'),
     // 默认仅让 AI/Embedding 供应商走代理，避免 WordPress REST、目标站 Agent 等站点通信被本机代理截获；如需全局代理可设为 *。
     'outbound_proxy_hosts' => array_values(array_filter(array_map('trim', explode(',', (string) env(
         'GEOFLOW_PROXY_HOSTS',
@@ -72,7 +72,7 @@ return [
     // 单文件上传最大字节数
     'max_upload_bytes' => (int) env('GEOFLOW_MAX_UPLOAD_BYTES', 2 * 1024 * 1024),
 
-    // 是否启用 GEOFlow 业务层缓存
+    // 是否启用 GEOworkflow 业务层缓存
     'cache_enabled' => filter_var(env('GEOFLOW_CACHE_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
     // 业务缓存 TTL（秒）
     'cache_ttl_seconds' => (int) env('GEOFLOW_CACHE_TTL', 3600),
@@ -97,5 +97,17 @@ return [
     'api_token_default_ttl_days' => (int) env('GEOFLOW_API_TOKEN_DEFAULT_TTL_DAYS', 30),
     // 会话空闲超时（秒）
     'session_timeout_seconds' => (int) env('GEOFLOW_SESSION_TIMEOUT', 2592000),
+
+    // Content Agent：internal=进程内 Laravel AI SDK；external=Python 侧车（引擎可插拔）
+    'content_agent' => [
+        'backend' => env('GEOFLOW_CONTENT_AGENT_BACKEND', 'internal'),
+        'service_url' => rtrim(trim((string) env('CONTENT_AGENT_SERVICE_URL', '')), '/'),
+        'callback_url' => rtrim(trim((string) env('CONTENT_AGENT_CALLBACK_URL', '')), '/'),
+        'callback_secret' => (string) env('CONTENT_AGENT_CALLBACK_SECRET', ''),
+        'request_ttl_seconds' => max(60, (int) env('CONTENT_AGENT_REQUEST_TTL_SECONDS', 600)),
+        'submit_timeout_seconds' => max(5, (int) env('CONTENT_AGENT_SUBMIT_TIMEOUT_SECONDS', 30)),
+        'fallback_on_error' => filter_var(env('CONTENT_AGENT_FALLBACK_ON_ERROR', true), FILTER_VALIDATE_BOOLEAN),
+        'contract_version' => (string) env('CONTENT_AGENT_CONTRACT_VERSION', '1.0'),
+    ],
 
 ];
