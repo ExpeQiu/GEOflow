@@ -1,4 +1,12 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:18081";
+/** 浏览器走 Next.js 同源代理 /api → FastAPI，避免跨域与 API 未启动时的错误 URL */
+function resolveApiUrl(): string {
+  if (typeof window !== "undefined") {
+    return "";
+  }
+  return process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:18081";
+}
+
+const API_URL = resolveApiUrl();
 
 export type ApiResponse<T> = {
   success: boolean;
@@ -32,6 +40,38 @@ export async function apiPost<T>(path: string, token: string, body?: unknown): P
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(`api_error:${res.status}`);
+  const json = (await res.json()) as ApiResponse<T>;
+  return json.data;
+}
+
+export async function apiPatch<T>(path: string, token: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(`api_error:${res.status}`);
+  const json = (await res.json()) as ApiResponse<T>;
+  return json.data;
+}
+
+export async function apiPut<T>(path: string, token: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(`api_error:${res.status}`);
+  const json = (await res.json()) as ApiResponse<T>;
+  return json.data;
+}
+
+export async function apiDelete<T>(path: string, token: string): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error(`api_error:${res.status}`);
   const json = (await res.json()) as ApiResponse<T>;

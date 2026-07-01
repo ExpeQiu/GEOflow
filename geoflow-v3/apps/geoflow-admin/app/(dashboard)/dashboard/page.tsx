@@ -1,41 +1,107 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { apiGet, getToken } from "@/lib/api-client";
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-
-type DashboardData = { tasks_count: number; tech_ip_assets_count: number; version: string };
+import { Plus, RefreshCw } from "lucide-react";
+import { DashboardAutomation, DashboardNavigationLanes } from "@/components/admin/DashboardAutomation";
+import { DashboardHealthCards, QuickStartPanel } from "@/components/admin/DashboardSections";
+import { FlashAlert } from "@/components/admin/FlashAlert";
+import { LayerCards } from "@/components/admin/LayerCards";
+import { useAuthGuard } from "@/hooks/use-auth-guard";
+import { apiGet, getToken } from "@/lib/api-client";
+import type { DashboardPayload } from "@/lib/dashboard-types";
+import { zh } from "@/lib/i18n/zh";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [data, setData] = useState<DashboardData | null>(null);
+  const token = useAuthGuard();
+  const [data, setData] = useState<DashboardPayload | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [welcomeDismissed, setWelcomeDismissed] = useState(true);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
+    setWelcomeDismissed(localStorage.getItem("gf_welcome_dismissed") === "1");
+  }, []);
+
+  const load = useCallback(async () => {
+    const t = getToken();
+    if (!t) return;
+    setLoading(true);
+    setError("");
+    try {
+      const payload = await apiGet<DashboardPayload>("/api/admin/dashboard", t);
+      setData(payload);
+    } catch {
+      setError("无法加载仪表盘数据");
       router.push("/login");
-      return;
+    } finally {
+      setLoading(false);
     }
-    apiGet<DashboardData>("/api/admin/dashboard", token).then(setData).catch(() => router.push("/login"));
   }, [router]);
+
+  useEffect(() => {
+    if (token) load();
+  }, [token, load]);
 
   return (
     <div>
-      <h1 className="text-lg font-bold mb-4">Dashboard</h1>
-      <div className="grid grid-cols-3 gap-4">
-        <Card title="任务数" value={data?.tasks_count ?? "—"} />
-        <Card title="技术 IP 资产" value={data?.tech_ip_assets_count ?? "—"} />
-        <Card title="版本" value={data?.version ?? "3.0.0"} />
+      <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">{zh.dashboard.heading}</h1>
+          <p className="mt-1 text-sm leading-6 text-gray-600">
+            {zh.dashboard.subtitle(data?.site_name ?? zh.brand)}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={load}
+            className="inline-flex h-10 items-center rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
+          >
+            <RefreshCw className="mr-2 h-4 w-4" />
+            {zh.dashboard.refresh}
+          </button>
+          <Link
+            href="/operations/tasks/new"
+            className="inline-flex h-10 items-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            {zh.dashboard.newTask}
+          </Link>
+        </div>
       </div>
-    </div>
-  );
-}
 
-function Card({ title, value }: { title: string; value: string | number }) {
-  return (
-    <div className="bg-white border rounded-lg p-4">
-      <p className="text-sm text-[var(--muted)]">{title}</p>
-      <p className="text-2xl font-bold mt-1">{value}</p>
+      {error && <FlashAlert variant="error">{error}</FlashAlert>}
+      {loading && !data && <FlashAlert variant="info">{zh.common.loading}</FlashAlert>}
+
+      {!welcomeDismissed && (
+        <div className="mb-6 flex items-start justify-between gap-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <p className="text-sm text-blue-900">欢迎使用 GEOFlow v3 管理后台。Phase 6–11 迁移 API 与页面已就绪，请先执行 Alembic 002 迁移以启用素材三库与站点设置。</p>
+          <button
+            type="button"
+            className="shrink-0 text-sm font-medium text-blue-700 hover:text-blue-900"
+            onClick={() => {
+              localStorage.setItem("gf_welcome_dismissed", "1");
+              setWelcomeDismissed(true);
+            }}
+          >
+            知道了
+          </button>
+        </div>
+      )}
+
+      <LayerCards />
+
+      {data && (
+        <>
+          <DashboardHealthCards stats={data.stats} />
+          <QuickStartPanel />
+          <DashboardAutomation automation={data.automation} />
+          <DashboardNavigationLanes lanes={data.automation.lanes} />
+        </>
+      )}
     </div>
   );
 }

@@ -9,9 +9,11 @@
 ```bash
 cd geoflow-v3
 cp .env.example .env
-./scripts/start.sh      # Docker 全栈
-./scripts/verify-local.sh   # 本地结构 + pytest（无需 Docker）
-./scripts/verify.sh     # Docker 运行态验收
+./scripts/start-local.sh      # 本地快速启动（推荐，无需 pgvector 镜像）
+./scripts/verify-services.sh  # 服务验收
+# 或 Docker 全栈（需能拉取 pgvector 镜像）：
+./scripts/start.sh
+./scripts/verify.sh
 ```
 
 | 服务 | 默认地址 |

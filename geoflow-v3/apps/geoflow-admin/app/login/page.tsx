@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ShieldCheck } from "lucide-react";
+import { FlashAlert } from "@/components/admin/FlashAlert";
 import { adminLogin, setToken } from "@/lib/api-client";
+import { zh } from "@/lib/i18n/zh";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,33 +21,59 @@ export default function LoginPage() {
       setToken(data.access_token);
       router.push("/dashboard");
     } catch {
-      setError("登录失败，请检查账号密码");
+      setError(zh.login.error);
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <form onSubmit={handleSubmit} className="bg-white border rounded-lg p-8 w-full max-w-md shadow-sm">
-        <h1 className="text-xl font-bold mb-1">GEOFlow Admin</h1>
-        <p className="text-sm text-[var(--muted)] mb-6">v3 · Next.js + FastAPI</p>
-        {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
-        <label className="block text-sm mb-1">用户名</label>
-        <input
-          className="w-full border rounded px-3 py-2 mb-4"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-        />
-        <label className="block text-sm mb-1">密码</label>
-        <input
-          type="password"
-          className="w-full border rounded px-3 py-2 mb-6"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <button type="submit" className="w-full bg-[var(--primary)] text-white rounded py-2 font-medium">
-          登录
-        </button>
-      </form>
+    <div className="login-page flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        <div className="login-form rounded-2xl p-8">
+          <div className="mb-8 text-center">
+            <div className="login-badge mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
+              <ShieldCheck className="h-8 w-8 text-white" />
+            </div>
+            <h1 className="mb-2 text-2xl font-bold text-gray-900">{zh.login.title}</h1>
+            <p className="text-gray-600">{zh.login.subtitle}</p>
+          </div>
+
+          {error && <FlashAlert variant="error">{error}</FlashAlert>}
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label htmlFor="username" className="mb-2 block text-sm font-medium text-gray-700">
+                {zh.login.username}
+              </label>
+              <input
+                id="username"
+                className="block w-full rounded-lg border border-gray-300 px-3 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="mb-2 block text-sm font-medium text-gray-700">
+                {zh.login.password}
+              </label>
+              <input
+                id="password"
+                type="password"
+                className="block w-full rounded-lg border border-gray-300 px-3 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full rounded-lg bg-blue-600 px-4 py-3 font-medium text-white hover:bg-blue-700"
+            >
+              {zh.login.submit}
+            </button>
+          </form>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,19 +1,30 @@
 """初始 schema：pgvector + v3 扩展表。"""
 
+import os
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from pgvector.sqlalchemy import Vector
 
 revision: str = "001_initial"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
+SKIP_PGVECTOR = os.getenv("SKIP_PGVECTOR", "").lower() in ("1", "true", "yes")
+
+
+def _embedding_column():
+    if SKIP_PGVECTOR:
+        return sa.Text(), None
+    from pgvector.sqlalchemy import Vector
+
+    return Vector(3072), None
+
 
 def upgrade() -> None:
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    if not SKIP_PGVECTOR:
+        op.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
     op.create_table(
         "admins",
@@ -134,7 +145,7 @@ def upgrade() -> None:
         sa.Column("embedding_model_id", sa.Integer(), nullable=True),
         sa.Column("embedding_dimensions", sa.Integer(), server_default="0"),
         sa.Column("embedding_provider", sa.String(255), server_default=""),
-        sa.Column("embedding_vector", Vector(3072), nullable=True),
+        sa.Column("embedding_vector", _embedding_column()[0], nullable=True),
         sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
         sa.Column("updated_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
         sa.PrimaryKeyConstraint("id"),

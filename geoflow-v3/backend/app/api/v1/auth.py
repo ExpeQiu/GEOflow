@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
@@ -17,6 +17,10 @@ class LoginBody(BaseModel):
     password: str
 
 
+def _utcnow() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
 @router.post("/auth/login")
 async def login(request: Request, body: LoginBody, db: DbSession):
     admin = await authenticate_admin(db, body.username.strip(), body.password)
@@ -24,7 +28,7 @@ async def login(request: Request, body: LoginBody, db: DbSession):
         from fastapi import HTTPException
 
         raise HTTPException(status_code=401, detail="invalid_credentials")
-    admin.last_login = datetime.now(UTC)
+    admin.last_login = _utcnow()
     plain, token_row = await create_api_token(db, admin.id, scopes=ALL_SCOPES)
     return success(
         request,
@@ -48,7 +52,7 @@ async def admin_login_jwt(request: Request, body: LoginBody, db: DbSession):
         from fastapi import HTTPException
 
         raise HTTPException(status_code=401, detail="invalid_credentials")
-    admin.last_login = datetime.now(UTC)
+    admin.last_login = _utcnow()
     jwt_token = create_jwt(admin.id, admin.username, admin.role)
     return success(
         request,

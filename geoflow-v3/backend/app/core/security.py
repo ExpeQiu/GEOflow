@@ -71,7 +71,7 @@ async def create_api_token(
 ) -> tuple[str, ApiAccessToken]:
     plain = f"gf_{uuid4().hex}{uuid4().hex[:16]}"
     token_hash = bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
-    expires = datetime.now(UTC) + timedelta(days=settings.api_token_default_ttl_days)
+    expires = datetime.now(UTC).replace(tzinfo=None) + timedelta(days=settings.api_token_default_ttl_days)
     row = ApiAccessToken(
         admin_id=admin_id,
         name=name,
@@ -98,7 +98,7 @@ async def resolve_api_token(db: AsyncSession, plain_token: str) -> tuple[Admin, 
             admin = admin_result.scalar_one_or_none()
             if admin is None:
                 return None
-            row.last_used_at = datetime.now(UTC)
+            row.last_used_at = datetime.now(UTC).replace(tzinfo=None)
             return admin, row.scopes or ALL_SCOPES
     return None
 
