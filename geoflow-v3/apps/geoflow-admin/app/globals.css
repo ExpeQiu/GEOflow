@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --primary: #2563eb;
+  --text: #1a2332;
+  --muted: #5c6b7a;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "PingFang SC", system-ui, sans-serif;
+}

@@ -1,0 +1,91 @@
+name: geoflow-v3
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: geoflow-v3-postgres
+    environment:
+      POSTGRES_DB: geo_flow
+      POSTGRES_USER: geo_user
+      POSTGRES_PASSWORD: geo_password
+    ports:
+      - "127.0.0.1:15433:5432"
+    volumes:
+      - ./docker-data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U geo_user -d geo_flow"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: geoflow-v3-redis
+    ports:
+      - "127.0.0.1:16380:6379"
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: geoflow-v3-api
+    env_file: .env
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+    ports:
+      - "${API_PORT:-18081}:8080"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: geoflow-v3-worker
+    env_file: .env
+    command: celery -A app.workers.celery_app worker --loglevel=info -Q celery,geoflow
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - api
+      - redis
+
+  scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: geoflow-v3-scheduler
+    env_file: .env
+    command: celery -A app.workers.celery_app beat --loglevel=info
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - worker
+
+  flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: geoflow-v3-flower
+    env_file: .env
+    command: celery -A app.workers.celery_app flower --port=5555
+    ports:
+      - "127.0.0.1:15555:5555"
+    depends_on:
+      - worker
+
+  geoflow-admin:
+    build:
+      context: ./apps/geoflow-admin
+      dockerfile: Dockerfile
+    container_name: geoflow-v3-admin
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:${API_PORT:-18081}
+    ports:
+      - "${ADMIN_PORT:-13001}:3000"
+    depends_on:
+      - api

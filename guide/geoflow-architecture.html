@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GEOFlow 系统架构</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --surface: #ffffff;
+      --stroke: #d8dee4;
+      --text: #1a2332;
+      --muted: #5c6b7a;
+      --primary: #2563eb;
+      --primary-bg: #eff6ff;
+      --secondary: #0891b2;
+      --secondary-bg: #ecfeff;
+      --accent: #7c3aed;
+      --accent-bg: #f5f3ff;
+      --warn: #d97706;
+      --warn-bg: #fffbeb;
+      --ok: #059669;
+      --mono: "SF Mono", "Menlo", "Consolas", monospace;
+      --sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      padding: 2rem 1.25rem 3rem;
+    }
+
+    .page { max-width: 1200px; margin: 0 auto; }
+
+    header {
+      margin-bottom: 2rem;
+      border-bottom: 1px solid var(--stroke);
+      padding-bottom: 1.25rem;
+    }
+
+    header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    header p {
+      margin-top: 0.5rem;
+      color: var(--muted);
+      font-size: 0.95rem;
+      max-width: 720px;
+    }
+
+    .tagline {
+      display: inline-block;
+      margin-top: 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--primary);
+      background: var(--primary-bg);
+      padding: 0.25rem 0.6rem;
+      border-radius: 4px;
+    }
+
+    h2 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 0.85rem;
+    }
+
+    section {
+      margin-bottom: 1.75rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--stroke);
+      border-radius: 8px;
+      padding: 1.25rem;
+    }
+
+    /* ── Tech stack grid ── */
+    .stack-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .stack-item {
+      border: 1px solid var(--stroke);
+      border-radius: 6px;
+      padding: 0.85rem;
+      background: var(--surface);
+    }
+
+    .stack-item .layer {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+
+    .stack-item strong {
+      display: block;
+      font-size: 0.92rem;
+      margin-bottom: 0.2rem;
+    }
+
+    .stack-item span {
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .stack-item.core { border-left: 3px solid var(--primary); }
+    .stack-item.data { border-left: 3px solid var(--secondary); }
+    .stack-item.ai { border-left: 3px solid var(--accent); }
+    .stack-item.ops { border-left: 3px solid var(--warn); }
+    .stack-item.fe { border-left: 3px solid var(--ok); }
+
+    /* ── Layer cake ── */
+    .layers {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .layer-row {
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      gap: 0.75rem;
+      align-items: stretch;
+    }
+
+    .layer-label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 0.5rem;
+      border-radius: 6px;
+      background: var(--bg);
+      border: 1px solid var(--stroke);
+    }
+
+    .layer-body {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      padding: 0.75rem;
+      border-radius: 6px;
+      border: 1px solid var(--stroke);
+      background: var(--surface);
+    }
+
+    .layer-body.primary { background: var(--primary-bg); border-color: #bfdbfe; }
+    .layer-body.domain { background: var(--accent-bg); border-color: #ddd6fe; }
+    .layer-body.async { background: var(--warn-bg); border-color: #fde68a; }
+    .layer-body.persist { background: var(--secondary-bg); border-color: #a5f3fc; }
+    .layer-body.ext { background: #f8fafc; }
+
+    .chip {
+      font-size: 0.78rem;
+      padding: 0.35rem 0.65rem;
+      border-radius: 4px;
+      border: 1px solid var(--stroke);
+      background: var(--surface);
+      white-space: nowrap;
+    }
+
+    .chip strong { font-weight: 600; }
+
+    .chip sub {
+      display: block;
+      font-size: 0.68rem;
+      color: var(--muted);
+      font-weight: 400;
+      margin-top: 0.1rem;
+    }
+
+    /* ── Domain modules ── */
+    .domain-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .domain {
+      border: 1px solid var(--stroke);
+      border-radius: 6px;
+      padding: 0.85rem;
+    }
+
+    .domain h3 {
+      font-size: 0.88rem;
+      font-weight: 700;
+      margin-bottom: 0.35rem;
+      color: var(--primary);
+    }
+
+    .domain ul {
+      list-style: none;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .domain li {
+      padding: 0.15rem 0;
+      padding-left: 0.85rem;
+      position: relative;
+    }
+
+    .domain li::before {
+      content: "·";
+      position: absolute;
+      left: 0;
+      color: var(--primary);
+      font-weight: 700;
+    }
+
+    /* ── Pipeline ── */
+    .pipeline {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.78rem;
+    }
+
+    .step {
+      background: var(--primary-bg);
+      border: 1px solid #bfdbfe;
+      border-radius: 4px;
+      padding: 0.4rem 0.6rem;
+    }
+
+    .arrow { color: var(--muted); }
+
+    /* ── Deploy table ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 0.5rem 0.65rem;
+      border-bottom: 1px solid var(--stroke);
+      vertical-align: top;
+    }
+
+    th {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    code {
+      font-family: var(--mono);
+      font-size: 0.76rem;
+      background: var(--bg);
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+
+    @media (max-width: 800px) {
+      .grid-2 { grid-template-columns: 1fr; }
+      .layer-row { grid-template-columns: 1fr; }
+    }
+
+    footer {
+      margin-top: 2rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>GEOFlow 系统架构</h1>
+      <p>面向 GEO（生成式引擎优化）的开源智能内容工程平台：知识库 → AI 任务 → 审核/门禁 → 发布 → 多站点分发 → 策略分析闭环。</p>
+      <span class="tagline">Agent-First · Laravel 单体 + 可选 Python 侧车 · PostgreSQL 真相源</span>
+    </header>
+
+    <!-- 1. 技术栈 -->
+    <section>
+      <h2>技术栈</h2>
+      <div class="stack-grid">
+        <div class="stack-item core">
+          <div class="layer">Runtime</div>
+          <strong>PHP 8.2+ · Laravel 12</strong>
+          <span>应用框架、路由、Eloquent ORM、Scheduler</span>
+        </div>
+        <div class="stack-item data">
+          <div class="layer">Database</div>
+          <strong>PostgreSQL 16 + pgvector</strong>
+          <span>业务数据、向量召回、Alembic 风格 migrations</span>
+        </div>
+        <div class="stack-item data">
+          <div class="layer">Cache / Queue</div>
+          <strong>Redis 7</strong>
+          <span>队列 geoflow · distribution · default</span>
+        </div>
+        <div class="stack-item ai">
+          <div class="layer">AI（主路径）</div>
+          <strong>Laravel AI SDK</strong>
+          <span>laravel/ai · OpenAI 兼容 + Gemini 原生</span>
+        </div>
+        <div class="stack-item ai">
+          <div class="layer">AI（可选侧车）</div>
+          <strong>Content Agent</strong>
+          <span>FastAPI · LangGraph / LangChain · HMAC 回调</span>
+        </div>
+        <div class="stack-item ops">
+          <div class="layer">Async</div>
+          <strong>Horizon · Queue Jobs</strong>
+          <span>ProcessGeoFlowTaskJob · Distribution · GeoEval</span>
+        </div>
+        <div class="stack-item ops">
+          <div class="layer">Realtime</div>
+          <strong>Laravel Reverb</strong>
+          <span>WebSocket 任务状态广播</span>
+        </div>
+        <div class="stack-item fe">
+          <div class="layer">Admin UI</div>
+          <strong>Blade · Tailwind CSS 4 · Vite 7</strong>
+          <span>/geo_admin 后台 · Lucide 图标</span>
+        </div>
+        <div class="stack-item fe">
+          <div class="layer">Public Site</div>
+          <strong>Blade 主题</strong>
+          <span>可切换前台 CMS（技术品牌模式可关闭）</span>
+        </div>
+        <div class="stack-item core">
+          <div class="layer">API Auth</div>
+          <strong>Laravel Sanctum</strong>
+          <span>/api/v1 · Scope + 幂等键</span>
+        </div>
+        <div class="stack-item ops">
+          <div class="layer">Deploy</div>
+          <strong>Docker Compose</strong>
+          <span>Nginx + php-fpm（生产）· start/stop/verify.sh</span>
+        </div>
+        <div class="stack-item core">
+          <div class="layer">Config</div>
+          <strong>.env · config/geoflow.php</strong>
+          <span>geo_eval.php · horizon.php · queue.php</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. 分层架构 -->
+    <section>
+      <h2>分层架构</h2>
+      <div class="card">
+        <div class="layers">
+          <div class="layer-row">
+            <div class="layer-label">表现层</div>
+            <div class="layer-body primary">
+              <div class="chip"><strong>前台站点</strong><sub>Blade 主题 · / · 分类/文章/归档</sub></div>
+              <div class="chip"><strong>管理后台</strong><sub>/geo_admin · Dashboard · L1/L2/L3 Hub</sub></div>
+              <div class="chip"><strong>REST API</strong><sub>/api/v1 · tasks · articles · materials</sub></div>
+            </div>
+          </div>
+          <div class="layer-row">
+            <div class="layer-label">应用层</div>
+            <div class="layer-body">
+              <div class="chip"><strong>Http Controllers</strong><sub>Admin · Api/V1 · Site</sub></div>
+              <div class="chip"><strong>Middleware</strong><sub>Session 鉴权 · 日志 · 语言 · 公网开关</sub></div>
+              <div class="chip"><strong>Form Request</strong><sub>校验 · WikiTaskPolicy</sub></div>
+            </div>
+          </div>
+          <div class="layer-row">
+            <div class="layer-label">领域层</div>
+            <div class="layer-body domain">
+              <div class="chip"><strong>GeoFlow</strong><sub>任务 · RAG · 生成 · 发布 · 分发</sub></div>
+              <div class="chip"><strong>GeoEval</strong><sub>门禁 · 模拟 · 监控 · 采纳率 · Wiki 合规</sub></div>
+              <div class="chip"><strong>Admin Analytics</strong><sub>PV · 爬虫 · 分发 · GEO KPI</sub></div>
+              <div class="chip"><strong>Content Agent 端口</strong><sub>Internal / External Client</sub></div>
+              <div class="chip"><strong>Tech Brand</strong><sub>TechIpAsset · GwebWikiPublisher</sub></div>
+            </div>
+          </div>
+          <div class="layer-row">
+            <div class="layer-label">异步层</div>
+            <div class="layer-body async">
+              <div class="chip"><strong>Scheduler</strong><sub>geoflow:schedule-tasks · 每分钟</sub></div>
+              <div class="chip"><strong>Queue Jobs</strong><sub>ProcessGeoFlowTaskJob · EvaluateArticleJob</sub></div>
+              <div class="chip"><strong>Horizon</strong><sub>队列监控 · 失败重试</sub></div>
+              <div class="chip"><strong>Reverb</strong><sub>TaskRealtimeBroadcast</sub></div>
+            </div>
+          </div>
+          <div class="layer-row">
+            <div class="layer-label">持久层</div>
+            <div class="layer-body persist">
+              <div class="chip"><strong>PostgreSQL</strong><sub>articles · tasks · distributions · geo_*</sub></div>
+              <div class="chip"><strong>pgvector</strong><sub>KnowledgeChunk 向量召回</sub></div>
+              <div class="chip"><strong>Redis</strong><sub>队列 · 缓存 · Horizon 指标</sub></div>
+              <div class="chip"><strong>Storage</strong><sub>图片 · Agent 站点包 · 上传文件</sub></div>
+            </div>
+          </div>
+          <div class="layer-row">
+            <div class="layer-label">外部系统</div>
+            <div class="layer-body ext">
+              <div class="chip"><strong>LLM Provider</strong><sub>OpenAI · Gemini · Azure · Groq 等</sub></div>
+              <div class="chip"><strong>Content Agent</strong><sub>Python 侧车 · workflow 编排</sub></div>
+              <div class="chip"><strong>GEOFlow Agent</strong><sub>PHP 静态目标站包</sub></div>
+              <div class="chip"><strong>WordPress REST</strong><sub>远端 CMS 发布</sub></div>
+              <div class="chip"><strong>Generic HTTP API</strong><sub>自研 / 低代码对接</sub></div>
+              <div class="chip"><strong>Gweb Wiki</strong><sub>POST /api/wiki/sync（技术品牌）</sub></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. 主业务链路 -->
+    <section>
+      <h2>核心业务链路</h2>
+      <div class="card" style="margin-bottom:0.75rem">
+        <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.65rem">通用模式（开源默认）</p>
+        <div class="pipeline">
+          <span class="step">知识库 / 素材 / Prompt</span>
+          <span class="arrow">→</span>
+          <span class="step">Task 调度</span>
+          <span class="arrow">→</span>
+          <span class="step">WorkerExecutionService</span>
+          <span class="arrow">→</span>
+          <span class="step">RAG 召回</span>
+          <span class="arrow">→</span>
+          <span class="step">AI 生成</span>
+          <span class="arrow">→</span>
+          <span class="step">草稿 · 审核</span>
+          <span class="arrow">→</span>
+          <span class="step">GEO 门禁</span>
+          <span class="arrow">→</span>
+          <span class="step">本站发布</span>
+          <span class="arrow">→</span>
+          <span class="step">DistributionOrchestrator</span>
+          <span class="arrow">→</span>
+          <span class="step">Analytics</span>
+        </div>
+      </div>
+      <div class="card">
+        <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.65rem">技术品牌模式（<code>GEOFLOW_TECH_BRAND_MODE=true</code>）</p>
+        <div class="pipeline">
+          <span class="step">TechIpAsset</span>
+          <span class="arrow">→</span>
+          <span class="step">Wiki Task</span>
+          <span class="arrow">→</span>
+          <span class="step">wiki_meta + MDX 正文</span>
+          <span class="arrow">→</span>
+          <span class="step">WikiGeoComplianceChecker</span>
+          <span class="arrow">→</span>
+          <span class="step">distribution_only</span>
+          <span class="arrow">→</span>
+          <span class="step">GwebWikiPublisher</span>
+          <span class="arrow">→</span>
+          <span class="step">Strategy Hub KPI</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. 业务域 -->
+    <section>
+      <h2>业务域（Services）</h2>
+      <div class="domain-grid">
+        <div class="domain">
+          <h3>素材与 RAG</h3>
+          <ul>
+            <li>KnowledgeBase / KnowledgeChunk + pgvector</li>
+            <li>KnowledgeRetrievalService 混合召回</li>
+            <li>Title / Keyword / Image / Author 库</li>
+            <li>Prompt 模板（正文 / Wiki 四类）</li>
+          </ul>
+        </div>
+        <div class="domain">
+          <h3>任务与生成</h3>
+          <ul>
+            <li>TaskLifecycleService · TaskSchedule</li>
+            <li>WorkerExecutionService 核心执行器</li>
+            <li>MarkdownContentWriterAgent（Laravel AI）</li>
+            <li>ContentAgentClient（internal / external）</li>
+          </ul>
+        </div>
+        <div class="domain">
+          <h3>文章生命周期</h3>
+          <ul>
+            <li>ArticleWorkflow 状态机</li>
+            <li>review_status · eval_status</li>
+            <li>ArticlePublishService</li>
+            <li>content_format · wiki_meta（Wiki）</li>
+          </ul>
+        </div>
+        <div class="domain">
+          <h3>多站点分发</h3>
+          <ul>
+            <li>DistributionOrchestrator</li>
+            <li>GeoFlowAgent / WordPress / Generic HTTP</li>
+            <li>GwebWikiPublisher（技术品牌）</li>
+            <li>ArticleDistribution · DistributionLog</li>
+          </ul>
+        </div>
+        <div class="domain">
+          <h3>GEO 评估（GeoEval）</h3>
+          <ul>
+            <li>ArticleEvaluationService 门禁</li>
+            <li>InternalGeoEvalEngine · 模拟 RAG</li>
+            <li>Monitor 探测 · 采纳率聚合</li>
+            <li>InsightTemplate · Web Intel</li>
+          </ul>
+        </div>
+        <div class="domain">
+          <h3>策略与分析</h3>
+          <ul>
+            <li>Strategy Hub（L1）</li>
+            <li>GeoEvalAnalyticsService</li>
+            <li>TechBrandMetricsService</li>
+            <li>TrafficClassifier · view_logs</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. 部署 + 目录 -->
+    <div class="grid-2">
+      <section class="card">
+        <h2>Docker 部署拓扑</h2>
+        <table>
+          <thead>
+            <tr><th>服务</th><th>职责</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>postgres</code></td><td>PostgreSQL + pgvector</td></tr>
+            <tr><td><code>redis</code></td><td>队列、缓存</td></tr>
+            <tr><td><code>app</code></td><td>php artisan serve / php-fpm</td></tr>
+            <tr><td><code>queue</code></td><td>queue:work redis</td></tr>
+            <tr><td><code>scheduler</code></td><td>schedule:work</td></tr>
+            <tr><td><code>reverb</code></td><td>WebSocket</td></tr>
+            <tr><td><code>content-agent</code></td><td>可选 Python 侧车</td></tr>
+            <tr><td><code>nginx</code></td><td>生产反向代理</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card">
+        <h2>核心目录</h2>
+        <table>
+          <thead>
+            <tr><th>路径</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>app/Services/GeoFlow/</code></td><td>任务、RAG、分发、Wiki</td></tr>
+            <tr><td><code>app/Services/GeoEval/</code></td><td>评估、监控、采纳率</td></tr>
+            <tr><td><code>app/Jobs/</code></td><td>异步任务 Job 类</td></tr>
+            <tr><td><code>app/Ai/Agents/</code></td><td>Laravel AI Agent</td></tr>
+            <tr><td><code>services/content-agent/</code></td><td>Python workflow 侧车</td></tr>
+            <tr><td><code>config/geoflow.php</code></td><td>站点、Gweb、技术品牌开关</td></tr>
+            <tr><td><code>guide/</code></td><td>架构与集成文档</td></tr>
+            <tr><td><code>scripts/</code></td><td>start · stop · verify</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:1.25rem">
+      <h2>入口与 API Scope</h2>
+      <table>
+        <thead>
+          <tr><th>入口</th><th>路径</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>前台</td><td><code>/</code></td><td>Blade 主题 CMS（<code>GEOFLOW_PUBLIC_SITE_ENABLED</code> 可关）</td></tr>
+          <tr><td>后台</td><td><code>/geo_admin</code></td><td>Dashboard · 任务 · 素材 · 分发 · Strategy Hub</td></tr>
+          <tr><td>REST API</td><td><code>/api/v1</code></td><td>Sanctum Bearer · catalog / tasks / articles / jobs</td></tr>
+          <tr><td>Horizon</td><td><code>/horizon</code></td><td>队列监控（Gate 授权）</td></tr>
+          <tr><td>Content Agent 回调</td><td><code>/internal/content-agent/callback</code></td><td>HMAC 签名 · 异步落库</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <footer>
+      GEOFlow · guide/geoflow-architecture.html · 详见 guide/解析文档.md
+    </footer>
+  </div>
+</body>
+</html>

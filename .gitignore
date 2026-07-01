@@ -1,7 +1,6 @@
 *.log
 .DS_Store
 /bak
-/docker-data
 /logs
 /uploads
 .env
@@ -17,13 +16,26 @@
 /.vscode
 /.zed
 /auth.json
-/node_modules
-/public/build
-/public/hot
-/public/storage
-/storage/*.key
-/storage/pail
-/vendor
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# ── v3 ──
+/geoflow-v3/backend/.venv
+/geoflow-v3/backend/.pytest_cache
+/geoflow-v3/backend/__pycache__
+/geoflow-v3/backend/**/__pycache__
+/geoflow-v3/docker-data
+/geoflow-v3/apps/geoflow-admin/node_modules
+/geoflow-v3/apps/geoflow-admin/.next
+
+# ── legacy Laravel v2 ──
+/legacy/laravel/vendor
+/legacy/laravel/node_modules
+/legacy/laravel/docker-data
+/legacy/laravel/.env
+/legacy/laravel/public/build
+/legacy/laravel/public/hot
+/legacy/laravel/public/storage
+/legacy/laravel/storage/*.key
+/legacy/laravel/storage/pail
