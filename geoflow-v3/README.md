@@ -2,7 +2,7 @@
 
 全量迁移栈：**FastAPI + PostgreSQL/pgvector + LangGraph（内嵌）+ Celery + Next.js Admin**
 
-Laravel v2 保留在同仓库根目录；大爆炸切流后归档至 `legacy/laravel/`。
+Laravel v2 保留在仓库 `v2-lts` 分支（`legacy/laravel/`）；主开发线仅含 v3。
 
 ## 快速开始
 

@@ -50,6 +50,6 @@ cd geoflow-v3 && ./scripts/start.sh && ./scripts/verify.sh
 
 | 项 | 状态 |
 |----|------|
-| 代码位置 | `legacy/laravel/` |
+| 代码位置 | `v2-lts` 分支 · `legacy/laravel/` |
 | 根目录 Laravel 文件 | 已移出 |
 | v3 入口 | `geoflow-v3/` |

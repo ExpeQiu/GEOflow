@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# [已废弃] 大爆炸切流已完成；Laravel v2 见 v2-lts 分支 legacy/laravel/
 # 将 Laravel v2 代码归档至 legacy/laravel/（大爆炸切流后执行）
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

@@ -1,6 +1,6 @@
 # GEOFlow
 
-> **v3 已为主开发线** · Laravel v2 已归档至 [`legacy/laravel/`](legacy/laravel/)
+> **v3 已为主开发线** · Laravel v2 保留在 [`v2-lts`](https://github.com/ExpeQiu/GEOflow/tree/v2-lts) 分支
 
 面向 GEO（生成式引擎优化）的开源智能内容工程平台。
 
@@ -29,7 +29,6 @@ cp .env.example .env
 ```
 GEOFlow/
 ├── geoflow-v3/          # v3 主栈（FastAPI + LangGraph + Next.js Admin）
-├── legacy/laravel/      # v2 LTS 归档（Laravel 12 + Blade + Horizon）
 ├── guide/               # 架构与设计文档（含 v2 参考）
 ├── docs/                # 多语言 README、分发文档
 └── deploy-scripts/      # 部署脚本
@@ -45,17 +44,19 @@ GEOFlow/
 | 数据库 | PostgreSQL 16 + pgvector |
 | 公网 Wiki | [Gweb](https://github.com/)（独立仓库，`wiki/sync` 契约） |
 
-## Laravel v2（归档）
+## Laravel v2（LTS 分支）
 
-维护 bugfix 或回滚时使用：
+维护 bugfix 或回滚时切换到 `v2-lts` 分支：
 
 ```bash
+git fetch origin v2-lts
+git checkout v2-lts
 cd legacy/laravel
 cp .env.example .env   # 或恢复归档的 .env
 ./scripts/start.sh
 ```
 
-详见 [`legacy/laravel/README.md`](legacy/laravel/README.md)。
+详见 `v2-lts` 分支下的 [`legacy/laravel/README.md`](https://github.com/ExpeQiu/GEOflow/blob/v2-lts/legacy/laravel/README.md)。
 
 ## 文档
 

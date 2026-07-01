@@ -1,6 +1,6 @@
 # GEOFlow v3 架构说明
 
-> Laravel v2 已归档至 [`../../legacy/laravel/`](../../legacy/laravel/README.md)
+> Laravel v2 保留在 `v2-lts` 分支（`legacy/laravel/`）
 
 ## 栈
 
@@ -20,7 +20,7 @@ cp .env.example .env
 
 1. `./scripts/migrate-from-laravel.sh` 迁移数据
 2. 反代切换 `/api/v1` → v3 API；Admin → geoflow-admin
-3. Laravel 归档至 `legacy/laravel/`
+3. Laravel 归档至 `v2-lts` 分支（`legacy/laravel/`）
 
 ## API
 

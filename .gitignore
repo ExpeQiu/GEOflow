@@ -28,14 +28,3 @@ Thumbs.db
 /geoflow-v3/docker-data
 /geoflow-v3/apps/geoflow-admin/node_modules
 /geoflow-v3/apps/geoflow-admin/.next
-
-# ── legacy Laravel v2 ──
-/legacy/laravel/vendor
-/legacy/laravel/node_modules
-/legacy/laravel/docker-data
-/legacy/laravel/.env
-/legacy/laravel/public/build
-/legacy/laravel/public/hot
-/legacy/laravel/public/storage
-/legacy/laravel/storage/*.key
-/legacy/laravel/storage/pail
