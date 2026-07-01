@@ -4,3 +4,4 @@ import { MaterialsLibraryPage } from "@/components/production/MaterialsLibraryPa
 
 export default function KeywordLibrariesPage() {
   return <MaterialsLibraryPage kind="keywords" />;
+}

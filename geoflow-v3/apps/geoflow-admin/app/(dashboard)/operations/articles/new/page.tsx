@@ -7,3 +7,4 @@ export default function ArticleNewPage() {
   const token = useAuthGuard();
   if (!token) return null;
   return <ArticleCreateForm />;
+}

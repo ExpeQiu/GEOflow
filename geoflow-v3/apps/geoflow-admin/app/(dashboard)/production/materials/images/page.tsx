@@ -4,3 +4,4 @@ import { MaterialsLibraryPage } from "@/components/production/MaterialsLibraryPa
 
 export default function ImageLibrariesPage() {
   return <MaterialsLibraryPage kind="images" />;
+}

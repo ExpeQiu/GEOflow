@@ -9,3 +9,4 @@ export default function TaskEditPage() {
   const { id } = useParams<{ id: string }>();
   if (!token) return null;
   return <TaskCreateForm taskId={Number(id)} />;
+}
