@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { Inbox, Play, Plus, Square, Zap } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { zh } from "@/lib/i18n/zh";
@@ -17,14 +18,33 @@ export function TasksPanel({
   onStart,
   onStop,
   onEnqueue,
+  onDelete,
+  onBatchStart,
   busyId,
 }: {
   tasks: AdminTask[];
   onStart: (id: number) => void;
   onStop: (id: number) => void;
   onEnqueue: (id: number) => void;
+  onDelete: (id: number) => void;
+  onBatchStart?: (ids: number[]) => void;
   busyId: number | null;
 }) {
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+
+  function toggle(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (selected.size === tasks.length) setSelected(new Set());
+    else setSelected(new Set(tasks.map((t) => t.id)));
+  }
   if (tasks.length === 0) {
     return (
       <div className="rounded-lg bg-white px-6 py-10 text-center shadow-sm ring-1 ring-gray-200">
@@ -46,18 +66,32 @@ export function TasksPanel({
     <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
       <div className="flex flex-col gap-3 border-b border-gray-200 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-lg font-medium text-gray-900">{zh.tasks.listTitle}</h3>
-        <Link
-          href="/operations/tasks/new"
-          className="inline-flex h-9 items-center rounded-lg bg-blue-600 px-3 text-sm font-semibold text-white hover:bg-blue-700"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          {zh.tasks.createButton}
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          {onBatchStart && selected.size > 0 && (
+            <button
+              type="button"
+              onClick={() => { onBatchStart([...selected]); setSelected(new Set()); }}
+              className="inline-flex h-9 items-center rounded-lg border border-blue-200 bg-blue-50 px-3 text-sm font-medium text-blue-700 hover:bg-blue-100"
+            >
+              批量启动 ({selected.size})
+            </button>
+          )}
+          <Link
+            href="/operations/tasks/new"
+            className="inline-flex h-9 items-center rounded-lg bg-blue-600 px-3 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            {zh.tasks.createButton}
+          </Link>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-[960px] w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
+              <th className="px-4 py-3">
+                <input type="checkbox" checked={selected.size === tasks.length && tasks.length > 0} onChange={toggleAll} />
+              </th>
               {[zh.tasks.columnName, zh.tasks.columnCreated, zh.tasks.columnModel, zh.tasks.columnStats, zh.tasks.columnLoop, zh.tasks.columnStatus, zh.tasks.columnActions].map(
                 (h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
@@ -73,9 +107,12 @@ export function TasksPanel({
                 key={task.id}
                 task={task}
                 busy={busyId === task.id}
+                selected={selected.has(task.id)}
+                onToggle={() => toggle(task.id)}
                 onStart={onStart}
                 onStop={onStop}
                 onEnqueue={onEnqueue}
+                onDelete={onDelete}
               />
             ))}
           </tbody>
@@ -88,15 +125,21 @@ export function TasksPanel({
 function TaskRow({
   task,
   busy,
+  selected,
+  onToggle,
   onStart,
   onStop,
   onEnqueue,
+  onDelete,
 }: {
   task: AdminTask;
   busy: boolean;
+  selected: boolean;
+  onToggle: () => void;
   onStart: (id: number) => void;
   onStop: (id: number) => void;
   onEnqueue: (id: number) => void;
+  onDelete: (id: number) => void;
 }) {
   const active = task.status === "active";
   const scopeKey = task.publish_scope as keyof typeof zh.tasks.publishScope;
@@ -108,6 +151,9 @@ function TaskRow({
 
   return (
     <tr className="hover:bg-gray-50">
+      <td className="px-4 py-4 align-top">
+        <input type="checkbox" checked={selected} onChange={onToggle} />
+      </td>
       <td className="px-4 py-4 align-top">
         <div className="text-sm font-medium text-gray-900">{task.name}</div>
         <span
@@ -164,6 +210,14 @@ function TaskRow({
           <IconButton title={zh.tasks.actionRun} onClick={() => onEnqueue(task.id)} disabled={busy} tone="blue">
             <Zap className="h-4 w-4" />
           </IconButton>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onDelete(task.id)}
+            className="inline-flex h-8 items-center rounded-md border border-red-200 px-2 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+          >
+            删除
+          </button>
         </div>
       </td>
     </tr>

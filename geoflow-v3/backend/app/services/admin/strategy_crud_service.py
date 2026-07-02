@@ -159,8 +159,25 @@ async def batch_reevaluate(db: AsyncSession, body: BatchReevalBody) -> dict:
 
 
 async def apply_recommendations(db: AsyncSession, article_id: int) -> dict:
+    from app.models.geoeval import ArticleEvaluation
+
     article = await db.get(Article, article_id)
     if article is None or article.deleted_at:
         raise HTTPException(status_code=404, detail="article_not_found")
-    logger.info("apply_recommendations article_id=%s (placeholder)", article_id)
-    return {"applied": True, "article_id": article_id, "note": "recommendations_applied_placeholder"}
+    ev = (
+        await db.execute(
+            select(ArticleEvaluation)
+            .where(ArticleEvaluation.article_id == article_id)
+            .order_by(ArticleEvaluation.id.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    note = "recommendations_applied"
+    if ev and ev.failure_reason:
+        eval_meta = dict(article.eval_meta or {})
+        eval_meta["applied_recommendations"] = ev.failure_reason
+        article.eval_meta = eval_meta
+        note = ev.failure_reason[:500]
+    await db.flush()
+    logger.info("apply_recommendations article_id=%s", article_id)
+    return {"applied": True, "article_id": article_id, "note": note}

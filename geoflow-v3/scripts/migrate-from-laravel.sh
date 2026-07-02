@@ -15,6 +15,9 @@ TABLES=(
   distribution_channels article_distributions
   article_evaluations insight_templates tech_ip_assets
   api_idempotency_keys
+  keyword_libraries keywords title_libraries titles
+  image_libraries images site_settings
+  geo_monitor_questions geo_web_sources
 )
 
 log "导出 Laravel 业务表..."

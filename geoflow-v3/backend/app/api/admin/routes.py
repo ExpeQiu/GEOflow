@@ -3,7 +3,7 @@
 import logging
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import select
 
@@ -43,6 +43,7 @@ from app.services.admin.production_service import (
     build_materials_panel,
     build_production_overview,
 )
+from app.services.admin.batch_operations_service import BatchIdsBody, batch_publish_articles, batch_start_tasks, batch_trash_articles
 from app.services.admin.article_form_service import (
     AdminArticleCreateBody,
     AdminArticleUpdateBody,
@@ -65,11 +66,16 @@ from app.services.admin.task_form_service import (
 )
 from app.services.admin.distribution_detail_service import (
     AdminDistributionUpdateBody,
+    DistributionJobUpdateBody,
     build_channel_detail,
     build_distribution_jobs,
+    check_channel_health,
+    delete_admin_distribution_channel,
+    delete_distribution_job,
     retry_distribution_job,
     toggle_channel_status,
     update_admin_distribution_channel,
+    update_distribution_job,
 )
 from app.services.admin.materials_libraries_service import (
     ImageMetaBody,
@@ -82,6 +88,10 @@ from app.services.admin.materials_libraries_service import (
     create_keyword_library,
     create_title,
     create_title_library,
+    delete_image,
+    delete_image_library,
+    delete_keyword,
+    delete_keyword_library,
     delete_title,
     delete_title_library,
     list_image_libraries,
@@ -91,10 +101,25 @@ from app.services.admin.materials_libraries_service import (
     list_title_libraries,
     list_titles,
     update_title_library,
+    bulk_create_titles,
+    generate_titles,
+    BulkTitlesBody,
+    TitleGenerateBody,
 )
-from app.services.admin.knowledge_crud_service import KnowledgeBaseBody, create_knowledge_base, delete_knowledge_base, get_knowledge_base, list_knowledge_bases_detail, update_knowledge_base
+from app.services.admin.knowledge_settings_service import (
+    KnowledgeSettingsBody,
+    RagSandboxBody,
+    get_knowledge_settings,
+    run_rag_sandbox,
+    save_knowledge_settings,
+)
+from app.services.admin.tech_assets_import_service import TechYamlImportBody, import_tech_assets_yaml
+from app.services.admin.upload_service import read_knowledge_upload, save_image_upload
+from app.services.admin.knowledge_crud_service import KnowledgeBaseBody, append_knowledge_file_content, create_knowledge_base, delete_knowledge_base, get_knowledge_base, list_knowledge_bases_detail, update_knowledge_base
 from app.services.admin.ai_config_crud_service import AiModelBody, PromptBody, create_ai_model, create_prompt, delete_ai_model, delete_prompt, list_ai_models, list_prompts, test_ai_model, update_ai_model, update_prompt
-from app.services.admin.url_import_service import UrlImportBody, list_url_import_history, run_url_import
+from app.services.admin.monitor_detail_service import build_monitor_run_detail, list_monitor_runs
+from app.services.admin.monitor_settings_service import MonitorSettingsBody, get_monitor_settings, save_monitor_settings
+from app.services.admin.url_import_service import UrlImportBody, commit_url_import_job, get_url_import_job, list_url_import_history, run_url_import
 from app.services.admin.strategy_crud_service import (
     BatchReevalBody,
     InsightTemplateBody,
@@ -116,18 +141,25 @@ from app.services.admin.strategy_crud_service import (
 )
 from app.services.admin.settings_crud_service import (
     AdminUserBody,
+    AdminUserUpdateBody,
     ApiTokenBody,
+    PasswordChangeBody,
     SensitiveWordsBody,
     SiteSettingBody,
+    change_admin_password,
     create_admin_user,
     create_api_token,
+    delete_admin_user,
     get_sensitive_words,
     get_site_settings_full,
     list_activity_logs,
     list_admin_users,
     list_api_tokens,
+    revoke_api_token,
     rotate_channel_secret,
     save_sensitive_words,
+    toggle_admin_user,
+    update_admin_user,
     upsert_site_setting,
 )
 from app.services.admin.strategy_service import (
@@ -181,6 +213,27 @@ async def admins_create(body: AdminUserBody, request: Request, db: DbSession, jw
     return success(request, await create_admin_user(db, body), status=201)
 
 
+@router.patch("/settings/admins/{admin_id}")
+async def admins_update(admin_id: int, body: AdminUserUpdateBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await update_admin_user(db, admin_id, body))
+
+
+@router.post("/settings/admins/{admin_id}/toggle-status")
+async def admins_toggle(admin_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await toggle_admin_user(db, admin_id))
+
+
+@router.delete("/settings/admins/{admin_id}")
+async def admins_delete(admin_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await delete_admin_user(db, admin_id))
+
+
+@router.post("/settings/security/password")
+async def security_password(body: PasswordChangeBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    admin_id = int(jwt.get("sub", 0) or 0)
+    return success(request, await change_admin_password(db, admin_id, body))
+
+
 @router.get("/settings/api-tokens")
 async def api_tokens_list(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     return success(request, await list_api_tokens(db))
@@ -190,6 +243,11 @@ async def api_tokens_list(request: Request, db: DbSession, jwt=Depends(get_admin
 async def api_tokens_create(body: ApiTokenBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     admin_id = int(jwt.get("sub", 0) or 0)
     return success(request, await create_api_token(db, admin_id, body), status=201)
+
+
+@router.post("/settings/api-tokens/{token_id}/revoke")
+async def api_tokens_revoke(token_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await revoke_api_token(db, token_id))
 
 
 @router.get("/settings/activity-logs")
@@ -248,6 +306,11 @@ async def remove_task(task_id: int, request: Request, db: DbSession, jwt=Depends
     payload = await delete_admin_task(db, task_id)
     await broadcast_tasks_overview()
     return success(request, payload)
+
+
+@router.post("/tasks/batch/start")
+async def batch_tasks_start(body: BatchIdsBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await batch_start_tasks(db, body))
 
 
 @router.get("/tasks/overview")
@@ -402,6 +465,16 @@ async def admin_purge_article(article_id: int, request: Request, db: DbSession, 
     return success(request, await purge_admin_article(db, article_id))
 
 
+@router.post("/articles/batch/trash")
+async def batch_articles_trash(body: BatchIdsBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await batch_trash_articles(db, body))
+
+
+@router.post("/articles/batch/publish")
+async def batch_articles_publish(body: BatchIdsBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await batch_publish_articles(db, body))
+
+
 @router.get("/distribution")
 async def distribution_overview(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     return success(request, await build_distribution_panel(db))
@@ -465,6 +538,28 @@ async def distribution_jobs(
 @router.post("/distribution/jobs/{job_id}/retry")
 async def retry_job(job_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     return success(request, await retry_distribution_job(db, job_id))
+
+
+@router.patch("/distribution/jobs/{job_id}")
+async def patch_distribution_job(
+    job_id: int, body: DistributionJobUpdateBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)
+):
+    return success(request, await update_distribution_job(db, job_id, body))
+
+
+@router.delete("/distribution/jobs/{job_id}")
+async def delete_distribution_job_route(job_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await delete_distribution_job(db, job_id))
+
+
+@router.delete("/distribution/channels/{channel_id}")
+async def delete_distribution_channel(channel_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await delete_admin_distribution_channel(db, channel_id))
+
+
+@router.get("/distribution/channels/{channel_id}/health")
+async def distribution_channel_health(channel_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await check_channel_health(db, channel_id))
 
 
 @router.post("/distribution/channels/{channel_id}/rotate-secret")
@@ -555,6 +650,30 @@ async def strategy_monitor_scan(request: Request, db: DbSession, jwt=Depends(get
     return success(request, {"queued": True})
 
 
+@router.get("/strategy/monitor/settings")
+async def strategy_monitor_settings_get(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await get_monitor_settings(db))
+
+
+@router.patch("/strategy/monitor/settings")
+async def strategy_monitor_settings_patch(
+    body: MonitorSettingsBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)
+):
+    return success(request, await save_monitor_settings(db, body))
+
+
+@router.get("/strategy/monitor/runs")
+async def strategy_monitor_runs_list(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await list_monitor_runs(db))
+
+
+@router.get("/strategy/monitor/runs/{run_id}")
+async def strategy_monitor_run_detail(
+    run_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)
+):
+    return success(request, await build_monitor_run_detail(db, run_id))
+
+
 @router.get("/strategy/geo-eval")
 async def strategy_geo_eval(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     return success(request, await build_geo_eval_panel(db))
@@ -605,6 +724,11 @@ async def create_tech_asset(body: TechAssetBody, request: Request, db: DbSession
     return success(request, {"item": _asset_dict(asset)}, status=201)
 
 
+@router.post("/tech-assets/import-yaml")
+async def import_tech_assets(body: TechYamlImportBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await import_tech_assets_yaml(db, body))
+
+
 @router.get("/knowledge-bases")
 async def list_knowledge_bases(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     rows = (await db.execute(select(KnowledgeBase))).scalars().all()
@@ -642,6 +766,34 @@ async def knowledge_base_update(kb_id: int, body: KnowledgeBaseBody, request: Re
 @router.delete("/knowledge-bases/{kb_id}")
 async def knowledge_base_delete(kb_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     return success(request, await delete_knowledge_base(db, kb_id))
+
+
+@router.post("/knowledge-bases/{kb_id}/upload-file")
+async def knowledge_base_upload_file(
+    kb_id: int,
+    request: Request,
+    db: DbSession,
+    jwt=Depends(get_admin_jwt),
+    file: UploadFile = File(...),
+):
+    parsed = await read_knowledge_upload(file)
+    result = await append_knowledge_file_content(db, kb_id, parsed["content"], parsed["filename"])
+    return success(request, result)
+
+
+@router.get("/knowledge-settings")
+async def knowledge_settings_get(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await get_knowledge_settings(db))
+
+
+@router.patch("/knowledge-settings")
+async def knowledge_settings_patch(body: KnowledgeSettingsBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await save_knowledge_settings(db, body))
+
+
+@router.post("/knowledge-bases/rag-sandbox")
+async def knowledge_rag_sandbox(body: RagSandboxBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await run_rag_sandbox(db, body))
 
 
 @router.get("/ai-models")
@@ -719,6 +871,16 @@ async def titles_create(library_id: int, body: TitleBody, request: Request, db: 
     return success(request, await create_title(db, library_id, body), status=201)
 
 
+@router.post("/materials/title-libraries/{library_id}/titles/bulk")
+async def titles_bulk(library_id: int, body: BulkTitlesBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await bulk_create_titles(db, library_id, body), status=201)
+
+
+@router.post("/materials/title-libraries/{library_id}/titles/generate")
+async def titles_generate(library_id: int, body: TitleGenerateBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await generate_titles(db, library_id, body))
+
+
 @router.delete("/materials/titles/{title_id}")
 async def titles_delete(title_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     return success(request, await delete_title(db, title_id))
@@ -744,6 +906,16 @@ async def keywords_create(library_id: int, body: KeywordBody, request: Request, 
     return success(request, await create_keyword(db, library_id, body), status=201)
 
 
+@router.delete("/materials/keyword-libraries/{library_id}")
+async def keyword_libraries_delete(library_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await delete_keyword_library(db, library_id))
+
+
+@router.delete("/materials/keywords/{keyword_id}")
+async def keywords_delete(keyword_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await delete_keyword(db, keyword_id))
+
+
 @router.get("/materials/image-libraries")
 async def image_libraries_list(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     return success(request, await list_image_libraries(db))
@@ -764,14 +936,58 @@ async def images_create(library_id: int, body: ImageMetaBody, request: Request, 
     return success(request, await create_image_meta(db, library_id, body), status=201)
 
 
+@router.post("/materials/image-libraries/{library_id}/images/upload")
+async def images_upload(
+    library_id: int,
+    request: Request,
+    db: DbSession,
+    jwt=Depends(get_admin_jwt),
+    file: UploadFile = File(...),
+):
+    from app.services.admin.materials_libraries_service import ImageMetaBody, create_image_meta
+
+    meta = await save_image_upload(library_id, file)
+    item = await create_image_meta(
+        db,
+        library_id,
+        ImageMetaBody(
+            original_name=meta["original_name"],
+            file_path=meta["file_path"],
+            mime_type=meta["mime_type"],
+            file_size=meta["file_size"],
+        ),
+    )
+    return success(request, item, status=201)
+
+
+@router.delete("/materials/image-libraries/{library_id}")
+async def image_libraries_delete(library_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await delete_image_library(db, library_id))
+
+
+@router.delete("/materials/images/{image_id}")
+async def images_delete(image_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await delete_image(db, image_id))
+
+
 @router.post("/production/url-import")
 async def url_import_run(body: UrlImportBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     return success(request, await run_url_import(db, body), status=201)
 
 
 @router.get("/production/url-import/history")
-async def url_import_history(request: Request, jwt=Depends(get_admin_jwt)):
-    return success(request, await list_url_import_history())
+async def url_import_history(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await list_url_import_history(db))
+
+
+@router.get("/production/url-import/{job_id}")
+async def url_import_show(job_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await get_url_import_job(db, job_id))
+
+
+@router.post("/production/url-import/{job_id}/commit")
+async def url_import_commit(job_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await commit_url_import_job(db, job_id))
 
 
 @router.get("/strategy/insight-templates/manage")

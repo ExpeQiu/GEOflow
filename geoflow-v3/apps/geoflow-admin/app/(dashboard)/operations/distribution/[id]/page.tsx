@@ -8,7 +8,7 @@ import { FlashAlert } from "@/components/admin/FlashAlert";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
-import { apiGet, apiPatch, apiPost, getToken } from "@/lib/api-client";
+import { apiDelete, apiGet, apiPatch, apiPost, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
 import { OPERATIONS_NAV } from "@/lib/nav-config";
 
@@ -29,6 +29,7 @@ export default function DistributionChannelPage() {
   const [channel, setChannel] = useState<ChannelDetail | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [health, setHealth] = useState<{ healthy: boolean; message: string } | null>(null);
 
   useEffect(() => {
     const t = getToken();
@@ -75,6 +76,20 @@ export default function DistributionChannelPage() {
     alert(`新密钥（请妥善保存）：${res.secret}`);
   }
 
+  async function checkHealth() {
+    const t = getToken();
+    if (!t) return;
+    const res = await apiGet<{ healthy: boolean; message: string }>(`/api/admin/distribution/channels/${id}/health`, t);
+    setHealth(res);
+  }
+
+  async function removeChannel() {
+    const t = getToken();
+    if (!t || !confirm("确认删除此渠道？")) return;
+    await apiDelete(`/api/admin/distribution/channels/${id}`, t);
+    router.push("/operations/distribution");
+  }
+
   if (!token) return null;
 
   return (
@@ -109,8 +124,15 @@ export default function DistributionChannelPage() {
               <button type="button" onClick={() => toggle("activate")} className="rounded-md border border-green-300 px-4 py-2 text-sm text-green-700">激活</button>
             )}
             <button type="button" onClick={rotateSecret} className="rounded-md border border-violet-300 px-4 py-2 text-sm text-violet-700">轮换密钥</button>
+            <button type="button" onClick={checkHealth} className="rounded-md border border-cyan-300 px-4 py-2 text-sm text-cyan-700">健康检查</button>
+            <button type="button" onClick={removeChannel} className="rounded-md border border-red-200 px-4 py-2 text-sm text-red-600">删除渠道</button>
             <Link href="/operations/distribution/jobs" className="rounded-md border border-gray-300 px-4 py-2 text-sm">查看 Jobs</Link>
           </div>
+          {health && (
+            <p className={`text-sm ${health.healthy ? "text-green-700" : "text-red-600"}`}>
+              健康状态：{health.healthy ? "正常" : "异常"} — {health.message}
+            </p>
+          )}
         </form>
       )}
     </div>

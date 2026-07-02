@@ -150,6 +150,36 @@ async def list_keyword_libraries(db: AsyncSession) -> dict:
     return {"items": [{"id": int(r[0]), "name": r[1], "description": r[2] or "", "count": int(r[3])} for r in rows]}
 
 
+async def delete_keyword_library(db: AsyncSession, library_id: int) -> dict:
+    await _require_table(db, "keyword_libraries")
+    in_use = int(
+        await db.scalar(
+            text("SELECT COUNT(*) FROM title_libraries WHERE keyword_library_id = :id"), {"id": library_id}
+        )
+        or 0
+    )
+    if in_use > 0:
+        raise HTTPException(status_code=422, detail="library_in_use")
+    await db.execute(text("DELETE FROM keyword_libraries WHERE id = :id"), {"id": library_id})
+    logger.info("keyword_library_deleted id=%s", library_id)
+    return {"deleted": True}
+
+
+async def delete_keyword(db: AsyncSession, keyword_id: int) -> dict:
+    await _require_table(db, "keywords")
+    lib = (await db.execute(text("SELECT library_id FROM keywords WHERE id=:id"), {"id": keyword_id})).first()
+    if not lib:
+        raise HTTPException(status_code=404, detail="keyword_not_found")
+    await db.execute(text("DELETE FROM keywords WHERE id=:id"), {"id": keyword_id})
+    await db.execute(
+        text(
+            "UPDATE keyword_libraries SET keyword_count = (SELECT COUNT(*) FROM keywords WHERE library_id=:lid) WHERE id=:lid"
+        ),
+        {"lid": lib[0]},
+    )
+    return {"deleted": True}
+
+
 async def create_keyword_library(db: AsyncSession, body: LibraryBody) -> dict:
     await _require_table(db, "keyword_libraries")
     row = (
@@ -216,6 +246,33 @@ async def create_image_library(db: AsyncSession, body: LibraryBody) -> dict:
     return {"item": {"id": int(row[0]), "name": body.name.strip(), "count": 0}}
 
 
+async def delete_image_library(db: AsyncSession, library_id: int) -> dict:
+    await _require_table(db, "image_libraries")
+    in_use = int(
+        await db.scalar(text("SELECT COUNT(*) FROM tasks WHERE image_library_id = :id"), {"id": library_id}) or 0
+    )
+    if in_use > 0:
+        raise HTTPException(status_code=422, detail="library_in_use")
+    await db.execute(text("DELETE FROM image_libraries WHERE id = :id"), {"id": library_id})
+    logger.info("image_library_deleted id=%s", library_id)
+    return {"deleted": True}
+
+
+async def delete_image(db: AsyncSession, image_id: int) -> dict:
+    await _require_table(db, "images")
+    lib = (await db.execute(text("SELECT library_id FROM images WHERE id=:id"), {"id": image_id})).first()
+    if not lib:
+        raise HTTPException(status_code=404, detail="image_not_found")
+    await db.execute(text("DELETE FROM images WHERE id=:id"), {"id": image_id})
+    await db.execute(
+        text(
+            "UPDATE image_libraries SET image_count = (SELECT COUNT(*) FROM images WHERE library_id=:lid) WHERE id=:lid"
+        ),
+        {"lid": lib[0]},
+    )
+    return {"deleted": True}
+
+
 async def list_images(db: AsyncSession, library_id: int) -> dict:
     await _require_table(db, "images")
     rows = (
@@ -259,3 +316,48 @@ async def create_image_meta(db: AsyncSession, library_id: int, body: ImageMetaBo
     ).first()
     await db.flush()
     return {"item": {"id": int(row[0]), "original_name": body.original_name.strip(), "file_path": body.file_path.strip()}}
+
+
+class BulkTitlesBody(BaseModel):
+    titles: list[str] = Field(min_length=1, max_length=200)
+
+
+class TitleGenerateBody(BaseModel):
+    seed: str = ""
+    count: int = Field(default=5, ge=1, le=20)
+
+
+async def bulk_create_titles(db: AsyncSession, library_id: int, body: BulkTitlesBody) -> dict:
+    created = 0
+    for title in body.titles:
+        t = title.strip()
+        if not t:
+            continue
+        await create_title(db, library_id, TitleBody(title=t))
+        created += 1
+    logger.info("bulk_titles_created library_id=%s count=%s", library_id, created)
+    return {"created": created}
+
+
+async def generate_titles(db: AsyncSession, library_id: int, body: TitleGenerateBody) -> dict:
+    await _require_table(db, "title_libraries")
+    seed = body.seed.strip() or "技术品牌"
+    titles = [f"{seed} · 洞察选题 {i}" for i in range(1, body.count + 1)]
+    try:
+        from app.ai.workflow_runner import run_workflow_sync
+
+        wf = run_workflow_sync(
+            "url_import",
+            {"page_json": {"title": seed, "text": seed}, "url": "inline://generate"},
+        )
+        wf_titles = wf.get("titles") if isinstance(wf, dict) else []
+        if isinstance(wf_titles, list) and wf_titles:
+            titles = [str(t) for t in wf_titles[: body.count]]
+    except Exception:
+        logger.exception("generate_titles_workflow_fallback library_id=%s", library_id)
+    created = 0
+    for title in titles:
+        await create_title(db, library_id, TitleBody(title=title))
+        created += 1
+    return {"created": created, "titles": titles}
+

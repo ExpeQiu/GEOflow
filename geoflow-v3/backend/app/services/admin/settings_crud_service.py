@@ -38,6 +38,18 @@ class ApiTokenBody(BaseModel):
     scopes: list[str] = Field(default_factory=list)
 
 
+class PasswordChangeBody(BaseModel):
+    current_password: str = Field(min_length=1)
+    new_password: str = Field(min_length=6, max_length=100)
+
+
+class AdminUserUpdateBody(BaseModel):
+    email: str = ""
+    display_name: str = ""
+    password: str = ""
+    status: str = Field(default="", pattern="^(|active|disabled)$")
+
+
 async def _require_settings_table(db: AsyncSession) -> None:
     if not await _table_exists(db, "site_settings"):
         raise HTTPException(status_code=503, detail="site_settings_not_migrated")
@@ -178,6 +190,76 @@ async def create_api_token(db: AsyncSession, admin_id: int, body: ApiTokenBody) 
     await db.flush()
     logger.info("api_token_created id=%s prefix=%s", row[0], prefix)
     return {"item": {"id": int(row[0]), "token": raw, "token_prefix": prefix}}
+
+
+async def revoke_api_token(db: AsyncSession, token_id: int) -> dict:
+    if not await _table_exists(db, "api_access_tokens"):
+        raise HTTPException(status_code=503, detail="api_tokens_not_migrated")
+    result = await db.execute(
+        text("UPDATE api_access_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE id = :id AND revoked_at IS NULL"),
+        {"id": token_id},
+    )
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="token_not_found")
+    logger.info("api_token_revoked id=%s", token_id)
+    return {"revoked": True, "id": token_id}
+
+
+async def update_admin_user(db: AsyncSession, admin_id: int, body: AdminUserUpdateBody) -> dict:
+    from passlib.context import CryptContext
+
+    row = (await db.execute(text("SELECT id FROM admins WHERE id = :id"), {"id": admin_id})).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="admin_not_found")
+    params: dict = {"id": admin_id, "e": body.email.strip(), "d": body.display_name.strip()}
+    sets = ["email = :e", "display_name = :d"]
+    if body.password.strip():
+        pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        params["p"] = pwd_ctx.hash(body.password.strip())
+        sets.append("password = :p")
+    if body.status:
+        params["s"] = body.status
+        sets.append("status = :s")
+    await db.execute(text(f"UPDATE admins SET {', '.join(sets)} WHERE id = :id"), params)
+    logger.info("admin_user_updated id=%s", admin_id)
+    return {"item": {"id": admin_id}}
+
+
+async def toggle_admin_user(db: AsyncSession, admin_id: int) -> dict:
+    row = (
+        await db.execute(text("SELECT status FROM admins WHERE id = :id"), {"id": admin_id})
+    ).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="admin_not_found")
+    new_status = "disabled" if row[0] == "active" else "active"
+    await db.execute(text("UPDATE admins SET status = :s WHERE id = :id"), {"s": new_status, "id": admin_id})
+    logger.info("admin_user_toggled id=%s status=%s", admin_id, new_status)
+    return {"item": {"id": admin_id, "status": new_status}}
+
+
+async def delete_admin_user(db: AsyncSession, admin_id: int) -> dict:
+    result = await db.execute(text("DELETE FROM admins WHERE id = :id"), {"id": admin_id})
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="admin_not_found")
+    logger.info("admin_user_deleted id=%s", admin_id)
+    return {"deleted": True}
+
+
+async def change_admin_password(db: AsyncSession, admin_id: int, body: PasswordChangeBody) -> dict:
+    from passlib.context import CryptContext
+
+    row = (
+        await db.execute(text("SELECT password FROM admins WHERE id = :id"), {"id": admin_id})
+    ).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="admin_not_found")
+    pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    if not pwd_ctx.verify(body.current_password, row[0]):
+        raise HTTPException(status_code=422, detail="invalid_current_password")
+    hashed = pwd_ctx.hash(body.new_password)
+    await db.execute(text("UPDATE admins SET password = :p WHERE id = :id"), {"p": hashed, "id": admin_id})
+    logger.info("admin_password_changed id=%s", admin_id)
+    return {"changed": True}
 
 
 async def list_activity_logs(db: AsyncSession) -> dict:

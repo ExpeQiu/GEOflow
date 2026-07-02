@@ -42,7 +42,10 @@ export default function UrlImportPage() {
       </form>
       <ul className="divide-y divide-gray-100 rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
         {history.map((h) => (
-          <li key={h.id} className="px-4 py-3 text-sm">{h.url} · {h.status}</li>
+          <li key={h.id} className="flex items-center justify-between px-4 py-3 text-sm">
+            <span>{h.url} · {h.status}</span>
+            <Link href={`/production/url-import/${h.id}`} className="text-emerald-700">详情</Link>
+          </li>
         ))}
       </ul>
     </div>

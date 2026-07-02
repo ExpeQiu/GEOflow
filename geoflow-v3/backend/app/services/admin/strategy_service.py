@@ -43,12 +43,23 @@ async def build_monitor_panel(db: AsyncSession) -> dict:
         "recent_runs": await _fetch_rows(
             db,
             """
-            SELECT id, status, platform, question_count, completed_at
+            SELECT id, status, platform, question_count, probe_count, completed_at
             FROM geo_monitor_runs
             ORDER BY id DESC
             LIMIT 8
             """,
-            ("id", "status", "platform", "question_count", "completed_at"),
+            ("id", "status", "platform", "question_count", "probe_count", "completed_at"),
+        ),
+        "recent_probes": await _fetch_rows(
+            db,
+            """
+            SELECT pr.id, pr.platform, pr.brand_rank, pr.mentioned, pr.snippet, mq.question_text
+            FROM geo_monitor_probe_results pr
+            JOIN geo_monitor_questions mq ON mq.id = pr.question_id
+            ORDER BY pr.id DESC
+            LIMIT 24
+            """,
+            ("id", "platform", "brand_rank", "mentioned", "snippet", "question_text"),
         ),
     }
 
@@ -294,15 +305,12 @@ async def _tech_brand_metrics(db: AsyncSession) -> dict:
 
 
 async def _monitor_kpis(db: AsyncSession) -> dict:
-    kpis = {
-        "question_count": 0,
-        "probe_count": 0,
-        "avg_brand_rank": None,
-        "mention_rate": 0.0,
-        "platform_summary": [],
-    }
+    from app.services.geoeval.monitor_probe import aggregate_probe_kpis
+
+    kpis = await aggregate_probe_kpis(db)
     kpis["question_count"] = await _safe_count(db, "geo_monitor_questions")
-    kpis["probe_count"] = await _safe_count(db, "geo_monitor_runs")
+    if kpis["probe_count"] == 0:
+        kpis["probe_count"] = await _safe_count(db, "geo_monitor_runs")
     return kpis
 
 

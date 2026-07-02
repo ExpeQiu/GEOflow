@@ -27,6 +27,8 @@ export const PRODUCTION_NAV: HubNavItem[] = [
   { key: "ai_config", label: zh.production.tabs.ai_config, href: "/production/ai_config" },
   { key: "materials", label: zh.production.tabs.materials, href: "/production/materials" },
   { key: "knowledge", label: zh.production.tabs.knowledge, href: "/production/knowledge" },
+  { key: "rag-sandbox", label: "RAG 沙箱", href: "/production/rag-sandbox" },
+  { key: "knowledge-settings", label: "知识设置", href: "/production/knowledge-settings" },
   { key: "tech-assets", label: zh.nav.techAssets, href: "/production/tech-assets" },
 ];
 

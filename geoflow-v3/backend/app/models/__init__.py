@@ -9,6 +9,7 @@ from app.models.material import AiModel, Prompt, Category, Author
 from app.models.distribution import DistributionChannel, ArticleDistribution
 from app.models.geoeval import ArticleEvaluation, InsightTemplate
 from app.models.tech_ip import TechIpAsset
+from app.models.content_agent_request import ContentAgentRequest
 from app.models.idempotency import ApiIdempotencyKey
 
 __all__ = [
@@ -28,5 +29,6 @@ __all__ = [
     "ArticleEvaluation",
     "InsightTemplate",
     "TechIpAsset",
+    "ContentAgentRequest",
     "ApiIdempotencyKey",
 ]

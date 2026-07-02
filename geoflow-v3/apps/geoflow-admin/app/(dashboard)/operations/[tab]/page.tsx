@@ -10,7 +10,8 @@ import { DistributionPanel } from "@/components/operations/DistributionPanel";
 import { OperationsOverview } from "@/components/operations/OperationsOverview";
 import { TasksPanel } from "@/components/operations/TasksPanel";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
-import { apiGet, apiPost, getToken } from "@/lib/api-client";
+import { useTaskWebSocket } from "@/hooks/use-task-websocket";
+import { apiDelete, apiGet, apiPost, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
 import { OPERATIONS_NAV } from "@/lib/nav-config";
 import type {
@@ -91,6 +92,11 @@ export default function OperationsPage() {
     if (token) reload();
   }, [token, reload]);
 
+  useTaskWebSocket(() => {
+    const t = getToken();
+    if (t && tab === "tasks") loadTasks(t);
+  });
+
   async function runTaskAction(id: number, action: "start" | "stop" | "enqueue") {
     const t = getToken();
     if (!t) return;
@@ -121,6 +127,58 @@ export default function OperationsPage() {
     }
   }
 
+  async function deleteTask(id: number) {
+    const t = getToken();
+    if (!t || !confirm(`确认删除任务 #${id}？`)) return;
+    setBusyId(id);
+    try {
+      await apiDelete(`/api/admin/tasks/${id}`, t);
+      setFlash({ variant: "success", message: `任务 #${id} 已删除` });
+      await loadTasks(t);
+    } catch {
+      setFlash({ variant: "error", message: `任务 #${id} 删除失败` });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function batchStartTasks(ids: number[]) {
+    const t = getToken();
+    if (!t || ids.length === 0) return;
+    try {
+      const res = await apiPost<{ started: number }>("/api/admin/tasks/batch/start", t, { ids });
+      setFlash({ variant: "success", message: `已启动 ${res.started} 个任务` });
+      await loadTasks(t);
+    } catch {
+      setFlash({ variant: "error", message: "批量启动失败" });
+    }
+  }
+
+  async function batchTrashArticles(ids: number[]) {
+    const t = getToken();
+    if (!t || ids.length === 0) return;
+    if (!confirm(`确认将 ${ids.length} 篇文章移入回收站？`)) return;
+    try {
+      const res = await apiPost<{ trashed: number }>("/api/admin/articles/batch/trash", t, { ids });
+      setFlash({ variant: "success", message: `已回收 ${res.trashed} 篇` });
+      await loadArticles(t, articleFilter);
+    } catch {
+      setFlash({ variant: "error", message: "批量回收失败" });
+    }
+  }
+
+  async function batchPublishArticles(ids: number[]) {
+    const t = getToken();
+    if (!t || ids.length === 0) return;
+    try {
+      const res = await apiPost<{ published: number }>("/api/admin/articles/batch/publish", t, { ids });
+      setFlash({ variant: "success", message: `已发布 ${res.published} 篇` });
+      await loadArticles(t, articleFilter);
+    } catch {
+      setFlash({ variant: "error", message: "批量发布失败" });
+    }
+  }
+
   return (
     <div>
       <HubHeader title={zh.operations.hubTitle} subtitle={zh.operations.hubSubtitle} />
@@ -138,6 +196,8 @@ export default function OperationsPage() {
           onStart={(id) => runTaskAction(id, "start")}
           onStop={(id) => runTaskAction(id, "stop")}
           onEnqueue={(id) => runTaskAction(id, "enqueue")}
+          onDelete={deleteTask}
+          onBatchStart={batchStartTasks}
         />
       )}
 
@@ -153,6 +213,8 @@ export default function OperationsPage() {
           onReview={(id) => runArticleAction(id, "review")}
           onPublish={(id) => runArticleAction(id, "publish")}
           onTrash={(id) => runArticleAction(id, "trash")}
+          onBatchTrash={batchTrashArticles}
+          onBatchPublish={batchPublishArticles}
         />
       )}
 

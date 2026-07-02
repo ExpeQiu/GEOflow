@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
-import { apiGet, apiPatch, apiPost, getToken } from "@/lib/api-client";
+import { apiDelete, apiGet, apiPatch, apiPost, apiUpload, getToken } from "@/lib/api-client";
 import { PRODUCTION_NAV } from "@/lib/nav-config";
 
 export default function KnowledgeEditPage() {
@@ -15,6 +15,7 @@ export default function KnowledgeEditPage() {
   const router = useRouter();
   const isNew = id === "new";
   const [form, setForm] = useState({ name: "", description: "", content: "" });
+  const [uploadMsg, setUploadMsg] = useState("");
 
   useEffect(() => {
     if (isNew || !token) return;
@@ -33,6 +34,13 @@ export default function KnowledgeEditPage() {
     router.push("/production/knowledge");
   }
 
+  async function onDelete() {
+    const t = getToken();
+    if (!t || isNew || !confirm("确认删除知识库？")) return;
+    await apiDelete(`/api/admin/knowledge-bases/${id}`, t);
+    router.push("/production/knowledge");
+  }
+
   if (!token) return null;
 
   return (
@@ -44,7 +52,32 @@ export default function KnowledgeEditPage() {
         <input className="w-full rounded-md border px-3 py-2 text-sm" placeholder="名称" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         <input className="w-full rounded-md border px-3 py-2 text-sm" placeholder="描述" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
         <textarea className="min-h-[280px] w-full rounded-md border px-3 py-2 text-sm" placeholder="内容" value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} />
-        <button type="submit" className="rounded-md bg-emerald-600 px-4 py-2 text-sm text-white">保存</button>
+        {!isNew && (
+          <div className="rounded-md border border-dashed border-emerald-200 bg-emerald-50/40 p-3">
+            <label className="text-sm font-medium text-emerald-800">上传文件 (.txt / .md / .pdf)</label>
+            <input
+              type="file"
+              accept=".txt,.md,.markdown,.csv,.pdf"
+              className="mt-2 block w-full text-sm"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                const t = getToken();
+                if (!file || !t) return;
+                const res = await apiUpload<{ item: { character_count: number } }>(`/api/admin/knowledge-bases/${id}/upload-file`, t, file);
+                setUploadMsg(`已追加导入，当前 ${res.item.character_count} 字`);
+                const d = await apiGet<{ item: typeof form }>(`/api/admin/knowledge-bases/${id}/detail`, t);
+                setForm({ name: d.item.name, description: d.item.description, content: d.item.content });
+              }}
+            />
+            {uploadMsg && <p className="mt-2 text-xs text-emerald-700">{uploadMsg}</p>}
+          </div>
+        )}
+        <div className="flex gap-3">
+          <button type="submit" className="rounded-md bg-emerald-600 px-4 py-2 text-sm text-white">保存</button>
+          {!isNew && (
+            <button type="button" onClick={onDelete} className="rounded-md border border-red-200 px-4 py-2 text-sm text-red-600">删除</button>
+          )}
+        </div>
       </form>
     </div>
   );

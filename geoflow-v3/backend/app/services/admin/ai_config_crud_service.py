@@ -82,7 +82,21 @@ async def test_ai_model(db: AsyncSession, model_id: int) -> dict:
 
     if get_settings().ai_mock_mode:
         return {"ok": True, "mock": True, "message": "mock_mode_ok"}
-    return {"ok": True, "mock": False, "message": "connectivity_check_queued"}
+
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"{row.api_url.rstrip('/')}/models",
+                headers={"Authorization": f"Bearer {row.api_key}"},
+            )
+        if resp.status_code >= 400:
+            return {"ok": False, "mock": False, "message": f"http_{resp.status_code}"}
+        return {"ok": True, "mock": False, "message": "connectivity_ok"}
+    except Exception as exc:
+        logger.warning("ai_model_test_failed id=%s err=%s", model_id, exc)
+        return {"ok": False, "mock": False, "message": str(exc)[:200]}
 
 
 async def list_prompts(db: AsyncSession) -> dict:

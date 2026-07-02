@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Brain, Database, RefreshCw } from "lucide-react";
+import Link from "next/link";
+import { Brain, Database, Plus, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { zh } from "@/lib/i18n/zh";
 import type { KnowledgeItem, MaterialStats } from "@/lib/production-types";
@@ -56,6 +56,21 @@ export function KnowledgePanel({
           <span className={cn("inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold ring-1", healthClass)}>
             {healthLabel}
           </span>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/production/knowledge/new" className="inline-flex items-center rounded-md bg-orange-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-700">
+              <Plus className="mr-1 h-3 w-3" />
+              新建知识库
+            </Link>
+            <Link href="/production/url-import" className="inline-flex items-center rounded-md border border-orange-200 px-3 py-1.5 text-xs font-medium text-orange-700 hover:bg-orange-50">
+              URL 导入
+            </Link>
+            <Link href="/production/rag-sandbox" className="inline-flex items-center rounded-md border border-orange-200 px-3 py-1.5 text-xs font-medium text-orange-700 hover:bg-orange-50">
+              RAG 沙箱
+            </Link>
+            <Link href="/production/knowledge-settings" className="inline-flex items-center rounded-md border border-orange-200 px-3 py-1.5 text-xs font-medium text-orange-700 hover:bg-orange-50">
+              知识设置
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -107,15 +122,18 @@ export function KnowledgePanel({
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">{kb.used_task_count}</td>
                   <td className="px-4 py-3">
-                    <button
-                      type="button"
-                      disabled={busyId === kb.id}
-                      onClick={() => onSync(kb.id)}
-                      className="inline-flex items-center rounded-md border border-orange-200 bg-white px-2 py-1 text-xs font-medium text-orange-700 hover:bg-orange-50 disabled:opacity-50"
-                    >
-                      <RefreshCw className="mr-1 h-3 w-3" />
-                      {zh.production.knowledge.syncChunks}
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      <Link href={`/production/knowledge/${kb.id}`} className="text-xs text-orange-700 hover:underline">编辑</Link>
+                      <button
+                        type="button"
+                        disabled={busyId === kb.id}
+                        onClick={() => onSync(kb.id)}
+                        className="inline-flex items-center rounded-md border border-orange-200 bg-white px-2 py-1 text-xs font-medium text-orange-700 hover:bg-orange-50 disabled:opacity-50"
+                      >
+                        <RefreshCw className="mr-1 h-3 w-3" />
+                        {zh.production.knowledge.syncChunks}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

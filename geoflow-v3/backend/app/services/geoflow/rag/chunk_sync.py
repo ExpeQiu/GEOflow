@@ -16,7 +16,7 @@ settings = get_settings()
 class KnowledgeChunkSyncService:
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.embeddings = EmbeddingService()
+        self.embeddings = EmbeddingService(db)
 
     async def sync_chunks(self, knowledge_base_id: int, chunk_size: int = 800) -> int:
         kb = await self.db.get(KnowledgeBase, knowledge_base_id)

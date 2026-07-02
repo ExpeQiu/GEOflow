@@ -94,3 +94,16 @@ async def delete_knowledge_base(db: AsyncSession, kb_id: int) -> dict:
     await db.delete(kb)
     logger.info("knowledge_base_deleted id=%s", kb_id)
     return {"deleted": True}
+
+
+async def append_knowledge_file_content(db: AsyncSession, kb_id: int, content: str, filename: str) -> dict:
+    kb = await db.get(KnowledgeBase, kb_id)
+    if kb is None:
+        raise HTTPException(status_code=404, detail="knowledge_base_not_found")
+    header = f"\n\n---\n## 文件导入: {filename}\n\n"
+    kb.content = (kb.content or "") + header + content.strip()
+    kb.character_count = len(kb.content)
+    kb.word_count = len(kb.content.split())
+    await db.flush()
+    logger.info("knowledge_file_appended kb_id=%s file=%s", kb_id, filename)
+    return {"item": {"id": kb.id, "character_count": kb.character_count}}

@@ -112,23 +112,213 @@ def run_monitor_scan(scan_type: str = "daily") -> dict:
 
 @celery_app.task(name="app.workers.tasks.refresh_web_source")
 def refresh_web_source(source_id: int) -> dict:
-    logger.info("refresh_web_source", source_id=source_id)
-    return {"source_id": source_id, "status": "skipped"}
+    return fetch_web_source(source_id)
+
+
+@celery_app.task(name="app.workers.tasks.fetch_web_source")
+def fetch_web_source(source_id: int) -> dict:
+    async def _inner():
+        from sqlalchemy import text
+
+        async with async_session_factory() as db:
+            row = (
+                await db.execute(
+                    text("SELECT id, url FROM geo_web_sources WHERE id = :id"),
+                    {"id": source_id},
+                )
+            ).first()
+            if not row:
+                return {"source_id": source_id, "status": "not_found"}
+            import httpx
+
+            try:
+                async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+                    resp = await client.get(row[1])
+                status = "ok" if resp.status_code < 400 else "error"
+                await db.execute(
+                    text(
+                        "UPDATE geo_web_sources SET fetch_status=:s, last_fetched_at=CURRENT_TIMESTAMP WHERE id=:id"
+                    ),
+                    {"s": status, "id": source_id},
+                )
+                await db.commit()
+                logger.info("fetch_web_source_done", source_id=source_id, status=status)
+                return {"source_id": source_id, "status": status, "http_status": resp.status_code}
+            except Exception as exc:
+                await db.execute(
+                    text(
+                        "UPDATE geo_web_sources SET fetch_status='error', last_fetched_at=CURRENT_TIMESTAMP WHERE id=:id"
+                    ),
+                    {"id": source_id},
+                )
+                await db.commit()
+                logger.warning("fetch_web_source_failed", source_id=source_id, error=str(exc))
+                return {"source_id": source_id, "status": "error", "message": str(exc)[:200]}
+
+    return _run_async(_inner())
+
+
+@celery_app.task(name="app.workers.tasks.remine_insight_template")
+def remine_insight_template(template_id: int) -> dict:
+    async def _inner():
+        from app.models.geoeval import InsightTemplate
+
+        async with async_session_factory() as db:
+            row = await db.get(InsightTemplate, template_id)
+            if row is None:
+                return {"template_id": template_id, "status": "not_found"}
+
+            source_url = (row.source_url or "").strip()
+            style_guide: dict = {}
+            features: dict = {}
+            score = float(row.eeat_score or 0.5)
+
+            if source_url.startswith(("http://", "https://")):
+                try:
+                    from app.services.geoflow.url_fetch import fetch_page_json
+
+                    page = fetch_page_json(source_url)
+                    text = page.get("text", "")
+                    title = page.get("title", row.name)
+                    style_guide = {"tone": "professional", "source_title": title, "excerpt": text[:500]}
+                    features = {"word_count": len(text.split()), "source_url": source_url}
+                    score = min(0.95, 0.45 + min(len(text) / 5000, 0.5))
+                except Exception as exc:
+                    logger.warning("remine_fetch_failed template_id=%s err=%s", template_id, exc)
+            else:
+                try:
+                    from app.ai.workflow_runner import run_workflow_sync
+
+                    wf = run_workflow_sync(
+                        "url_import",
+                        {"page_json": {"title": row.name, "text": row.name}, "url": source_url or "inline://remine"},
+                    )
+                    if isinstance(wf, dict):
+                        style_guide = {"summary": wf.get("summary", "")}
+                        features = {"keywords": wf.get("keywords", [])}
+                        score = min(0.9, 0.5 + len(str(wf.get("knowledge_markdown", ""))) / 8000)
+                except Exception:
+                    logger.exception("remine_workflow_fallback template_id=%s", template_id)
+
+            row.style_guide = style_guide
+            row.features = features
+            row.eeat_score = round(score, 2)
+            await db.commit()
+            logger.info("remine_insight_template_done", template_id=template_id, eeat_score=row.eeat_score)
+            return {"template_id": template_id, "status": "done", "eeat_score": float(row.eeat_score)}
+
+    return _run_async(_inner())
+
+
+@celery_app.task(name="app.workers.tasks.import_url_content")
+def import_url_content(job_id: int, url: str, target: str) -> dict:
+    async def _inner():
+        import json
+
+        from sqlalchemy import text
+
+        from app.services.admin.production_service import _table_exists
+        from app.services.geoflow.url_fetch import fetch_page_json
+
+        async with async_session_factory() as db:
+            request_id = f"url-import-{job_id}"
+            if await _table_exists(db, "url_import_jobs"):
+                await db.execute(
+                    text("UPDATE url_import_jobs SET status='running', updated_at=CURRENT_TIMESTAMP WHERE id=:id"),
+                    {"id": job_id},
+                )
+                await db.commit()
+
+            try:
+                page_json = fetch_page_json(url)
+                if page_json.get("status_code", 500) >= 400:
+                    raise RuntimeError(f"http_{page_json.get('status_code')}")
+
+                from app.ai.workflow_runner import run_workflow_sync
+
+                wf_result = run_workflow_sync("url_import", {"page_json": page_json, "url": url, "target": target})
+                if not isinstance(wf_result, dict):
+                    wf_result = {"summary": str(wf_result)[:500]}
+                summary = str(wf_result.get("summary") or wf_result.get("library_name") or page_json.get("title") or url)[:500]
+
+                if await _table_exists(db, "url_import_jobs"):
+                    await db.execute(
+                        text(
+                            """
+                            UPDATE url_import_jobs
+                            SET status='completed', result_summary=:s, result_json=CAST(:j AS JSON), error_message='', updated_at=CURRENT_TIMESTAMP
+                            WHERE id=:id
+                            """
+                        ),
+                        {"s": summary, "j": json.dumps(wf_result, ensure_ascii=False), "id": job_id},
+                    )
+                if await _table_exists(db, "content_agent_requests"):
+                    await db.execute(
+                        text(
+                            """
+                            UPDATE content_agent_requests
+                            SET status='completed', result_json=CAST(:j AS JSON), completed_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP
+                            WHERE request_id=:rid
+                            """
+                        ),
+                        {"j": json.dumps(wf_result, ensure_ascii=False), "rid": request_id},
+                    )
+                await db.commit()
+                logger.info("import_url_content_done", job_id=job_id, url=url, target=target)
+                return {"job_id": job_id, "status": "completed", "summary": summary, "request_id": request_id}
+            except Exception as exc:
+                err = str(exc)[:500]
+                if await _table_exists(db, "url_import_jobs"):
+                    await db.execute(
+                        text(
+                            "UPDATE url_import_jobs SET status='failed', error_message=:e, updated_at=CURRENT_TIMESTAMP WHERE id=:id"
+                        ),
+                        {"e": err, "id": job_id},
+                    )
+                await db.commit()
+                logger.warning("import_url_content_failed job_id=%s err=%s", job_id, err)
+                return {"job_id": job_id, "status": "failed", "error": err}
+
+    return _run_async(_inner())
 
 
 @celery_app.task(name="app.workers.tasks.schedule_tasks")
 def schedule_tasks() -> dict:
+    async def _inner():
+        async with async_session_factory() as db:
+            from app.services.geoflow.schedule_service import run_scheduled_tasks
+
+            result = await run_scheduled_tasks(db)
+            await db.commit()
+            return result
+
     logger.info("schedule_tasks_tick")
-    return {"status": "ok"}
+    return _run_async(_inner())
 
 
 @celery_app.task(name="app.workers.tasks.aggregate_adoption_metrics")
 def aggregate_adoption_metrics() -> dict:
+    async def _inner():
+        async with async_session_factory() as db:
+            from app.services.geoeval.adoption_service import aggregate_adoption_metrics as agg
+
+            result = await agg(db)
+            await db.commit()
+            return result
+
     logger.info("aggregate_adoption_metrics")
-    return {"status": "ok"}
+    return _run_async(_inner())
 
 
 @celery_app.task(name="app.workers.tasks.check_adoption_alerts")
 def check_adoption_alerts() -> dict:
+    async def _inner():
+        async with async_session_factory() as db:
+            from app.services.geoeval.adoption_service import check_adoption_alerts as check
+
+            result = await check(db)
+            await db.commit()
+            return result
+
     logger.info("check_adoption_alerts")
-    return {"status": "ok"}
+    return _run_async(_inner())

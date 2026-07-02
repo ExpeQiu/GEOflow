@@ -7,13 +7,14 @@ import { FlashAlert } from "@/components/admin/FlashAlert";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
-import { apiDelete, apiGet, apiPost, getToken } from "@/lib/api-client";
+import { apiDelete, apiGet, apiPatch, apiPost, apiUpload, getToken } from "@/lib/api-client";
 import { PRODUCTION_NAV } from "@/lib/nav-config";
 import { zh } from "@/lib/i18n/zh";
 
 type LibraryConfig = {
   listPath: string;
   createPath: string;
+  patchPath?: (id: number) => string;
   deletePath: (id: number) => string;
   itemPath?: (libId: number) => string;
   itemCreatePath?: (libId: number) => string;
@@ -27,6 +28,7 @@ const CONFIGS: Record<string, LibraryConfig> = {
   titles: {
     listPath: "/api/admin/materials/title-libraries",
     createPath: "/api/admin/materials/title-libraries",
+    patchPath: (id) => `/api/admin/materials/title-libraries/${id}`,
     deletePath: (id) => `/api/admin/materials/title-libraries/${id}`,
     itemPath: (id) => `/api/admin/materials/title-libraries/${id}/titles`,
     itemCreatePath: (id) => `/api/admin/materials/title-libraries/${id}/titles`,
@@ -41,6 +43,7 @@ const CONFIGS: Record<string, LibraryConfig> = {
     deletePath: (id) => `/api/admin/materials/keyword-libraries/${id}`,
     itemPath: (id) => `/api/admin/materials/keyword-libraries/${id}/keywords`,
     itemCreatePath: (id) => `/api/admin/materials/keyword-libraries/${id}/keywords`,
+    itemDeletePath: (id) => `/api/admin/materials/keywords/${id}`,
     title: "关键词库",
     itemLabel: "关键词",
     itemField: "keyword",
@@ -51,6 +54,7 @@ const CONFIGS: Record<string, LibraryConfig> = {
     deletePath: (id) => `/api/admin/materials/image-libraries/${id}`,
     itemPath: (id) => `/api/admin/materials/image-libraries/${id}/images`,
     itemCreatePath: (id) => `/api/admin/materials/image-libraries/${id}/images`,
+    itemDeletePath: (id) => `/api/admin/materials/images/${id}`,
     title: "图片库",
     itemLabel: "图片路径",
     itemField: "original_name",
@@ -65,6 +69,9 @@ export function MaterialsLibraryPage({ kind }: { kind: keyof typeof CONFIGS }) {
   const [items, setItems] = useState<{ id: number; title?: string; keyword?: string; original_name?: string }[]>([]);
   const [newLibName, setNewLibName] = useState("");
   const [newItem, setNewItem] = useState("");
+  const [editLibId, setEditLibId] = useState<number | null>(null);
+  const [editLibName, setEditLibName] = useState("");
+  const [bulkText, setBulkText] = useState("");
   const [flash, setFlash] = useState("");
 
   const loadLibraries = useCallback(async () => {
@@ -116,6 +123,15 @@ export function MaterialsLibraryPage({ kind }: { kind: keyof typeof CONFIGS }) {
     await loadItems(selectedId);
   }
 
+  async function saveLibraryName(libId: number) {
+    if (!cfg.patchPath || !editLibName.trim()) return;
+    const t = getToken();
+    if (!t) return;
+    await apiPatch(cfg.patchPath(libId), t, { name: editLibName.trim() });
+    setEditLibId(null);
+    await loadLibraries();
+  }
+
   if (!token) return null;
 
   return (
@@ -134,10 +150,25 @@ export function MaterialsLibraryPage({ kind }: { kind: keyof typeof CONFIGS }) {
           <ul className="mt-4 divide-y divide-gray-100">
             {libraries.map((lib) => (
               <li key={lib.id} className="flex items-center justify-between py-2">
-                <button type="button" onClick={() => setSelectedId(lib.id)} className={`text-sm ${selectedId === lib.id ? "font-semibold text-emerald-800" : "text-gray-700"}`}>
-                  {lib.name} ({lib.count})
-                </button>
-                <button type="button" onClick={() => apiDelete(cfg.deletePath(lib.id), getToken()!).then(loadLibraries)} className="text-xs text-red-600">删除</button>
+                {editLibId === lib.id && cfg.patchPath ? (
+                  <div className="flex flex-1 items-center gap-2">
+                    <input className="flex-1 rounded border px-2 py-1 text-sm" value={editLibName} onChange={(e) => setEditLibName(e.target.value)} />
+                    <button type="button" onClick={() => saveLibraryName(lib.id)} className="text-xs text-emerald-700">保存</button>
+                    <button type="button" onClick={() => setEditLibId(null)} className="text-xs text-gray-500">取消</button>
+                  </div>
+                ) : (
+                  <>
+                    <button type="button" onClick={() => setSelectedId(lib.id)} className={`text-sm ${selectedId === lib.id ? "font-semibold text-emerald-800" : "text-gray-700"}`}>
+                      {lib.name} ({lib.count})
+                    </button>
+                    <span className="space-x-2">
+                      {cfg.patchPath && (
+                        <button type="button" onClick={() => { setEditLibId(lib.id); setEditLibName(lib.name); }} className="text-xs text-violet-600">编辑</button>
+                      )}
+                      <button type="button" onClick={() => apiDelete(cfg.deletePath(lib.id), getToken()!).then(loadLibraries)} className="text-xs text-red-600">删除</button>
+                    </span>
+                  </>
+                )}
               </li>
             ))}
           </ul>
@@ -149,6 +180,52 @@ export function MaterialsLibraryPage({ kind }: { kind: keyof typeof CONFIGS }) {
               <input className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder={`新${cfg.itemLabel}`} value={newItem} onChange={(e) => setNewItem(e.target.value)} />
               <button type="submit" className="rounded-md bg-emerald-600 px-3 py-2 text-sm text-white">添加</button>
             </form>
+          )}
+          {kind === "images" && selectedId && (
+            <div className="mt-3">
+              <label className="text-sm text-gray-600">上传图片</label>
+              <input
+                type="file"
+                accept="image/*"
+                className="mt-1 block w-full text-sm"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  await apiUpload(`/api/admin/materials/image-libraries/${selectedId}/images/upload`, getToken()!, file);
+                  await loadItems(selectedId);
+                }}
+              />
+            </div>
+          )}
+          {kind === "titles" && selectedId && (
+            <div className="mt-3 space-y-2">
+              <textarea className="w-full rounded-md border px-3 py-2 text-sm" rows={3} placeholder="批量标题，每行一条" value={bulkText} onChange={(e) => setBulkText(e.target.value)} />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="rounded-md border border-emerald-200 px-3 py-1.5 text-sm text-emerald-700"
+                  onClick={async () => {
+                    const titles = bulkText.split("\n").map((s) => s.trim()).filter(Boolean);
+                    if (!titles.length) return;
+                    await apiPost(`/api/admin/materials/title-libraries/${selectedId}/titles/bulk`, getToken()!, { titles });
+                    setBulkText("");
+                    await loadItems(selectedId);
+                  }}
+                >
+                  批量导入
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md bg-violet-600 px-3 py-1.5 text-sm text-white"
+                  onClick={async () => {
+                    await apiPost(`/api/admin/materials/title-libraries/${selectedId}/titles/generate`, getToken()!, { seed: newItem || "技术品牌", count: 5 });
+                    await loadItems(selectedId);
+                  }}
+                >
+                  AI 生成 5 条
+                </button>
+              </div>
+            </div>
           )}
           <ul className="mt-4 max-h-96 space-y-2 overflow-y-auto text-sm text-gray-700">
             {items.map((item) => (

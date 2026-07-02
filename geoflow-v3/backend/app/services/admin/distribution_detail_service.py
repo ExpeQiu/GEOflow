@@ -153,6 +153,81 @@ async def build_distribution_jobs(
     }
 
 
+class DistributionJobUpdateBody(BaseModel):
+    status: str = Field(pattern="^(pending|cancelled|failed)$")
+
+
+async def update_distribution_job(db: AsyncSession, job_id: int, body: DistributionJobUpdateBody) -> dict:
+    job = await db.get(ArticleDistribution, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job_not_found")
+    job.status = body.status
+    await db.flush()
+    logger.info("admin_distribution_job_updated id=%s status=%s", job.id, body.status)
+    return {"job": {"id": job.id, "status": job.status}}
+
+
+async def delete_distribution_job(db: AsyncSession, job_id: int) -> dict:
+    job = await db.get(ArticleDistribution, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job_not_found")
+    await db.delete(job)
+    await db.flush()
+    logger.info("admin_distribution_job_deleted id=%s", job_id)
+    return {"deleted": True, "id": job_id}
+
+
+async def delete_admin_distribution_channel(db: AsyncSession, channel_id: int) -> dict:
+    channel = await db.get(DistributionChannel, channel_id)
+    if channel is None:
+        raise HTTPException(status_code=404, detail="channel_not_found")
+    active_jobs = int(
+        await db.scalar(
+            select(func.count())
+            .select_from(ArticleDistribution)
+            .where(ArticleDistribution.channel_id == channel_id, ArticleDistribution.status.in_(("pending", "sending", "queued")))
+        )
+        or 0
+    )
+    if active_jobs > 0:
+        raise HTTPException(status_code=422, detail="channel_has_active_jobs")
+    channel.status = "deleted"
+    await db.flush()
+    logger.info("admin_distribution_channel_deleted id=%s", channel_id)
+    return {"deleted": True, "id": channel_id, "status": "deleted"}
+
+
+async def check_channel_health(db: AsyncSession, channel_id: int) -> dict:
+    channel = await db.get(DistributionChannel, channel_id)
+    if channel is None:
+        raise HTTPException(status_code=404, detail="channel_not_found")
+    cfg = channel.config_json if isinstance(channel.config_json, dict) else {}
+    endpoint = str(cfg.get("endpoint_url") or cfg.get("domain") or "").strip()
+    healthy = False
+    http_status = None
+    message = "no_endpoint"
+    if endpoint:
+        import httpx
+
+        url = endpoint if endpoint.startswith("http") else f"https://{endpoint}"
+        try:
+            async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+                resp = await client.get(url)
+            http_status = resp.status_code
+            healthy = resp.status_code < 500
+            message = "ok" if healthy else f"http_{resp.status_code}"
+        except Exception as exc:
+            message = str(exc)[:120]
+    logger.info("channel_health_check id=%s healthy=%s", channel_id, healthy)
+    return {
+        "channel_id": channel_id,
+        "healthy": healthy,
+        "endpoint": endpoint,
+        "http_status": http_status,
+        "message": message,
+    }
+
+
 async def retry_distribution_job(db: AsyncSession, job_id: int) -> dict:
     job = await db.get(ArticleDistribution, job_id)
     if job is None:
@@ -164,7 +239,7 @@ async def retry_distribution_job(db: AsyncSession, job_id: int) -> dict:
     try:
         from app.workers.celery_app import celery_app
 
-        celery_app.send_task("app.workers.tasks.distribute_article", args=[job.id])
+        celery_app.send_task("app.workers.tasks.process_article_distribution", args=[job.article_id])
     except Exception:
         logger.exception("distribution_retry_queue_failed job_id=%s", job.id)
     return {"job": {"id": job.id, "status": job.status}}

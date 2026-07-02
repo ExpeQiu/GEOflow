@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Activity, Cpu, MessageSquare, Workflow } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -193,7 +194,10 @@ function MiniCard({ icon: Icon, title, value, sub }: { icon: typeof Cpu; title: 
 function ModelsTable({ models }: { models: AiModelRow[] }) {
   return (
     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-      <div className="border-b px-4 py-3 text-sm font-semibold text-gray-900">{zh.production.ai.modelsTitle}</div>
+      <div className="flex items-center justify-between border-b px-4 py-3">
+        <span className="text-sm font-semibold text-gray-900">{zh.production.ai.modelsTitle}</span>
+        <Link href="/production/ai-models" className="text-xs text-violet-600 hover:underline">管理全部 →</Link>
+      </div>
       {models.length === 0 ? (
         <div className="px-4 py-8 text-center text-sm text-gray-500">暂无模型</div>
       ) : (
@@ -228,7 +232,10 @@ function ModelsTable({ models }: { models: AiModelRow[] }) {
 function PromptsTable({ prompts }: { prompts: PromptRow[] }) {
   return (
     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-      <div className="border-b px-4 py-3 text-sm font-semibold text-gray-900">{zh.production.ai.promptsTitle}</div>
+      <div className="flex items-center justify-between border-b px-4 py-3">
+        <span className="text-sm font-semibold text-gray-900">{zh.production.ai.promptsTitle}</span>
+        <Link href="/production/ai-prompts" className="text-xs text-violet-600 hover:underline">管理全部 →</Link>
+      </div>
       {prompts.length === 0 ? (
         <div className="px-4 py-8 text-center text-sm text-gray-500">暂无提示词</div>
       ) : (

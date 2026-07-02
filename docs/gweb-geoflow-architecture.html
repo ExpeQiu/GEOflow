@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gweb + GEOFlow 系统架构</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --surface: #ffffff;
+      --stroke: #d8dee4;
+      --text: #1a2332;
+      --muted: #5c6b7a;
+      --geoflow: #2563eb;
+      --geoflow-bg: #eff6ff;
+      --gweb: #059669;
+      --gweb-bg: #ecfdf5;
+      --accent: #7c3aed;
+      --warn: #d97706;
+      --mono: "SF Mono", "Menlo", "Consolas", monospace;
+      --sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      padding: 2rem 1.25rem 3rem;
+    }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 2rem;
+      border-bottom: 1px solid var(--stroke);
+      padding-bottom: 1.25rem;
+    }
+
+    header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    header p {
+      margin-top: 0.5rem;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-top: 1rem;
+      font-size: 0.85rem;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+    }
+
+    .dot.geoflow { background: var(--geoflow); }
+    .dot.gweb { background: var(--gweb); }
+    .dot.feedback { background: var(--accent); }
+
+    /* ── Main diagram ── */
+    .diagram {
+      background: var(--surface);
+      border: 1px solid var(--stroke);
+      border-radius: 8px;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+
+    .systems {
+      display: grid;
+      grid-template-columns: 1fr 80px 1fr;
+      gap: 0;
+      min-width: 900px;
+      align-items: stretch;
+    }
+
+    .system {
+      border-radius: 8px;
+      padding: 1.25rem;
+      border: 2px solid;
+    }
+
+    .system.geoflow {
+      border-color: var(--geoflow);
+      background: var(--geoflow-bg);
+    }
+
+    .system.gweb {
+      border-color: var(--gweb);
+      background: var(--gweb-bg);
+    }
+
+    .system-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.25rem;
+    }
+
+    .system.geoflow .system-label { color: var(--geoflow); }
+    .system.gweb .system-label { color: var(--gweb); }
+
+    .system-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 0.35rem;
+    }
+
+    .system-role {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+    }
+
+    .module-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.6rem;
+    }
+
+    .module {
+      background: var(--surface);
+      border: 1px solid var(--stroke);
+      border-radius: 6px;
+      padding: 0.65rem 0.75rem;
+      font-size: 0.82rem;
+    }
+
+    .module strong {
+      display: block;
+      font-size: 0.85rem;
+      margin-bottom: 0.15rem;
+    }
+
+    .module span {
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .module.wide {
+      grid-column: 1 / -1;
+    }
+
+    .module.highlight-geoflow {
+      border-color: var(--geoflow);
+      border-left: 3px solid var(--geoflow);
+    }
+
+    .module.highlight-gweb {
+      border-color: var(--gweb);
+      border-left: 3px solid var(--gweb);
+    }
+
+    /* Bridge column */
+    .bridge {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 0 0.5rem;
+      position: relative;
+    }
+
+    .bridge-line {
+      flex: 1;
+      width: 2px;
+      background: var(--stroke);
+      min-height: 40px;
+    }
+
+    .bridge-api {
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      font-size: 0.72rem;
+      font-family: var(--mono);
+      color: var(--muted);
+      background: var(--surface);
+      border: 1px solid var(--stroke);
+      border-radius: 4px;
+      padding: 0.5rem 0.35rem;
+      white-space: nowrap;
+      transform: rotate(180deg);
+    }
+
+    /* Flow strip */
+    .flow-strip {
+      margin-top: 1.5rem;
+      padding-top: 1.25rem;
+      border-top: 1px dashed var(--stroke);
+    }
+
+    .flow-strip h3 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      color: var(--muted);
+    }
+
+    .pipeline {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .step {
+      background: var(--surface);
+      border: 1px solid var(--stroke);
+      border-radius: 4px;
+      padding: 0.4rem 0.65rem;
+      font-size: 0.78rem;
+      white-space: nowrap;
+    }
+
+    .step.geo { border-left: 3px solid var(--geoflow); }
+    .step.gw { border-left: 3px solid var(--gweb); }
+
+    .arrow {
+      color: var(--muted);
+      font-size: 0.9rem;
+      user-select: none;
+    }
+
+    /* Tables section */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      margin-top: 1.5rem;
+    }
+
+    @media (max-width: 800px) {
+      .grid-2 { grid-template-columns: 1fr; }
+      .systems { grid-template-columns: 1fr; min-width: 0; }
+      .bridge { flex-direction: row; padding: 1rem 0; }
+      .bridge-line { width: auto; height: 2px; flex: 1; min-height: 0; }
+      .bridge-api { writing-mode: horizontal-tb; transform: none; }
+    }
+
+    section.card {
+      background: var(--surface);
+      border: 1px solid var(--stroke);
+      border-radius: 8px;
+      padding: 1.25rem;
+    }
+
+    section.card h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 0.5rem 0.65rem;
+      border-bottom: 1px solid var(--stroke);
+      vertical-align: top;
+    }
+
+    th {
+      font-weight: 600;
+      color: var(--muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .tag {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.1rem 0.4rem;
+      border-radius: 3px;
+      margin-right: 0.25rem;
+    }
+
+    .tag.geoflow { background: var(--geoflow-bg); color: var(--geoflow); }
+    .tag.gweb { background: var(--gweb-bg); color: var(--gweb); }
+    .tag.both { background: #f3e8ff; color: var(--accent); }
+
+    .env-block {
+      margin-top: 1.5rem;
+    }
+
+    pre {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 1rem;
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      overflow-x: auto;
+      line-height: 1.6;
+    }
+
+    .feedback-loop {
+      margin-top: 1.5rem;
+      padding: 1rem 1.25rem;
+      background: #faf5ff;
+      border: 1px solid #ddd6fe;
+      border-radius: 8px;
+      font-size: 0.85rem;
+    }
+
+    .feedback-loop h3 {
+      font-size: 0.9rem;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+    }
+
+    footer {
+      margin-top: 2rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>Gweb + GEOFlow 系统架构</h1>
+      <p>技术品牌场景：GEOFlow 负责生产 / 评估 / 策略后台；Gweb 负责 Wiki 对外展现（唯一出口）</p>
+      <div class="legend">
+        <span><i class="dot geoflow"></i> GEOFlow 后台引擎</span>
+        <span><i class="dot gweb"></i> Gweb 前台 Wiki</span>
+        <span><i class="dot feedback"></i> 策略闭环反哺</span>
+      </div>
+    </header>
+
+    <div class="diagram">
+      <div class="systems">
+        <!-- GEOFlow -->
+        <div class="system geoflow">
+          <div class="system-label">Backend · GEO 引擎</div>
+          <div class="system-title">GEOFlow</div>
+          <div class="system-role">/geo_admin · 内容生产 · RAG · GEO 门禁 · 分发编排</div>
+
+          <div class="module-grid">
+            <div class="module highlight-geoflow">
+              <strong>TechIpAsset 资产库</strong>
+              <span>心智标签 → 技术 IP → Wiki 映射</span>
+            </div>
+            <div class="module">
+              <strong>Knowledge Base</strong>
+              <span>RAG 检索源</span>
+            </div>
+            <div class="module highlight-geoflow wide">
+              <strong>Wiki Task</strong>
+              <span>content_format=wiki_mdx · publish_scope=distribution_only · 绑定 gweb_wiki 渠道</span>
+            </div>
+            <div class="module">
+              <strong>Content Agent</strong>
+              <span>Wiki Prompt（概念/对比/指南/数据）</span>
+            </div>
+            <div class="module">
+              <strong>Article + wiki_meta</strong>
+              <span>Markdown 正文 + Gweb frontmatter JSON</span>
+            </div>
+            <div class="module highlight-geoflow">
+              <strong>Wiki GEO 门禁</strong>
+              <span>WikiGeoComplianceChecker</span>
+            </div>
+            <div class="module">
+              <strong>ArticleEvaluationService</strong>
+              <span>RAG 仿真 + Wiki 合规审计</span>
+            </div>
+            <div class="module highlight-geoflow">
+              <strong>ArticlePublishService</strong>
+              <span>distribution_only 跳过本站展示</span>
+            </div>
+            <div class="module highlight-geoflow wide">
+              <strong>GwebWikiPublisher</strong>
+              <span>WikiMdxAssembler → POST /api/wiki/sync → POST /api/revalidate</span>
+            </div>
+            <div class="module wide">
+              <strong>Strategy Hub KPI</strong>
+              <span>P0 覆盖 · Wiki 合规率 · Gweb 同步成功率 · 监控采纳率</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bridge -->
+        <div class="bridge">
+          <div class="bridge-line"></div>
+          <div class="bridge-api">POST /api/wiki/sync</div>
+          <div class="bridge-line"></div>
+          <div class="bridge-api" style="margin-top:0.5rem">POST /api/revalidate</div>
+          <div class="bridge-line"></div>
+        </div>
+
+        <!-- Gweb -->
+        <div class="system gweb">
+          <div class="system-label">Frontend · Wiki SSOT</div>
+          <div class="system-title">Gweb</div>
+          <div class="system-role">tech.xxx.com · Wiki 展现 · Schema · SEO 基础设施</div>
+
+          <div class="module-grid">
+            <div class="module highlight-gweb wide">
+              <strong>POST /api/wiki/sync</strong>
+              <span>写入 content/wiki/{routePrefix}/{slug}.mdx</span>
+            </div>
+            <div class="module highlight-gweb">
+              <strong>content/wiki/</strong>
+              <span>concepts · compare · guides · data · glossary</span>
+            </div>
+            <div class="module">
+              <strong>MDX Frontmatter</strong>
+              <span>mind_tag · ip_layer · quick_answer · related · faq</span>
+            </div>
+            <div class="module highlight-gweb">
+              <strong>SSR 渲染</strong>
+              <span>Next.js App Router</span>
+            </div>
+            <div class="module highlight-gweb">
+              <strong>JSON-LD Schema</strong>
+              <span>TechArticle · FAQPage · schema.ts</span>
+            </div>
+            <div class="module">
+              <strong>sitemap / llms.txt</strong>
+              <span>pages.json · 爬虫友好清单</span>
+            </div>
+            <div class="module highlight-gweb wide">
+              <strong>ISR Revalidate</strong>
+              <span>/concepts/{slug} · /wiki · /sitemap</span>
+            </div>
+            <div class="module wide">
+              <strong>流量分析（主）</strong>
+              <span>Wiki PV / AI 爬虫 · 可链接回 GEOFlow Strategy Hub</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-strip">
+        <h3>主链路（技术品牌模式）</h3>
+        <div class="pipeline">
+          <span class="step geo">TechIpAsset</span>
+          <span class="arrow">→</span>
+          <span class="step geo">Wiki Task + RAG</span>
+          <span class="arrow">→</span>
+          <span class="step geo">AI 生成 Article</span>
+          <span class="arrow">→</span>
+          <span class="step geo">审核</span>
+          <span class="arrow">→</span>
+          <span class="step geo">Wiki GEO 门禁</span>
+          <span class="arrow">→</span>
+          <span class="step geo">发布 (distribution_only)</span>
+          <span class="arrow">→</span>
+          <span class="step geo">GwebWikiPublisher</span>
+          <span class="arrow">→</span>
+          <span class="step gw">Gweb MDX</span>
+          <span class="arrow">→</span>
+          <span class="step gw">SSR + Schema</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="feedback-loop">
+      <h3>策略闭环（Strategy Hub）</h3>
+      监控问题库命中 → 关联 TechIpAsset → 一键创建 Wiki Task ·
+      采纳率下降 → 资产标记「需更新」→ 重新生成 → Gweb 同步
+    </div>
+
+    <div class="grid-2">
+      <section class="card">
+        <h2>能力归属</h2>
+        <table>
+          <thead>
+            <tr><th>能力</th><th>归属</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Wiki 页面渲染、内链 UI</td><td><span class="tag gweb">Gweb</span></td></tr>
+            <tr><td>JSON-LD / TechArticle / FAQPage</td><td><span class="tag gweb">Gweb</span></td></tr>
+            <tr><td>sitemap / llms.txt / pages.json</td><td><span class="tag gweb">Gweb</span></td></tr>
+            <tr><td>内容生产、RAG、审核、GEO 门禁</td><td><span class="tag geoflow">GEOFlow</span></td></tr>
+            <tr><td>技术 IP 资产、Wiki Task、分发编排</td><td><span class="tag geoflow">GEOFlow</span></td></tr>
+            <tr><td>Strategy Hub、监控探测、采纳率</td><td><span class="tag geoflow">GEOFlow</span></td></tr>
+            <tr><td>Wiki 对外流量统计（主）</td><td><span class="tag gweb">Gweb</span></td></tr>
+            <tr><td>本站 PV（Wiki 场景降权）</td><td><span class="tag geoflow">GEOFlow</span> 参考</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card">
+        <h2>Wiki Task 约束（减法收敛）</h2>
+        <table>
+          <thead>
+            <tr><th>规则</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>publish_scope</td><td>仅允许 <code>distribution_only</code></td></tr>
+            <tr><td>分发渠道</td><td>gweb_wiki 或 generic_http_api；禁止 geoflow_agent</td></tr>
+            <tr><td>本站前台</td><td>Wiki 不在 GEOFlow Blade 对外展示</td></tr>
+            <tr><td>可选关闭</td><td><code>GEOFLOW_PUBLIC_SITE_ENABLED=false</code></td></tr>
+            <tr><td>真相源</td><td><code>wiki_meta</code> 对齐 Gweb frontmatter</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </div>
+
+    <section class="card env-block">
+      <h2>关键环境变量</h2>
+      <pre>GEOFLOW_TECH_BRAND_MODE=true
+GEOFLOW_PUBLIC_SITE_ENABLED=false          # 可选
+GWEB_BASE_URL=https://tech.example.com
+GWEB_REVALIDATE_SECRET=shared-secret
+GWEB_SYNC_ENABLED=true
+GEO_EVAL_WIKI_GATE_ENABLED=true
+GWEB_ANALYTICS_URL=https://tech.example.com/admin/analytics</pre>
+    </section>
+
+    <footer>
+      GEOFlow guide/gweb-geoflow-architecture.html · 与 guide/gweb-integration.md 配套
+    </footer>
+  </div>
+</body>
+</html>

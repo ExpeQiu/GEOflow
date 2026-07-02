@@ -587,11 +587,11 @@ export const zh = {
   settings: {
     title: "网站设置",
     subtitle: "站点信息、安全规则与管理员配置",
-    placeholder: "站点设置 · 安全 · Admin 用户 · API Token（Phase 4 对接）",
     enabled: "已启用",
     disabled: "已关闭",
+    editableHint: "环境变量为只读；下方 DB 配置项可编辑保存。",
     readonlyHint: (name: string, version: string) =>
-      `${name} · 当前版本 v${version} · 以下为只读配置，完整 CRUD 将在后续 Phase 对接 legacy 设置页。`,
+      `${name} · v${version} · 需执行 Alembic 002 迁移后启用 DB 配置编辑。`,
     fields: {
       appName: "站点名称",
       version: "版本号",
@@ -606,9 +606,9 @@ export const zh = {
       site: { title: "站点信息", desc: "应用名称与公开访问开关" },
       geo: { title: "GEO 评估", desc: "诊断门禁与 Wiki 合规策略" },
       runtime: { title: "运行模式", desc: "Mock、技术品牌与 GWeb 同步" },
-      coming: {
-        title: "待对接模块",
-        desc: "敏感词、审核策略、管理员账号与 API Token 的编辑能力尚未迁移，当前仅展示环境配置。",
+      dbSettings: {
+        title: "DB 站点配置",
+        notMigrated: "site_settings 表未迁移，请先执行 alembic upgrade head。",
       },
     },
   },
@@ -616,6 +616,8 @@ export const zh = {
     loading: "加载中…",
     actions: "操作",
     enqueue: "入队",
-    comingSoon: "功能对接中，API 将在 Phase 2 补齐",
+    delete: "删除",
+    save: "保存",
+    cancel: "取消",
   },
 } as const;

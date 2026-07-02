@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { FileText, Globe, Inbox, PenLine, Pencil } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { zh } from "@/lib/i18n/zh";
@@ -14,6 +15,8 @@ export function ArticlesPanel({
   onReview,
   onPublish,
   onTrash,
+  onBatchTrash,
+  onBatchPublish,
   busyId,
 }: {
   articles: AdminArticle[];
@@ -23,8 +26,20 @@ export function ArticlesPanel({
   onReview: (id: number) => void;
   onPublish: (id: number) => void;
   onTrash: (id: number) => void;
+  onBatchTrash?: (ids: number[]) => void;
+  onBatchPublish?: (ids: number[]) => void;
   busyId: number | null;
 }) {
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+
+  function toggle(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
   return (
     <div>
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -43,6 +58,16 @@ export function ArticlesPanel({
         <Link href="/operations/articles/trash" className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
           {zh.articles.trashLink}
         </Link>
+        {selected.size > 0 && onBatchPublish && (
+          <button type="button" onClick={() => { onBatchPublish([...selected]); setSelected(new Set()); }} className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white">
+            批量发布 ({selected.size})
+          </button>
+        )}
+        {selected.size > 0 && onBatchTrash && (
+          <button type="button" onClick={() => { onBatchTrash([...selected]); setSelected(new Set()); }} className="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-600">
+            批量回收 ({selected.size})
+          </button>
+        )}
       </div>
 
       {articles.length === 0 ? (
@@ -55,6 +80,16 @@ export function ArticlesPanel({
             <table className="min-w-[900px] w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selected.size === articles.length && articles.length > 0}
+                      onChange={() => {
+                        if (selected.size === articles.length) setSelected(new Set());
+                        else setSelected(new Set(articles.map((a) => a.id)));
+                      }}
+                    />
+                  </th>
                   {[zh.articles.columnTitle, zh.articles.columnStatus, zh.articles.columnReview, zh.articles.columnEval, zh.articles.columnViews, zh.articles.columnActions].map(
                     (h) => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
@@ -67,6 +102,9 @@ export function ArticlesPanel({
               <tbody className="divide-y divide-gray-200">
                 {articles.map((article) => (
                   <tr key={article.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <input type="checkbox" checked={selected.has(article.id)} onChange={() => toggle(article.id)} />
+                    </td>
                     <td className="max-w-xs px-4 py-3 text-sm font-medium text-gray-900">
                       <Link href={`/operations/articles/${article.id}`} className="group block">
                         <div className="line-clamp-2 group-hover:text-blue-700">{article.title}</div>

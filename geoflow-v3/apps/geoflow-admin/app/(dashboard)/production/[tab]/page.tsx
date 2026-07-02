@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { FlashAlert } from "@/components/admin/FlashAlert";
@@ -36,6 +37,8 @@ export default function ProductionPage() {
   const [models, setModels] = useState<AiModelRow[]>([]);
   const [prompts, setPrompts] = useState<PromptRow[]>([]);
   const [assets, setAssets] = useState<TechAsset[]>([]);
+  const [yamlText, setYamlText] = useState("");
+  const [yamlFlash, setYamlFlash] = useState("");
   const [busyId, setBusyId] = useState<number | null>(null);
   const [flash, setFlash] = useState<{ variant: "success" | "error"; message: string } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -134,11 +137,43 @@ export default function ProductionPage() {
       )}
 
       {tab === "tech-assets" && (
-        <DataTable
-          headers={["ID", "名称", "IP ID", "Wiki 类型", "状态"]}
-          rows={assets.map((a) => [a.id, a.name, a.ip_id, a.wiki_type, a.status])}
-          emptyText="暂无技术 IP 资产"
-        />
+        <div>
+          <div className="mb-3 flex flex-wrap justify-end gap-2">
+            <Link href="/production/tech-assets/new" className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm text-white">新建</Link>
+          </div>
+          <div className="mb-4 rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
+            <h3 className="text-sm font-medium text-gray-900">YAML 批量导入</h3>
+            <textarea className="mt-2 w-full rounded-md border px-3 py-2 text-xs font-mono" rows={5} placeholder="- ip_id: tech-001\n  name: 示例技术点" value={yamlText} onChange={(e) => setYamlText(e.target.value)} />
+            <button
+              type="button"
+              className="mt-2 rounded-md bg-emerald-600 px-3 py-1.5 text-sm text-white"
+              onClick={async () => {
+                const t = getToken();
+                if (!t || !yamlText.trim()) return;
+                const res = await apiPost<{ created: number; updated: number }>("/api/admin/tech-assets/import-yaml", t, { yaml_text: yamlText });
+                setYamlFlash(`导入完成：新建 ${res.created}，更新 ${res.updated}`);
+                const data = await apiGet<{ items: TechAsset[] }>("/api/admin/tech-assets", t);
+                setAssets(data.items);
+              }}
+            >
+              导入 YAML
+            </button>
+            {yamlFlash && <p className="mt-2 text-sm text-emerald-700">{yamlFlash}</p>}
+          </div>
+          <DataTable
+            headers={["ID", "名称", "IP ID", "Wiki 类型", "状态", "操作"]}
+            rows={assets.map((a) => [a.id, a.name, a.ip_id, a.wiki_type, a.status, ""]) }
+            emptyText="暂无技术 IP 资产"
+          />
+          <ul className="mt-2 divide-y rounded-lg bg-white text-sm shadow-sm ring-1 ring-gray-200">
+            {assets.map((a) => (
+              <li key={a.id} className="flex justify-between px-4 py-2">
+                <span>{a.name}</span>
+                <Link href={`/production/tech-assets/${a.id}`} className="text-emerald-700">编辑</Link>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );

@@ -37,8 +37,12 @@ class LangGraphBackend:
         return result
 
     async def _callback(self, request_id: str, workflow_type: str, result: dict) -> None:
-        callback_url = os.getenv("LARAVEL_CALLBACK_URL", "").strip()
-        secret = os.getenv("CONTENT_AGENT_CALLBACK_SECRET", "").strip()
+        callback_url = (
+            os.getenv("GEOFLOW_CALLBACK_URL", "").strip()
+            or os.getenv("LARAVEL_CALLBACK_URL", "").strip()
+            or "http://127.0.0.1:18081/internal/content-agent/callback"
+        )
+        secret = os.getenv("CONTENT_AGENT_CALLBACK_SECRET", "dev-callback-secret").strip()
         if callback_url == "" or secret == "":
             return
 

@@ -24,12 +24,19 @@ export type TechBrandMetrics = {
   needs_update_assets: number;
 };
 
+export type PlatformSummary = {
+  platform: string;
+  total: number;
+  mentions: number;
+  avg_rank: number | null;
+};
+
 export type MonitorKpis = {
   question_count: number;
   probe_count: number;
   avg_brand_rank: number | null;
   mention_rate: number;
-  platform_summary: unknown[];
+  platform_summary: PlatformSummary[];
 };
 
 export type MonitorQuestion = {
@@ -38,6 +45,46 @@ export type MonitorQuestion = {
   priority: number;
   status: string;
   last_scan_at: string | null;
+};
+
+export type MonitorRun = {
+  id: number;
+  status: string;
+  platform: string;
+  question_count: number;
+  probe_count?: number;
+  completed_at: string | null;
+};
+
+export type MonitorProbe = {
+  id: number;
+  platform: string;
+  brand_rank: number | null;
+  mentioned: boolean;
+  snippet: string;
+  question_text: string;
+  engine?: string;
+};
+
+export type MonitorSettings = {
+  brand_name: string;
+  brand_aliases: string;
+  probe_mode: "corpus" | "llm";
+  platforms: string[];
+  ai_mock_mode: boolean;
+};
+
+export type MonitorRunDetail = {
+  run: MonitorRun & { started_at: string | null; mention_rate: number };
+  probes: MonitorProbe[];
+  platform_stats: PlatformSummary[];
+};
+
+export type GeoAlert = {
+  id: number;
+  alert_type: string;
+  message: string;
+  created_at: string | null;
 };
 
 export type EvalFailureRow = {

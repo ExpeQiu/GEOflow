@@ -78,6 +78,19 @@ export async function apiDelete<T>(path: string, token: string): Promise<T> {
   return json.data;
 }
 
+export async function apiUpload<T>(path: string, token: string, file: File): Promise<T> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) throw new Error(`api_error:${res.status}`);
+  const json = (await res.json()) as ApiResponse<T>;
+  return json.data;
+}
+
 export function getToken(): string | null {
   if (typeof document === "undefined") return null;
   const match = document.cookie.match(/(?:^|; )gf_token=([^;]+)/);

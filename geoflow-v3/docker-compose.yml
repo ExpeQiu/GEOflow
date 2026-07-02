@@ -35,6 +35,7 @@ services:
       - "${API_PORT:-18081}:8080"
     volumes:
       - ./backend:/app
+      - ./storage/uploads:/app/storage/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -50,6 +51,7 @@ services:
     command: celery -A app.workers.celery_app worker --loglevel=info -Q celery,geoflow
     volumes:
       - ./backend:/app
+      - ./storage/uploads:/app/storage/uploads
     depends_on:
       - api
       - redis

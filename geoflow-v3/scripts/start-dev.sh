@@ -26,7 +26,7 @@ start_admin() {
   cd "${DEV_DIR}"
   env NEXT_PUBLIC_API_URL="${API_URL}" \
     NPM_CONFIG_CACHE=/tmp/npm-cache-geoflow-admin \
-    npm run dev -- --port "${ADMIN_PORT}" --hostname 127.0.0.1 \
+    npx next dev --port "${ADMIN_PORT}" --hostname 127.0.0.1 \
     >> /tmp/geoflow-v3-admin.log 2>&1 &
   echo $! > /tmp/geoflow-v3-admin.pid
   cd "${ROOT}"

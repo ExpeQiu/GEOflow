@@ -78,7 +78,7 @@ export default function DashboardPage() {
 
       {!welcomeDismissed && (
         <div className="mb-6 flex items-start justify-between gap-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
-          <p className="text-sm text-blue-900">欢迎使用 GEOFlow v3 管理后台。Phase 6–11 迁移 API 与页面已就绪，请先执行 Alembic 002 迁移以启用素材三库与站点设置。</p>
+          <p className="text-sm text-blue-900">欢迎使用 GEOFlow v3 管理后台。前后端闭环升级已完成，请确保已执行 alembic upgrade head（含 002/003 迁移）。</p>
           <button
             type="button"
             className="shrink-0 text-sm font-medium text-blue-700 hover:text-blue-900"

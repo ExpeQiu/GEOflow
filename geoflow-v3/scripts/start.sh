@@ -16,8 +16,14 @@ sleep 3
 docker compose up -d --build api worker scheduler flower geoflow-admin
 
 log "执行数据库迁移..."
-docker compose exec -T api alembic upgrade head || true
-docker compose exec -T api python scripts/seed.py || true
+if ! docker compose exec -T api alembic upgrade head; then
+  log "ERROR: alembic upgrade head 失败"
+  exit 1
+fi
+if ! docker compose exec -T api python scripts/seed.py; then
+  log "ERROR: seed.py 失败"
+  exit 1
+fi
 
 API_PORT="${API_PORT:-18081}"
 ADMIN_PORT="${ADMIN_PORT:-13001}"

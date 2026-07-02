@@ -3,10 +3,14 @@
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
+from pathlib import Path
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.admin.routes import router as admin_router
+from app.api.internal.content_agent import router as internal_router
 from app.api.v1 import router as v1_router
 from app.core.config import get_settings
 from app.core.logging import setup_logging
@@ -52,4 +56,10 @@ async def up():
 
 app.include_router(v1_router)
 app.include_router(admin_router)
+app.include_router(internal_router)
+
+_upload_root = Path(settings.upload_path).resolve()
+_upload_root.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(_upload_root)), name="uploads")
+
 app.websocket("/ws/admin/tasks")(tasks_websocket)
