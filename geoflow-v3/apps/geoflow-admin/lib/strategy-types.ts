@@ -54,6 +54,50 @@ export type MonitorQuestion = {
   scene_id?: number | null;
   template_id?: number | null;
   query_type?: string;
+  competitor_brands?: string[];
+};
+
+export type MonitorQuestionListPage = {
+  items: MonitorQuestion[];
+  total: number;
+  page: number;
+  page_size: number;
+  stats: {
+    total: number;
+    brand: number;
+    product: number;
+    competitor: number;
+    active: number;
+  };
+};
+
+export type QuestionCitationDetail = {
+  status: string;
+  question?: {
+    id: number;
+    text: string;
+    scene_id: number | null;
+    query_type: string;
+    priority: number;
+    persona: string;
+    scene_name: string;
+    intent: string;
+    visibility_pct: number;
+  };
+  probes: QueryProbe[];
+  stats: {
+    probe_count: number;
+    citation_count: number;
+    unique_domains: number;
+    domains: string[];
+  };
+};
+
+export type MonitorQuestionBulkResult = {
+  created: number;
+  skipped: number;
+  errors: Array<{ index: number; question_text: string; detail: string }>;
+  total_input: number;
 };
 
 export type MonitorScene = {
@@ -241,6 +285,7 @@ export type DiagnosisPanel = {
 
 export type CollectionPanel = {
   platforms: Array<{ platform: string; label: string; probe_count: number }>;
+  platforms_next?: Array<{ platform: string; label: string; estimate: number }>;
   platform_count: number;
   question_stats: {
     brand_questions: number;
@@ -249,7 +294,35 @@ export type CollectionPanel = {
     total_questions: number;
     brand_probes_estimated: number;
     product_probes_estimated: number;
+    competitor_probes_estimated?: number;
+    total_probes_estimated?: number;
   };
+  next_scan?: {
+    active_questions: number;
+    effective_questions: number;
+    scan_limit: number;
+    platform_count: number;
+    total_probes_estimated: number;
+    probe_mode: string;
+    platforms: Array<{ platform: string; label: string; estimate: number }>;
+  };
+  probe_settings?: {
+    brand_name: string;
+    probe_mode: string;
+    monitor_scan_limit: number;
+    platforms: string[];
+    ai_mock_mode: boolean;
+  };
+  engine_distribution?: Array<{ engine: string; label: string; count: number }>;
+  latest_run?: {
+    id: number;
+    status: string;
+    question_count: number;
+    probe_count: number | null;
+    started_at: string | null;
+    completed_at: string | null;
+  } | null;
+  recent_alerts?: Array<{ id: number; alert_type: string; message: string; created_at: string | null }>;
   collection_window: { period_start: string | null; period_end: string | null };
   probe_count: number;
   recent_runs: MonitorRun[];

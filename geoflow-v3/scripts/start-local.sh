@@ -21,6 +21,9 @@ CELERY_RESULT_BACKEND=redis://127.0.0.1:6379/1
 SKIP_PGVECTOR=true
 AI_MOCK_MODE=true
 DEBUG=true
+GWEB_BASE_URL=http://127.0.0.1:3000
+GWEB_REVALIDATE_SECRET=shared-revalidate-secret
+GWEB_SYNC_ENABLED=true
 EOF
 export $(grep -v '^#' .env.local | xargs)
 

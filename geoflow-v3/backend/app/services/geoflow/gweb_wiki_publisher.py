@@ -33,9 +33,8 @@ class GwebWikiPublisher:
             "slug": slug,
             "type": wiki_type,
             "route_prefix": route_prefix,
-            "frontmatter": meta,
+            "frontmatter": {**meta, "slug": slug, "type": wiki_type},
             "body": article.content,
-            "mdx": f"---\n{meta}\n---\n\n{article.content}",
         }
 
         headers = {"Authorization": f"Bearer {settings.gweb_revalidate_secret}"}

@@ -67,19 +67,52 @@ async def load_corpus(db: AsyncSession, limit: int = 80) -> list[dict]:
     corpus: list[dict] = []
     articles = (
         await db.execute(
-            select(Article.title, Article.content)
+            select(Article.title, Article.content, Article.slug)
             .where(Article.deleted_at.is_(None), Article.status == "published")
             .order_by(Article.id.desc())
             .limit(limit)
         )
     ).all()
-    for title, content in articles:
-        corpus.append({"title": title or "", "text": (content or "")[:3000]})
+    for title, content, slug in articles:
+        corpus.append({
+            "title": title or "",
+            "text": (content or "")[:3000],
+            "slug": slug or "",
+            "url": f"/articles/{slug}" if slug else "",
+        })
 
     kbs = (await db.execute(select(KnowledgeBase.name, KnowledgeBase.content).limit(20))).all()
     for name, content in kbs:
-        corpus.append({"title": name or "", "text": (content or "")[:2000]})
+        corpus.append({"title": name or "", "text": (content or "")[:2000], "slug": "", "url": ""})
     return corpus
+
+
+async def _persist_corpus_citations(
+    db: AsyncSession,
+    *,
+    probe_id: int,
+    question_text: str,
+    corpus: list[dict],
+    limit: int = 3,
+) -> None:
+    if not await _table_exists(db, "geo_monitor_probe_citations") or not corpus:
+        return
+    from app.services.geoeval.platform_connectors.corpus_connector import _score_doc
+
+    ranked = sorted(corpus, key=lambda d: _score_doc(question_text, d, "chatgpt"), reverse=True)[:limit]
+    for pos, doc in enumerate(ranked, start=1):
+        title = str(doc.get("title") or "").strip()
+        if not title:
+            continue
+        await db.execute(
+            text(
+                """
+                INSERT INTO geo_monitor_probe_citations (probe_result_id, title, url, position)
+                VALUES (:pid, :title, :url, :pos)
+                """
+            ),
+            {"pid": probe_id, "title": title[:500], "url": str(doc.get("url") or "")[:500], "pos": pos},
+        )
 
 
 async def _persist_probe(
@@ -87,9 +120,11 @@ async def _persist_probe(
     *,
     run_id: int,
     outcome: ProbeOutcome,
-) -> None:
+    question_text: str = "",
+    corpus: list[dict] | None = None,
+) -> int | None:
     if not await _table_exists(db, "geo_monitor_probe_results"):
-        return
+        return None
     import json
 
     params = {
@@ -104,30 +139,43 @@ async def _persist_probe(
         "sentiment": json.dumps(outcome.sentiment) if outcome.sentiment else None,
         "competitor_mentions": json.dumps(outcome.competitor_mentions or []),
     }
+    probe_id: int | None = None
     try:
-        await db.execute(
-            text(
-                """
-                INSERT INTO geo_monitor_probe_results
-                    (run_id, question_id, platform, brand_rank, mentioned, snippet, engine,
-                     ranking_score, sentiment, competitor_mentions)
-                VALUES (:run_id, :qid, :platform, :rank, :mentioned, :snippet, :engine,
-                        :ranking_score, CAST(:sentiment AS JSON), CAST(:competitor_mentions AS JSON))
-                """
-            ),
-            params,
-        )
+        row = (
+            await db.execute(
+                text(
+                    """
+                    INSERT INTO geo_monitor_probe_results
+                        (run_id, question_id, platform, brand_rank, mentioned, snippet, engine,
+                         ranking_score, sentiment, competitor_mentions)
+                    VALUES (:run_id, :qid, :platform, :rank, :mentioned, :snippet, :engine,
+                            :ranking_score, CAST(:sentiment AS JSON), CAST(:competitor_mentions AS JSON))
+                    RETURNING id
+                    """
+                ),
+                params,
+            )
+        ).first()
+        probe_id = int(row[0]) if row else None
     except Exception:
-        await db.execute(
-            text(
-                """
-                INSERT INTO geo_monitor_probe_results
-                    (run_id, question_id, platform, brand_rank, mentioned, snippet, engine)
-                VALUES (:run_id, :qid, :platform, :rank, :mentioned, :snippet, :engine)
-                """
-            ),
-            {k: v for k, v in params.items() if k in ("run_id", "qid", "platform", "rank", "mentioned", "snippet", "engine")},
-        )
+        row = (
+            await db.execute(
+                text(
+                    """
+                    INSERT INTO geo_monitor_probe_results
+                        (run_id, question_id, platform, brand_rank, mentioned, snippet, engine)
+                    VALUES (:run_id, :qid, :platform, :rank, :mentioned, :snippet, :engine)
+                    RETURNING id
+                    """
+                ),
+                {k: v for k, v in params.items() if k in ("run_id", "qid", "platform", "rank", "mentioned", "snippet", "engine")},
+            )
+        ).first()
+        probe_id = int(row[0]) if row else None
+
+    if probe_id and corpus and question_text:
+        await _persist_corpus_citations(db, probe_id=probe_id, question_text=question_text, corpus=corpus)
+    return probe_id
 
 
 async def run_probes_for_questions(
@@ -158,7 +206,13 @@ async def run_probes_for_questions(
             )
             outcome.question_id = qid
             outcomes.append(outcome)
-            await _persist_probe(db, run_id=run_id, outcome=outcome)
+            await _persist_probe(
+                db,
+                run_id=run_id,
+                outcome=outcome,
+                question_text=question_text,
+                corpus=corpus,
+            )
 
     logger.info(
         "monitor_probes_completed run_id=%s questions=%s probes=%s mode=%s platforms=%s",

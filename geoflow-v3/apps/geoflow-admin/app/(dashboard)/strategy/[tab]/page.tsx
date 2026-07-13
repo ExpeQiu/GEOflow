@@ -52,6 +52,7 @@ export default function StrategyPage() {
   const [flash, setFlash] = useState<{ variant: "success" | "error"; message: string } | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [scanStatus, setScanStatus] = useState("");
   const [loading, setLoading] = useState(true);
 
   const [diagnosis, setDiagnosis] = useState<DiagnosisPanel | null>(null);
@@ -68,6 +69,7 @@ export default function StrategyPage() {
   const [monitorScenes, setMonitorScenes] = useState<MonitorScene[]>([]);
   const [monitorTemplates, setMonitorTemplates] = useState<QueryTemplate[]>([]);
   const [monitorCompetitors, setMonitorCompetitors] = useState<CompetitorBrand[]>([]);
+  const [monitorBrandName, setMonitorBrandName] = useState("");
   const [monitorInsights, setMonitorInsights] = useState<MonitorInsight[]>([]);
   const [monitorSnapshots, setMonitorSnapshots] = useState<MonitorSnapshot[]>([]);
   const [visibilityReports, setVisibilityReports] = useState<VisibilityReport[]>([]);
@@ -151,6 +153,7 @@ export default function StrategyPage() {
   async function loadMonitorSettings(t: string) {
     const data = await apiGet<{
       dashboard: MonitorKpis;
+      brand_name?: string;
       questions: MonitorQuestion[];
       recent_runs: MonitorRun[];
       recent_probes: MonitorProbe[];
@@ -162,6 +165,7 @@ export default function StrategyPage() {
       reports?: VisibilityReport[];
     }>("/api/admin/strategy/monitor", t);
     setMonitorKpis(data.dashboard);
+    setMonitorBrandName(data.brand_name ?? "");
     setMonitorQuestions(data.questions);
     setMonitorRuns(data.recent_runs ?? []);
     setMonitorProbes(data.recent_probes ?? []);
@@ -177,18 +181,43 @@ export default function StrategyPage() {
     if (token) reload();
   }, [token, reload]);
 
-  async function runMonitorScan() {
+  async function reloadCollection(t: string) {
+    const data = await apiGet<CollectionPanelData>("/api/admin/strategy/collection", t);
+    setCollection(data);
+    return data;
+  }
+
+  async function runMonitorScan(scanType: "daily" | "market" = "daily") {
     const t = getToken();
     if (!t) return;
     setScanning(true);
+    setScanStatus("已入队，等待 Worker…");
+    const beforeRunId = collection?.latest_run?.id ?? collection?.recent_runs[0]?.id ?? 0;
     try {
-      await apiPost("/api/admin/strategy/monitor/scan", t);
-      setFlash({ variant: "success", message: "扫描已入队" });
-      await reload();
+      await apiPost(`/api/admin/strategy/monitor/scan?scan_type=${scanType}`, t);
+      setFlash({ variant: "success", message: `${scanType === "market" ? "竞品" : "全量"}扫描已入队` });
+
+      for (let i = 0; i < 40; i++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        const data = await reloadCollection(t);
+        const latest = data.latest_run ?? data.recent_runs[0];
+        if (!latest) continue;
+        if (latest.id > beforeRunId) {
+          setScanStatus(`任务 #${latest.id} · ${latest.status}`);
+          if (latest.status === "completed" || latest.status === "failed") {
+            setFlash({ variant: "success", message: `扫描 #${latest.id} 已${latest.status === "completed" ? "完成" : "结束"}` });
+            break;
+          }
+        } else {
+          setScanStatus("Worker 处理中…");
+        }
+      }
+      if (tab !== "collection" && tab !== "monitor") await reload();
     } catch {
       setFlash({ variant: "error", message: "扫描入队失败" });
     } finally {
       setScanning(false);
+      setScanStatus("");
     }
   }
 
@@ -266,7 +295,16 @@ export default function StrategyPage() {
       )}
 
       {(effectiveTab === "collection") && collection && (
-        <CollectionPanel data={collection} onScan={runMonitorScan} scanning={scanning} />
+        <CollectionPanel
+          data={collection}
+          onScan={runMonitorScan}
+          onRefresh={async () => {
+            const t = getToken();
+            if (t) await reloadCollection(t);
+          }}
+          scanning={scanning}
+          scanStatus={scanStatus}
+        />
       )}
 
       {effectiveTab === "brand" && brandPanel && <BrandVisibilityPanel data={brandPanel} onRefresh={reload} />}
@@ -285,7 +323,9 @@ export default function StrategyPage() {
 
       {effectiveTab === "question-bank" && monitorKpis && (
         <QuestionBankPanel
-          questions={monitorQuestions}
+          scenes={monitorScenes}
+          competitors={monitorCompetitors}
+          brandName={monitorBrandName}
           templates={monitorTemplates}
           recentRuns={monitorRuns}
           onCreate={createMonitorQuestion}

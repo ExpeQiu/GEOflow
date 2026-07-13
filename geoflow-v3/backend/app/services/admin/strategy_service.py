@@ -37,14 +37,15 @@ async def build_monitor_panel(db: AsyncSession) -> dict:
         list_query_templates,
         list_visibility_reports,
     )
+    from app.services.admin.monitor_settings_service import get_monitor_settings
     from app.services.geoeval.competitive_analyzer import build_competitor_matrix
 
     questions_sql = """
         SELECT id, question_text, priority, status, last_scan_at,
-               scene_id, template_id, query_type
+               scene_id, template_id, query_type, competitor_brands
         FROM geo_monitor_questions
         ORDER BY priority DESC, id DESC
-        LIMIT 50
+        LIMIT 100
     """
     question_cols = (
         "id",
@@ -55,6 +56,7 @@ async def build_monitor_panel(db: AsyncSession) -> dict:
         "scene_id",
         "template_id",
         "query_type",
+        "competitor_brands",
     )
     if not await _table_exists(db, "geo_monitor_scenes"):
         questions_sql = """
@@ -65,8 +67,10 @@ async def build_monitor_panel(db: AsyncSession) -> dict:
         """
         question_cols = ("id", "question_text", "priority", "status", "last_scan_at")
 
+    monitor_settings = await get_monitor_settings(db)
     panel = {
         "dashboard": await _monitor_kpis(db),
+        "brand_name": monitor_settings.get("brand_name", ""),
         "questions": await _fetch_rows(db, questions_sql, question_cols),
         "recent_runs": await _fetch_rows(
             db,

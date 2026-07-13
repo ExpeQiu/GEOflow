@@ -11,6 +11,9 @@ exec env \
   PYTHONPATH=. \
   SKIP_PGVECTOR=true \
   AI_MOCK_MODE=true \
+  GWEB_BASE_URL="${GWEB_BASE_URL:-http://127.0.0.1:3000}" \
+  GWEB_REVALIDATE_SECRET="${GWEB_REVALIDATE_SECRET:-shared-revalidate-secret}" \
+  GWEB_SYNC_ENABLED="${GWEB_SYNC_ENABLED:-true}" \
   DATABASE_URL="postgresql+asyncpg://geo_user:geo_password@127.0.0.1:${PG_PORT}/geo_flow" \
   DATABASE_URL_SYNC="postgresql://geo_user:geo_password@127.0.0.1:${PG_PORT}/geo_flow" \
   .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port "${API_PORT}"

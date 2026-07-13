@@ -90,6 +90,7 @@ async def _collection_window(db: AsyncSession) -> dict:
 
 
 async def _platform_probe_counts(db: AsyncSession) -> list[dict]:
+    """历史累计：各平台探针结果总数。"""
     if not await _table_exists(db, "geo_monitor_probe_results"):
         return [{"platform": p, "label": PLATFORM_LABELS.get(p, p), "probe_count": 0} for p in PLATFORMS_CN]
     rows = (
@@ -109,27 +110,121 @@ async def _platform_probe_counts(db: AsyncSession) -> list[dict]:
     ]
 
 
+async def _next_scan_plan(db: AsyncSession, qstats: dict) -> dict:
+    from app.services.admin.monitor_settings_service import get_monitor_settings
+    from app.services.geoeval.monitor_probe import load_platforms, load_scan_limit
+
+    settings = await get_monitor_settings(db)
+    platforms = await load_platforms(db)
+    scan_limit = await load_scan_limit(db)
+    active_total = int(qstats.get("total") or 0)
+    effective = min(active_total, scan_limit)
+    plat_count = len(platforms)
+
+    return {
+        "active_questions": active_total,
+        "effective_questions": effective,
+        "scan_limit": scan_limit,
+        "platform_count": plat_count,
+        "total_probes_estimated": effective * plat_count,
+        "probe_mode": settings.get("probe_mode", "corpus"),
+        "platforms": [
+            {"platform": p, "label": PLATFORM_LABELS.get(p, p), "estimate": effective}
+            for p in platforms
+        ],
+    }
+
+
+async def _engine_distribution(db: AsyncSession) -> list[dict]:
+    if not await _table_exists(db, "geo_monitor_probe_results") or not await _table_exists(db, "geo_monitor_runs"):
+        return []
+    run_id = await db.scalar(text("SELECT id FROM geo_monitor_runs ORDER BY id DESC LIMIT 1"))
+    if not run_id:
+        return []
+    rows = (
+        await db.execute(
+            text(
+                """
+                SELECT COALESCE(engine, 'corpus') AS eng, COUNT(*) AS cnt
+                FROM geo_monitor_probe_results
+                WHERE run_id = :rid
+                GROUP BY COALESCE(engine, 'corpus')
+                ORDER BY cnt DESC
+                """
+            ),
+            {"rid": int(run_id)},
+        )
+    ).all()
+    labels = {"corpus": "语料", "llm": "LLM 模拟", "api": "真实 API"}
+    return [{"engine": str(r[0]), "label": labels.get(str(r[0]), str(r[0])), "count": int(r[1])} for r in rows]
+
+
+async def _latest_run_status(db: AsyncSession) -> dict | None:
+    if not await _table_exists(db, "geo_monitor_runs"):
+        return None
+    row = (
+        await db.execute(
+            text(
+                """
+                SELECT id, status, question_count, probe_count, started_at, completed_at
+                FROM geo_monitor_runs ORDER BY id DESC LIMIT 1
+                """
+            )
+        )
+    ).first()
+    if not row:
+        return None
+    return {
+        "id": int(row[0]),
+        "status": row[1],
+        "question_count": int(row[2] or 0),
+        "probe_count": int(row[3] or 0) if row[3] is not None else None,
+        "started_at": row[4].isoformat() if row[4] else None,
+        "completed_at": row[5].isoformat() if row[5] else None,
+    }
+
+
 async def build_collection_panel(db: AsyncSession) -> dict:
+    from app.services.admin.monitor_settings_service import get_monitor_settings
+    from app.services.admin.strategy_service import _recent_alerts
+
     qstats = await _question_stats(db)
     window = await _collection_window(db)
-    platforms = await _platform_probe_counts(db)
+    platforms_historical = await _platform_probe_counts(db)
     kpis = await aggregate_probe_kpis(db)
+    next_scan = await _next_scan_plan(db, qstats)
+    settings = await get_monitor_settings(db)
 
     brand_questions = qstats["brand"]
     product_questions = qstats["product"]
-    platform_count = len([p for p in platforms if p["probe_count"] > 0]) or len(PLATFORMS_CN)
+    competitor_questions = qstats["competitor"]
+    plat_count = next_scan["platform_count"]
 
     return {
-        "platforms": platforms,
-        "platform_count": platform_count,
+        "platforms": platforms_historical,
+        "platforms_next": next_scan["platforms"],
+        "platform_count": plat_count,
         "question_stats": {
             "brand_questions": brand_questions,
             "product_questions": product_questions,
-            "competitor_questions": qstats["competitor"],
+            "competitor_questions": competitor_questions,
             "total_questions": qstats["total"],
-            "brand_probes_estimated": brand_questions * platform_count,
-            "product_probes_estimated": product_questions * platform_count,
+            "brand_probes_estimated": brand_questions * plat_count,
+            "product_probes_estimated": product_questions * plat_count,
+            "competitor_probes_estimated": competitor_questions * plat_count,
+            "total_probes_estimated": next_scan["total_probes_estimated"],
         },
+        "next_scan": next_scan,
+        "probe_settings": {
+            "brand_name": settings.get("brand_name", ""),
+            "probe_mode": settings.get("probe_mode", "corpus"),
+            "monitor_scan_limit": settings.get("monitor_scan_limit", 50),
+            "platforms": settings.get("platforms", []),
+            "ai_mock_mode": settings.get("ai_mock_mode", True),
+        },
+        "engine_distribution": await _engine_distribution(db),
+        "latest_run": await _latest_run_status(db),
+        "recent_alerts": await _recent_alerts(db, limit=5),
         "collection_window": window,
         "probe_count": kpis.get("probe_count", 0),
         "recent_runs": await _fetch_recent_runs(db),

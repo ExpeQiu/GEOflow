@@ -148,9 +148,11 @@ from app.services.admin.strategy_crud_service import (
     BatchReevalBody,
     InsightTemplateBody,
     MonitorQuestionBody,
+    MonitorQuestionBulkBody,
     WebSourceBody,
     apply_recommendations,
     batch_reevaluate,
+    bulk_import_monitor_questions,
     create_insight_template,
     create_monitor_question,
     create_web_source,
@@ -158,7 +160,9 @@ from app.services.admin.strategy_crud_service import (
     delete_monitor_question,
     delete_web_source,
     list_insight_templates_crud,
+    list_monitor_questions,
     refresh_web_source,
+    seed_default_brand_questions,
     remine_insight_template,
     update_insight_template,
     update_monitor_question,
@@ -1298,6 +1302,42 @@ async def insight_templates_delete(template_id: int, request: Request, db: DbSes
 @router.post("/strategy/insight-templates/{template_id}/re-mine")
 async def insight_templates_remine(template_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     return success(request, await remine_insight_template(db, template_id))
+
+
+@router.get("/strategy/monitor/questions")
+async def monitor_questions_list(
+    request: Request,
+    db: DbSession,
+    jwt=Depends(get_admin_jwt),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    query_type: str | None = Query(default=None, pattern="^(brand|product|competitor)$"),
+    status: str | None = Query(default=None, pattern="^(active|paused)$"),
+    scene_id: int | None = Query(default=None, ge=1),
+    search: str | None = Query(default=None, max_length=200),
+):
+    return success(
+        request,
+        await list_monitor_questions(
+            db,
+            page=page,
+            page_size=page_size,
+            query_type=query_type,
+            status=status,
+            scene_id=scene_id,
+            search=search,
+        ),
+    )
+
+
+@router.post("/strategy/monitor/questions/bulk")
+async def monitor_questions_bulk(body: MonitorQuestionBulkBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await bulk_import_monitor_questions(db, body), status=201)
+
+
+@router.post("/strategy/monitor/questions/seed-brand")
+async def monitor_questions_seed_brand(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await seed_default_brand_questions(db), status=201)
 
 
 @router.post("/strategy/monitor/questions")

@@ -183,6 +183,125 @@ async def create_query_template(db: AsyncSession, body: QueryTemplateBody) -> di
     return {"item": {"id": int(row[0]), "pattern": body.pattern}}
 
 
+async def _load_question_template_context(db: AsyncSession) -> dict:
+    """模板生成上下文：品牌名、竞品、产品、场景。"""
+    from app.services.admin.monitor_settings_service import get_monitor_settings
+
+    settings = await get_monitor_settings(db)
+    brand = (settings.get("brand_name") or "品牌").strip()
+    aliases = [a.strip() for a in str(settings.get("brand_aliases") or "").split(",") if a.strip()]
+    self_names = {brand.lower(), *[a.lower() for a in aliases]}
+
+    competitors: list[str] = []
+    products: list[str] = []
+    if await _table_exists(db, "geo_monitor_competitors"):
+        has_type = await _competitors_has_entity_type(db)
+        type_col = ", entity_type" if has_type else ""
+        rows = (
+            await db.execute(
+                text(
+                    f"""
+                    SELECT brand_name, is_self{type_col}
+                    FROM geo_monitor_competitors
+                    WHERE status = 'active'
+                    ORDER BY is_self DESC, id ASC
+                    """
+                )
+            )
+        ).all()
+        for row in rows:
+            name = str(row[0]).strip()
+            if not name:
+                continue
+            is_self = bool(row[1])
+            etype = str(row[2]) if has_type and len(row) > 2 else infer_entity_type(name)
+            if is_self or name.lower() in self_names:
+                if etype == "product" and name not in products:
+                    products.insert(0, name)
+                continue
+            if etype == "product":
+                products.append(name)
+            else:
+                competitors.append(name)
+
+    scenes: list[str] = []
+    if await _table_exists(db, "geo_monitor_scenes"):
+        scene_rows = (
+            await db.execute(
+                text(
+                    """
+                    SELECT scene_name FROM geo_monitor_scenes
+                    WHERE status = 'active'
+                    ORDER BY weight_pct DESC, id ASC
+                    LIMIT 12
+                    """
+                )
+            )
+        ).all()
+        scenes = [str(r[0]).strip() for r in scene_rows if r[0]]
+
+    if not products:
+        products = [brand]
+    if not competitors:
+        competitors = ["竞品A", "竞品B"]
+    if not scenes:
+        scenes = ["通勤代步", "家庭出行"]
+
+    return {"brand": brand, "competitors": competitors[:8], "products": products[:8], "scenes": scenes[:8]}
+
+
+def _expand_template_samples(pattern: str, ctx: dict, *, limit: int) -> list[tuple[str, list[str]]]:
+    """按占位符展开模板，返回 (问题文本, 竞品列表)。"""
+    placeholders = re.findall(r"\{(\w+)\}", pattern)
+    if not placeholders:
+        return [(pattern, [])]
+
+    pools: dict[str, list[str]] = {
+        "brand": [ctx["brand"]],
+        "product": ctx["products"],
+        "competitor": ctx["competitors"],
+        "scene": ctx["scenes"],
+    }
+
+    # 以「变化最大」的占位符为主维度展开（通常是 competitor / scene / product）
+    expand_keys = [k for k in ("competitor", "scene", "product") if k in placeholders]
+    if not expand_keys:
+        expand_keys = [placeholders[0]]
+
+    primary = expand_keys[0]
+    primary_values = pools.get(primary, [f"样例"])
+    samples: list[tuple[str, list[str]]] = []
+    seen: set[str] = set()
+
+    for idx, primary_val in enumerate(primary_values):
+        if len(samples) >= limit:
+            break
+        q = pattern
+        comp_list: list[str] = []
+        for ph in placeholders:
+            if ph == primary:
+                val = primary_val
+            elif ph == "competitor":
+                val = primary_val if primary == "competitor" else pools["competitor"][idx % len(pools["competitor"])]
+            elif ph == "brand":
+                val = ctx["brand"]
+            elif ph == "product":
+                val = pools["product"][idx % len(pools["product"])]
+            elif ph == "scene":
+                val = pools["scene"][idx % len(pools["scene"])]
+            else:
+                val = f"样例{idx + 1}"
+            q = q.replace("{" + ph + "}", val)
+            if ph == "competitor" and val not in comp_list:
+                comp_list.append(val)
+        if q in seen:
+            continue
+        seen.add(q)
+        samples.append((q, comp_list))
+
+    return samples[:limit]
+
+
 async def generate_questions_from_template(db: AsyncSession, template_id: int, limit: int = 20) -> dict:
     if not await _table_exists(db, "geo_monitor_query_templates"):
         raise HTTPException(status_code=503, detail="aivis_not_migrated")
@@ -201,34 +320,36 @@ async def generate_questions_from_template(db: AsyncSession, template_id: int, l
         raise HTTPException(status_code=404, detail="template_not_found")
 
     pattern, qtype, scene_id, priority = tpl[0], tpl[1], tpl[2], int(tpl[3] or 50)
-    placeholders = re.findall(r"\{(\w+)\}", pattern)
-    samples: list[str] = []
-
-    if placeholders:
-        defaults = {"brand": "品牌", "product": "产品", "competitor": "竞品", "scene": "场景"}
-        for i in range(min(limit, 10)):
-            q = pattern
-            for ph in placeholders:
-                q = q.replace("{" + ph + "}", defaults.get(ph, f"样例{i+1}"))
-            samples.append(q)
-    else:
-        samples = [pattern]
+    ctx = await _load_question_template_context(db)
+    samples = _expand_template_samples(pattern, ctx, limit=min(limit, 20))
 
     created = 0
-    for qtext in samples[:limit]:
+    for qtext, comp_list in samples:
         await db.execute(
             text(
                 """
                 INSERT INTO geo_monitor_questions
                     (question_text, priority, status, scene_id, template_id, query_type, competitor_brands)
-                VALUES (:q, :p, 'active', :sid, :tid, :qt, '[]'::json)
+                VALUES (:q, :p, 'active', :sid, :tid, :qt, CAST(:cb AS JSON))
                 """
             ),
-            {"q": qtext, "p": priority, "sid": scene_id, "tid": template_id, "qt": qtype},
+            {
+                "q": qtext,
+                "p": priority,
+                "sid": scene_id,
+                "tid": template_id,
+                "qt": qtype,
+                "cb": json.dumps(comp_list, ensure_ascii=False),
+            },
         )
         created += 1
 
-    logger.info("template_questions_generated template_id=%s count=%s", template_id, created)
+    logger.info(
+        "template_questions_generated template_id=%s count=%s brand=%s",
+        template_id,
+        created,
+        ctx.get("brand"),
+    )
     return {"created": created, "template_id": template_id}
 
 
