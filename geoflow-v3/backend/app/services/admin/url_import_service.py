@@ -9,6 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.admin.production_service import _table_exists
+from app.services.geoflow.rag.knowledge_sync_queue import queue_knowledge_chunk_sync
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,8 @@ async def run_url_import(db: AsyncSession, body: UrlImportBody) -> dict:
     url = body.url.strip()
     if not url.startswith(("http://", "https://")):
         raise HTTPException(status_code=422, detail="invalid_url")
+    if body.target in {"title", "keyword"} and not body.library_id:
+        raise HTTPException(status_code=422, detail="library_id_required")
 
     if await _table_exists(db, "url_import_jobs"):
         next_id = int(await db.scalar(text("SELECT COALESCE(MAX(id), 0) + 1 FROM url_import_jobs")) or 1)
@@ -158,12 +161,6 @@ async def commit_url_import_job(db: AsyncSession, job_id: int) -> dict:
         await db.flush()
         kb_id = kb.id
         logger.info("url_import_committed_kb id=%s kb_id=%s", job_id, kb_id)
-        try:
-            from app.workers.celery_app import celery_app
-
-            celery_app.send_task("app.workers.tasks.sync_knowledge_chunks", args=[kb_id])
-        except Exception:
-            logger.exception("url_import_sync_chunks_queue_failed kb_id=%s", kb_id)
     elif job.get("target") == "title" and job.get("library_id"):
         from app.services.admin.materials_libraries_service import TitleBody, create_title
 
@@ -186,7 +183,11 @@ async def commit_url_import_job(db: AsyncSession, job_id: int) -> dict:
             text("UPDATE url_import_jobs SET status='committed', updated_at=CURRENT_TIMESTAMP WHERE id=:id"),
             {"id": job_id},
         )
-    return {"committed": True, "job_id": job_id, "knowledge_base_id": kb_id}
+    sync_queued = False
+    if kb_id:
+        await db.commit()
+        sync_queued = queue_knowledge_chunk_sync(kb_id)
+    return {"committed": True, "job_id": job_id, "knowledge_base_id": kb_id, "sync_queued": sync_queued}
 
 
 async def list_url_import_history(db: AsyncSession | None = None) -> dict:

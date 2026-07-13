@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.knowledge import KnowledgeBase
 from app.services.admin.production_service import _table_exists
 from app.services.admin.settings_crud_service import SiteSettingBody, upsert_site_setting
-from app.services.geoflow.rag.retrieval import KnowledgeRetrievalService
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +74,8 @@ async def save_knowledge_settings(db: AsyncSession, body: KnowledgeSettingsBody)
 
 
 async def run_rag_sandbox(db: AsyncSession, body: RagSandboxBody) -> dict:
+    from app.services.geoflow.rag.retrieval import KnowledgeRetrievalService
+
     kb = await db.get(KnowledgeBase, body.knowledge_base_id)
     if kb is None:
         raise HTTPException(status_code=404, detail="knowledge_base_not_found")
@@ -83,6 +84,7 @@ async def run_rag_sandbox(db: AsyncSession, body: RagSandboxBody) -> dict:
     logger.info("rag_sandbox_query kb_id=%s hits=%s", body.knowledge_base_id, len(chunks))
     return {
         "knowledge_base_id": body.knowledge_base_id,
+        "knowledge_base_name": kb.name,
         "query": body.query,
         "hits": chunks,
         "hit_count": len(chunks),

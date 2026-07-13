@@ -26,6 +26,9 @@ export type AdminTask = {
   publish_interval: number;
   model_selection_mode: string;
   ai_model_name: string;
+  title_library_name?: string;
+  knowledge_base_name?: string;
+  knowledge_base_id?: number | null;
   created_at: string | null;
   last_run_at: string | null;
   batch_status: string | null;

@@ -20,7 +20,7 @@ class ArticlePublishService:
         if article.review_status not in ("approved", "auto_approved"):
             article.review_status = "auto_approved"
         article.status = "published"
-        article.published_at = datetime.now(UTC)
+        article.published_at = datetime.now(UTC).replace(tzinfo=None)
 
         from app.workers.celery_app import celery_app
 

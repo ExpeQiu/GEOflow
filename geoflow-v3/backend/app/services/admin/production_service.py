@@ -27,10 +27,24 @@ def _utc_naive_hours_ago(hours: int = 24) -> datetime:
     return (datetime.now(timezone.utc) - timedelta(hours=hours)).replace(tzinfo=None)
 
 
+def _knowledge_health(stats: dict) -> str:
+    if stats.get("knowledge_bases", 0) <= 0:
+        return "empty"
+    if stats.get("active_embedding_models", 0) <= 0:
+        return "no_embed"
+    if stats.get("unvectorized_chunks", 0) > 0:
+        return "pending"
+    return "ready"
+
+
 async def build_production_overview(db: AsyncSession) -> dict:
     stats = await _material_stats(db)
     ai_stats = await _ai_stats(db)
-    return {"stats": stats, "ai_stats": ai_stats}
+    return {
+        "stats": stats,
+        "ai_stats": ai_stats,
+        "knowledge_health": _knowledge_health(stats),
+    }
 
 
 async def build_materials_panel(db: AsyncSession) -> dict:

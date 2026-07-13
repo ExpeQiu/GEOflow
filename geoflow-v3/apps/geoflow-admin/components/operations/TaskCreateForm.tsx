@@ -77,6 +77,11 @@ export function TaskCreateForm({ taskId }: { taskId?: number }) {
       setError(zh.taskCreate.errors.titleLibraryRequired);
       return;
     }
+    const titleLib = options?.title_libraries.find((lib) => lib.id === form.title_library_id);
+    if (titleLib && (titleLib.count ?? 0) <= 0) {
+      setError("所选标题库暂无标题，请先在内容生产中添加");
+      return;
+    }
     if (!form.prompt_id) {
       setError(zh.taskCreate.errors.promptRequired);
       return;
@@ -190,7 +195,12 @@ export function TaskCreateForm({ taskId }: { taskId?: number }) {
               ))}
             </select>
             {options.title_libraries.length === 0 && (
-              <p className="mt-1 text-xs text-amber-600">{zh.taskCreate.hints.noTitleLibraries}</p>
+              <p className="mt-1 text-xs text-amber-600">
+                {zh.taskCreate.hints.noTitleLibraries}{" "}
+                <Link href="/production/materials/titles" className="text-blue-600 hover:underline">
+                  去内容生产添加
+                </Link>
+              </p>
             )}
           </div>
           <div>
@@ -258,7 +268,7 @@ export function TaskCreateForm({ taskId }: { taskId?: number }) {
             value={form.prompt_id}
             onChange={(v) => patch("prompt_id", v)}
             placeholder={zh.taskCreate.options.selectPrompt}
-            options={options.prompts}
+            options={options.prompts.map((p) => ({ id: p.id, name: p.type ? `${p.name} (${p.type})` : p.name }))}
           />
           <SelectField
             label={`${zh.taskCreate.fields.aiModel} *`}
@@ -295,7 +305,19 @@ export function TaskCreateForm({ taskId }: { taskId?: number }) {
             value={form.knowledge_base_id ?? 0}
             onChange={(v) => patch("knowledge_base_id", v || null)}
             placeholder={zh.taskCreate.options.noKnowledge}
-            options={options.knowledge_bases}
+            options={options.knowledge_bases.map((kb) => ({
+              id: kb.id,
+              name: kb.rag_ready ? kb.name : `${kb.name}（待向量化）`,
+            }))}
+            optional
+            showCount
+          />
+          <SelectField
+            label="洞察模板（可选）"
+            value={form.insight_template_id ?? 0}
+            onChange={(v) => patch("insight_template_id", v || null)}
+            placeholder="不使用洞察模板"
+            options={options.insight_templates}
             optional
           />
           <div>

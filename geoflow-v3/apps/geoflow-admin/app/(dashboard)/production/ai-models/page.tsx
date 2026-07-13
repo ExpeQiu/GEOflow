@@ -9,12 +9,28 @@ import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiDelete, apiGet, apiPatch, apiPost, getToken } from "@/lib/api-client";
 import { PRODUCTION_NAV } from "@/lib/nav-config";
 
-type ModelRow = { id: number; name: string; model_id: string; status: string };
+type ModelRow = {
+  id: number;
+  name: string;
+  model_id: string;
+  model_type: string;
+  api_url: string;
+  status: string;
+  has_api_key: boolean;
+};
+
+const EMPTY_FORM = {
+  name: "",
+  model_id: "",
+  api_key: "",
+  api_url: "https://api.openai.com/v1",
+  model_type: "chat",
+};
 
 export default function AiModelsPage() {
   const token = useAuthGuard();
   const [items, setItems] = useState<ModelRow[]>([]);
-  const [form, setForm] = useState({ name: "", model_id: "", api_key: "" });
+  const [form, setForm] = useState(EMPTY_FORM);
   const [editId, setEditId] = useState<number | null>(null);
   const [testMsg, setTestMsg] = useState("");
 
@@ -33,13 +49,19 @@ export default function AiModelsPage() {
     e.preventDefault();
     const t = getToken();
     if (!t) return;
+    const payload = { ...form };
     if (editId) {
-      await apiPatch(`/api/admin/ai-models/${editId}`, t, form);
+      if (!payload.api_key) {
+        const { api_key: _removed, ...rest } = payload;
+        await apiPatch(`/api/admin/ai-models/${editId}`, t, rest);
+      } else {
+        await apiPatch(`/api/admin/ai-models/${editId}`, t, payload);
+      }
       setEditId(null);
     } else {
-      await apiPost("/api/admin/ai-models", t, form);
+      await apiPost("/api/admin/ai-models", t, payload);
     }
-    setForm({ name: "", model_id: "", api_key: "" });
+    setForm(EMPTY_FORM);
     await load();
   }
 
@@ -65,18 +87,37 @@ export default function AiModelsPage() {
       <HubNav items={PRODUCTION_NAV} tone="emerald" />
       <Link href="/production/ai_config" className="mb-4 inline-block text-sm text-emerald-700">← AI 配置 Hub</Link>
       {testMsg && <FlashAlert variant="success">{testMsg}</FlashAlert>}
-      <form onSubmit={onSubmit} className="mb-6 grid gap-2 rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200 md:grid-cols-4">
-        <input className="rounded-md border px-3 py-2 text-sm" placeholder="显示名" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        <input className="rounded-md border px-3 py-2 text-sm" placeholder="model_id" value={form.model_id} onChange={(e) => setForm({ ...form, model_id: e.target.value })} />
-        <input className="rounded-md border px-3 py-2 text-sm" placeholder="api_key" value={form.api_key} onChange={(e) => setForm({ ...form, api_key: e.target.value })} />
+      <form onSubmit={onSubmit} className="mb-6 space-y-2 rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
+        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+          <input className="rounded-md border px-3 py-2 text-sm" placeholder="显示名" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <input className="rounded-md border px-3 py-2 text-sm" placeholder="model_id" value={form.model_id} onChange={(e) => setForm({ ...form, model_id: e.target.value })} />
+          <select className="rounded-md border px-3 py-2 text-sm" value={form.model_type} onChange={(e) => setForm({ ...form, model_type: e.target.value })}>
+            <option value="chat">Chat（正文生成）</option>
+            <option value="embedding">Embedding（知识库 RAG）</option>
+          </select>
+          <input className="rounded-md border px-3 py-2 text-sm md:col-span-2" placeholder="API URL" value={form.api_url} onChange={(e) => setForm({ ...form, api_url: e.target.value })} />
+          <input className="rounded-md border px-3 py-2 text-sm" placeholder={editId ? "api_key（留空不修改）" : "api_key"} value={form.api_key} onChange={(e) => setForm({ ...form, api_key: e.target.value })} />
+        </div>
         <button type="submit" className="rounded-md bg-emerald-600 px-3 py-2 text-sm text-white">{editId ? "更新" : "添加"}</button>
       </form>
       <ul className="divide-y divide-gray-100 rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
         {items.map((m) => (
           <li key={m.id} className="flex items-center justify-between px-4 py-3 text-sm">
-            <span>{m.name} · {m.model_id} · {m.status}</span>
+            <span>
+              {m.name} · {m.model_id} · <span className="text-gray-500">{m.model_type}</span> · {m.status}
+              {m.has_api_key ? "" : " · 无 Key"}
+            </span>
             <span className="flex gap-3">
-              <button type="button" onClick={() => { setEditId(m.id); setForm({ name: m.name, model_id: m.model_id, api_key: "" }); }} className="text-emerald-700">编辑</button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditId(m.id);
+                  setForm({ name: m.name, model_id: m.model_id, api_key: "", api_url: m.api_url, model_type: m.model_type });
+                }}
+                className="text-emerald-700"
+              >
+                编辑
+              </button>
               <button type="button" onClick={() => onTest(m.id)} className="text-blue-600">测试</button>
               <button type="button" onClick={() => onDelete(m.id)} className="text-red-600">删除</button>
             </span>

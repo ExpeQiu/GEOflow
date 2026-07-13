@@ -10,7 +10,15 @@ logger = get_logger("celery.tasks")
 
 
 def _run_async(coro):
-    return asyncio.run(coro)
+    from app.core.database import engine
+
+    async def _runner():
+        try:
+            return await coro
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(_runner())
 
 
 @celery_app.task(name="app.workers.tasks.process_geoflow_task")

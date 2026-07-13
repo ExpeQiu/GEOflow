@@ -122,6 +122,7 @@ from app.services.admin.knowledge_settings_service import (
 from app.services.admin.tech_assets_import_service import TechYamlImportBody, import_tech_assets_yaml
 from app.services.admin.upload_service import read_knowledge_upload, save_image_upload
 from app.services.admin.knowledge_crud_service import KnowledgeBaseBody, append_knowledge_file_content, create_knowledge_base, delete_knowledge_base, get_knowledge_base, list_knowledge_bases_detail, update_knowledge_base
+from app.services.geoflow.rag.knowledge_sync_queue import queue_knowledge_chunk_sync
 from app.services.admin.ai_config_crud_service import AiModelBody, PromptBody, create_ai_model, create_prompt, delete_ai_model, delete_prompt, list_ai_models, list_prompts, test_ai_model, update_ai_model, update_prompt
 from app.services.admin.monitor_detail_service import build_monitor_run_detail, list_monitor_runs
 from app.services.admin.monitor_aivis_service import (
@@ -1030,12 +1031,19 @@ async def knowledge_base_detail(kb_id: int, request: Request, db: DbSession, jwt
 
 @router.post("/knowledge-bases/create")
 async def knowledge_base_create(body: KnowledgeBaseBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
-    return success(request, await create_knowledge_base(db, body), status=201)
+    result = await create_knowledge_base(db, body)
+    kb_id = result["item"]["id"]
+    await db.commit()
+    result["sync_queued"] = queue_knowledge_chunk_sync(kb_id)
+    return success(request, result, status=201)
 
 
 @router.patch("/knowledge-bases/{kb_id}")
 async def knowledge_base_update(kb_id: int, body: KnowledgeBaseBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
-    return success(request, await update_knowledge_base(db, kb_id, body))
+    result = await update_knowledge_base(db, kb_id, body)
+    await db.commit()
+    result["sync_queued"] = queue_knowledge_chunk_sync(kb_id)
+    return success(request, result)
 
 
 @router.delete("/knowledge-bases/{kb_id}")
@@ -1053,6 +1061,8 @@ async def knowledge_base_upload_file(
 ):
     parsed = await read_knowledge_upload(file)
     result = await append_knowledge_file_content(db, kb_id, parsed["content"], parsed["filename"])
+    await db.commit()
+    result["sync_queued"] = queue_knowledge_chunk_sync(kb_id)
     return success(request, result)
 
 

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.distribution import DistributionChannel
 from app.models.geoeval import InsightTemplate
-from app.models.knowledge import KnowledgeBase
+from app.models.knowledge import KnowledgeBase, KnowledgeChunk
 from app.models.material import AiModel, Author, Category, Prompt
 from app.models.task import Task
 from app.models.tech_ip import TechIpAsset
@@ -62,10 +62,7 @@ async def build_task_form_options(db: AsyncSession) -> dict[str, Any]:
         "prompts": await _load_prompts(db),
         "ai_models": await _load_ai_models(db),
         "image_libraries": await _load_image_libraries(db),
-        "knowledge_bases": [
-            {"id": kb.id, "name": kb.name}
-            for kb in (await db.execute(select(KnowledgeBase).order_by(KnowledgeBase.name))).scalars().all()
-        ],
+        "knowledge_bases": await _load_knowledge_bases_for_task(db),
         "authors": [
             {"id": a.id, "name": a.name}
             for a in (await db.execute(select(Author).order_by(Author.name))).scalars().all()
@@ -89,6 +86,9 @@ async def build_task_form_options(db: AsyncSession) -> dict[str, Any]:
 async def create_admin_task(db: AsyncSession, body: AdminTaskCreateBody) -> dict:
     if not await db.scalar(select(func.count()).select_from(Category)):
         raise HTTPException(status_code=422, detail="no_categories_configured")
+    await _validate_title_library_has_titles(db, body.title_library_id)
+    if body.knowledge_base_id:
+        await _validate_knowledge_base_ready(db, body.knowledge_base_id)
     payload, channel_ids = _validate_task_body(body)
 
     svc = TaskLifecycleService(db)
@@ -149,6 +149,9 @@ async def update_admin_task(db: AsyncSession, task_id: int, body: AdminTaskUpdat
     task = await db.get(Task, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="task_not_found")
+    await _validate_title_library_has_titles(db, body.title_library_id)
+    if body.knowledge_base_id:
+        await _validate_knowledge_base_ready(db, body.knowledge_base_id)
     payload, channel_ids = _validate_task_body(body)
     svc = TaskLifecycleService(db)
     task = await svc.update(task_id, payload)
@@ -310,11 +313,11 @@ async def _load_prompts(db: AsyncSession) -> list[dict]:
     rows = (
         await db.execute(
             select(Prompt)
-            .where(or_(Prompt.type == "content", Prompt.type == "body"))
+            .where(or_(Prompt.type.in_(["content", "body", "special"]), Prompt.type == "wiki"))
             .order_by(Prompt.id.desc())
         )
     ).scalars().all()
-    return [{"id": p.id, "name": p.name} for p in rows]
+    return [{"id": p.id, "name": p.name, "type": p.type} for p in rows]
 
 
 async def _load_ai_models(db: AsyncSession) -> list[dict]:
@@ -363,6 +366,61 @@ async def _load_tech_ip_assets(db: AsyncSession) -> list[dict]:
         }
         for a in rows
     ]
+
+
+async def _load_knowledge_bases_for_task(db: AsyncSession) -> list[dict]:
+    rows = (await db.execute(select(KnowledgeBase).order_by(KnowledgeBase.name))).scalars().all()
+    items: list[dict] = []
+    for kb in rows:
+        chunk_count = int(
+            await db.scalar(
+                select(func.count()).select_from(KnowledgeChunk).where(KnowledgeChunk.knowledge_base_id == kb.id)
+            )
+            or 0
+        )
+        vectorized = int(
+            await db.scalar(
+                select(func.count())
+                .select_from(KnowledgeChunk)
+                .where(KnowledgeChunk.knowledge_base_id == kb.id, KnowledgeChunk.embedding_vector.is_not(None))
+            )
+            or 0
+        )
+        ready = chunk_count > 0 and vectorized >= chunk_count
+        items.append(
+            {
+                "id": kb.id,
+                "name": kb.name,
+                "count": chunk_count,
+                "vectorized_count": vectorized,
+                "rag_ready": ready,
+            }
+        )
+    return items
+
+
+async def _validate_title_library_has_titles(db: AsyncSession, library_id: int) -> None:
+    if not await _table_exists(db, "titles"):
+        return
+    count = int(
+        await db.scalar(text("SELECT COUNT(*) FROM titles WHERE library_id = :id"), {"id": library_id}) or 0
+    )
+    if count <= 0:
+        raise HTTPException(status_code=422, detail="title_library_empty")
+
+
+async def _validate_knowledge_base_ready(db: AsyncSession, kb_id: int) -> None:
+    kb = await db.get(KnowledgeBase, kb_id)
+    if kb is None:
+        raise HTTPException(status_code=404, detail="knowledge_base_not_found")
+    chunk_count = int(
+        await db.scalar(
+            select(func.count()).select_from(KnowledgeChunk).where(KnowledgeChunk.knowledge_base_id == kb_id)
+        )
+        or 0
+    )
+    if chunk_count <= 0:
+        raise HTTPException(status_code=422, detail="knowledge_base_not_vectorized")
 
 
 async def _load_insight_templates(db: AsyncSession) -> list[dict]:

@@ -1,16 +1,18 @@
-"""知识库切片与 Embedding — 移植 KnowledgeChunkSyncService 简化版。"""
+"""知识库切片与 Embedding — 读取 knowledge-settings 参数。"""
 
 import hashlib
 import json
+import logging
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
 from app.models.knowledge import KnowledgeBase, KnowledgeChunk
+from app.services.admin.knowledge_settings_service import get_knowledge_settings
+from app.services.geoflow.rag.chunking import pad_embedding_vector, split_with_overlap
 from app.services.geoflow.rag.embeddings import EmbeddingService
 
-settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 class KnowledgeChunkSyncService:
@@ -18,31 +20,48 @@ class KnowledgeChunkSyncService:
         self.db = db
         self.embeddings = EmbeddingService(db)
 
-    async def sync_chunks(self, knowledge_base_id: int, chunk_size: int = 800) -> int:
+    async def sync_chunks(
+        self,
+        knowledge_base_id: int,
+        chunk_size: int | None = None,
+        chunk_overlap: int | None = None,
+    ) -> int:
         kb = await self.db.get(KnowledgeBase, knowledge_base_id)
         if kb is None:
             return 0
 
+        kb_settings = await get_knowledge_settings(self.db)
+        size = chunk_size or int(kb_settings.get("chunk_size") or 1200)
+        overlap = chunk_overlap or int(kb_settings.get("chunk_overlap") or 200)
+
         await self.db.execute(delete(KnowledgeChunk).where(KnowledgeChunk.knowledge_base_id == knowledge_base_id))
 
-        text = kb.content or ""
-        chunks = [text[i : i + chunk_size] for i in range(0, max(len(text), 1), chunk_size)] or [""]
+        content = kb.content or ""
+        chunks = split_with_overlap(content, size, overlap)
 
         count = 0
-        for idx, content in enumerate(chunks):
-            content_hash = hashlib.sha256(content.encode()).hexdigest()
-            vector = await self.embeddings.embed_text(content) if content.strip() else None
+        for idx, piece in enumerate(chunks):
+            content_hash = hashlib.sha256(piece.encode()).hexdigest()
+            raw_vector = await self.embeddings.embed_text(piece) if piece.strip() else None
+            vector = pad_embedding_vector(raw_vector) if raw_vector else None
             row = KnowledgeChunk(
                 knowledge_base_id=knowledge_base_id,
                 chunk_index=idx,
-                content=content,
+                content=piece,
                 content_hash=content_hash,
-                embedding_json=json.dumps(vector) if vector else "",
-                embedding_dimensions=len(vector) if vector else 0,
+                embedding_json=json.dumps(raw_vector) if raw_vector else "",
+                embedding_dimensions=len(raw_vector) if raw_vector else 0,
                 embedding_vector=vector,
             )
             self.db.add(row)
             count += 1
 
         await self.db.flush()
+        logger.info(
+            "knowledge_chunks_synced kb_id=%s chunks=%s size=%s overlap=%s",
+            knowledge_base_id,
+            count,
+            size,
+            overlap,
+        )
         return count

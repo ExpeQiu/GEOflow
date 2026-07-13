@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class AiModelBody(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     model_id: str = Field(min_length=1, max_length=100)
-    api_key: str = Field(min_length=1, max_length=500)
+    api_key: str = Field(default="", max_length=500)
     api_url: str = "https://api.openai.com/v1"
     model_type: str = "chat"
     failover_priority: int = 100
@@ -49,6 +49,8 @@ async def list_ai_models(db: AsyncSession) -> dict:
 
 
 async def create_ai_model(db: AsyncSession, body: AiModelBody) -> dict:
+    if not body.api_key.strip():
+        raise HTTPException(status_code=422, detail="api_key_required")
     row = AiModel(**body.model_dump())
     db.add(row)
     await db.flush()
@@ -60,7 +62,10 @@ async def update_ai_model(db: AsyncSession, model_id: int, body: AiModelBody) ->
     row = await db.get(AiModel, model_id)
     if row is None:
         raise HTTPException(status_code=404, detail="model_not_found")
-    for k, v in body.model_dump().items():
+    data = body.model_dump()
+    if not data.get("api_key"):
+        data.pop("api_key", None)
+    for k, v in data.items():
         setattr(row, k, v)
     await db.flush()
     return {"item": {"id": row.id, "name": row.name}}

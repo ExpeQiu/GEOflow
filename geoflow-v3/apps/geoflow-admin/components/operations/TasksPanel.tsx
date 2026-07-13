@@ -169,6 +169,23 @@ function TaskRow({
             {task.batch_error_message}
           </div>
         )}
+        {(task.title_library_name || task.knowledge_base_name) && (
+          <div className="mt-2 space-y-0.5 text-xs text-gray-500">
+            {task.title_library_name && <div>标题库：{task.title_library_name}</div>}
+            {task.knowledge_base_name && (
+              <div>
+                知识库：
+                {task.knowledge_base_id ? (
+                  <Link href={`/production/knowledge/${task.knowledge_base_id}`} className="text-blue-600 hover:underline">
+                    {task.knowledge_base_name}
+                  </Link>
+                ) : (
+                  task.knowledge_base_name
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </td>
       <td className="whitespace-nowrap px-4 py-4 align-top text-sm text-gray-500">{createdAt}</td>
       <td className="px-4 py-4 align-top text-sm text-gray-500">

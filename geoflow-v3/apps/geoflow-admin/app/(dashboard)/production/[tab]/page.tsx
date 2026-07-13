@@ -10,7 +10,7 @@ import { DataTable } from "@/components/admin/PlaceholderPanel";
 import { AiConfigPanel } from "@/components/production/AiConfigPanel";
 import { KnowledgePanel } from "@/components/production/KnowledgePanel";
 import { MaterialsPanel } from "@/components/production/MaterialsPanel";
-import { ProductionOverview } from "@/components/production/ProductionOverview";
+import { ProductionOverview, type KnowledgeHealth } from "@/components/production/ProductionOverview";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiGet, apiPost, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
@@ -41,6 +41,7 @@ export default function ProductionPage() {
   const [yamlFlash, setYamlFlash] = useState("");
   const [busyId, setBusyId] = useState<number | null>(null);
   const [flash, setFlash] = useState<{ variant: "success" | "error"; message: string } | null>(null);
+  const [knowledgeHealth, setKnowledgeHealth] = useState<KnowledgeHealth>("empty");
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
@@ -50,9 +51,13 @@ export default function ProductionPage() {
     setFlash(null);
     try {
       if (tab === "overview") {
-        const data = await apiGet<{ stats: MaterialStats; ai_stats: AiStats }>("/api/admin/production/overview", t);
+        const data = await apiGet<{ stats: MaterialStats; ai_stats: AiStats; knowledge_health: KnowledgeHealth }>(
+          "/api/admin/production/overview",
+          t,
+        );
         setStats(data.stats);
         setAiStats(data.ai_stats);
+        setKnowledgeHealth(data.knowledge_health ?? "empty");
       } else if (tab === "materials") {
         const data = await apiGet<{ stats: MaterialStats }>("/api/admin/production/materials", t);
         setStats(data.stats);
@@ -118,7 +123,9 @@ export default function ProductionPage() {
         <FlashAlert variant="info">{zh.common.loading}</FlashAlert>
       )}
 
-      {tab === "overview" && stats && aiStats && <ProductionOverview stats={stats} aiStats={aiStats} />}
+      {tab === "overview" && stats && aiStats && (
+        <ProductionOverview stats={stats} aiStats={aiStats} knowledgeHealth={knowledgeHealth} />
+      )}
 
       {tab === "materials" && stats && <MaterialsPanel stats={stats} />}
 

@@ -1,12 +1,16 @@
 """Embedding 客户端。"""
 
+import logging
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.models.material import AiModel
+from app.services.geoflow.rag.chunking import pad_embedding_vector
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 class EmbeddingService:
@@ -18,7 +22,8 @@ class EmbeddingService:
             import hashlib
 
             digest = hashlib.sha256(text.encode()).digest()
-            return [((b / 255.0) * 2 - 1) for b in digest] * 12
+            mock = [((b / 255.0) * 2 - 1) for b in digest] * 12
+            return pad_embedding_vector(mock)
 
         row = (
             await self.db.execute(
@@ -29,6 +34,7 @@ class EmbeddingService:
             )
         ).scalar_one_or_none()
         if row is None:
+            logger.warning("embedding_model_missing")
             return None
 
         import httpx
@@ -41,8 +47,11 @@ class EmbeddingService:
                     json={"input": text, "model": row.model_id},
                 )
             if resp.status_code >= 400:
+                logger.warning("embedding_api_error status=%s model_id=%s", resp.status_code, row.model_id)
                 return None
             data = resp.json()
-            return data["data"][0]["embedding"]
+            vector = data["data"][0]["embedding"]
+            return pad_embedding_vector(vector)
         except Exception:
+            logger.exception("embedding_request_failed model_id=%s", row.model_id)
             return None

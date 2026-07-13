@@ -25,7 +25,10 @@ class Settings(BaseSettings):
     geoflow_public_site_enabled: bool = True
     geo_eval_enabled: bool = True
     geo_eval_wiki_gate_enabled: bool = True
+    geo_eval_simulation_pass_score: float = 0.55
+    geo_eval_audit_pass_score: float = 0.60
     ai_mock_mode: bool = True
+    pdf_ocr_enabled: bool = False
 
     gweb_base_url: str = "http://localhost:3000"
     gweb_revalidate_secret: str = ""

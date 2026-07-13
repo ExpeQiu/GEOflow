@@ -8,9 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.article import Article
 from app.models.distribution import ArticleDistribution, DistributionChannel
+from app.models.knowledge import KnowledgeBase
 from app.models.material import AiModel
 from app.models.task import Task, TaskRun
 from app.services.admin.distribution_citation_service import build_distribution_citation_summary
+from app.services.admin.production_service import _table_exists
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +37,28 @@ async def build_tasks_panel(db: AsyncSession) -> dict:
                 latest_runs[run.task_id] = run
 
     model_ids = {t.ai_model_id for t in tasks}
+    kb_ids = {t.knowledge_base_id for t in tasks if t.knowledge_base_id}
     models: dict[int, AiModel] = {}
+    knowledge_names: dict[int, str] = {}
+    title_lib_names: dict[int, str] = {}
     if model_ids:
         model_rows = (await db.execute(select(AiModel).where(AiModel.id.in_(model_ids)))).scalars().all()
         models = {m.id: m for m in model_rows}
+    if kb_ids:
+        kb_rows = (await db.execute(select(KnowledgeBase).where(KnowledgeBase.id.in_(kb_ids)))).scalars().all()
+        knowledge_names = {k.id: k.name for k in kb_rows}
+    if await _table_exists(db, "title_libraries"):
+        from sqlalchemy import text
+
+        tl_ids = {t.title_library_id for t in tasks}
+        if tl_ids:
+            rows = (
+                await db.execute(
+                    text("SELECT id, name FROM title_libraries WHERE id = ANY(:ids)"),
+                    {"ids": list(tl_ids)},
+                )
+            ).all()
+            title_lib_names = {int(r[0]): str(r[1]) for r in rows}
 
     items = []
     for task in tasks:
@@ -58,6 +78,9 @@ async def build_tasks_panel(db: AsyncSession) -> dict:
                 "publish_interval": task.publish_interval,
                 "model_selection_mode": task.model_selection_mode,
                 "ai_model_name": model.name if model else "",
+                "title_library_name": title_lib_names.get(task.title_library_id, ""),
+                "knowledge_base_name": knowledge_names.get(task.knowledge_base_id or 0, ""),
+                "knowledge_base_id": task.knowledge_base_id,
                 "created_at": task.created_at.isoformat() if task.created_at else None,
                 "last_run_at": task.last_run_at.isoformat() if task.last_run_at else None,
                 "batch_status": run.status if run else None,

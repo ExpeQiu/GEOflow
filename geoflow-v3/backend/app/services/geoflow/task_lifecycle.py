@@ -73,7 +73,7 @@ class TaskLifecycleService:
         run = TaskRun(task_id=task_id, status="queued")
         self.db.add(run)
         await self.db.flush()
-        task.last_run_at = datetime.now(UTC)
+        task.last_run_at = datetime.now(UTC).replace(tzinfo=None)
         _celery().send_task("app.workers.tasks.process_geoflow_task", args=[run.id])
         return run
 

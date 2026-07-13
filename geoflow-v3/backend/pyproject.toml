@@ -27,9 +27,15 @@ dependencies = [
     "langchain-core>=0.3.0",
     "cryptography>=44.0.0",
     "pypdf>=5.1.0",
+    "python-docx>=1.1.0",
 ]
 
 [project.optional-dependencies]
+ocr = [
+    "pymupdf>=1.24.0",
+    "pytesseract>=0.3.13",
+    "pillow>=10.0.0",
+]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",

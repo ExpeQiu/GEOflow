@@ -1,4 +1,16 @@
-export type TaskFormOption = { id: number; name: string; count?: number };
+export type TaskFormOption = {
+  id: number;
+  name: string;
+  count?: number;
+  vectorized_count?: number;
+  rag_ready?: boolean;
+};
+
+export type TaskFormPromptOption = {
+  id: number;
+  name: string;
+  type?: string;
+};
 
 export type TaskFormChannel = {
   id: number;
@@ -17,7 +29,7 @@ export type TaskFormTechIp = {
 export type TaskFormOptions = {
   has_categories: boolean;
   title_libraries: TaskFormOption[];
-  prompts: TaskFormOption[];
+  prompts: TaskFormPromptOption[];
   ai_models: TaskFormOption[];
   image_libraries: TaskFormOption[];
   knowledge_bases: TaskFormOption[];
