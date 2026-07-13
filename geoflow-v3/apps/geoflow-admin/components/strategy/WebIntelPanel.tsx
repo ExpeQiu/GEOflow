@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { zh } from "@/lib/i18n/zh";
 import type { WebSource } from "@/lib/strategy-types";
+import { surfaceCardClass, surfaceInputClass } from "./shared/AivisPrimitives";
 
 export function WebIntelPanel({
   sources,
@@ -30,11 +31,11 @@ export function WebIntelPanel({
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-      <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+      <section className={`${surfaceCardClass} p-5`}>
         <h2 className="text-lg font-semibold text-gray-900">{zh.strategy.webIntel.sourcesTitle}</h2>
         <form onSubmit={handleAdd} className="mt-4 flex flex-wrap gap-2">
-          <input className="min-w-[180px] flex-1 rounded-md border px-3 py-2 text-sm" placeholder="https://..." value={url} onChange={(e) => setUrl(e.target.value)} />
-          <input className="rounded-md border px-3 py-2 text-sm" placeholder="标签" value={label} onChange={(e) => setLabel(e.target.value)} />
+          <input className={`min-w-[180px] flex-1 ${surfaceInputClass}`} placeholder="https://..." value={url} onChange={(e) => setUrl(e.target.value)} />
+          <input className={surfaceInputClass} placeholder="标签" value={label} onChange={(e) => setLabel(e.target.value)} />
           <button type="submit" className="rounded-md bg-violet-600 px-3 py-2 text-sm text-white">添加</button>
         </form>
         {sources.length === 0 ? (
@@ -56,7 +57,7 @@ export function WebIntelPanel({
           </ul>
         )}
       </section>
-      <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+      <section className={`${surfaceCardClass} p-5`}>
         <h2 className="text-lg font-semibold text-gray-900">{zh.strategy.webIntel.reportsTitle}</h2>
         {reports.length === 0 ? (
           <p className="mt-4 text-sm text-gray-500">{zh.strategy.webIntel.emptyReports}</p>

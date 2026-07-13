@@ -1,26 +1,34 @@
 # GEOFlow v3 验证报告
 
-> 更新：2026-07-02
+> 更新：2026-07-03
 
-## 升级计划完成项（Wave 0–4）
+## 升级计划完成项（Wave 0–4 + AIVIS A–D）
 
 | Wave | 内容 | 状态 |
 |------|------|------|
-| Wave 0 | Alembic 003、start.sh/verify.sh 迁移校验 | 完成 |
-| Wave 1 | 设置/生产/运营/策略前后端闭环 | 完成 |
-| Wave 2 | Celery Worker、AI test、超管 CRUD | 完成 |
-| Wave 3 | WebSocket、批量操作、URL job 页、Insight 详情 | 完成 |
-| Wave 4 | WP/Generic 分发、v1 materials 扩展、002 迁移脚本、Embedding | 完成 |
+| Wave 0–4 | 基础闭环、分发、Materials | 完成 |
+| **Wave A** | 007 migration、加权排名、国内 6 平台、模板/场景/竞品 | 完成 |
+| **Wave B** | 场景缺口、Task 闭环、豆包/DeepSeek API | 完成 |
+| **Wave C** | 情感分析、竞品矩阵、market-scan、洞察、告警 | 完成 |
+| **Wave D** | 诊断报告 HTML、趋势快照、Monitor 多 Tab | 完成 |
 
 ## 本地验证
 
 ```bash
-cd geoflow-v3 && ./scripts/start.sh && ./scripts/verify.sh
+cd geoflow-v3 && ./scripts/start.sh
+docker compose exec backend alembic upgrade head   # 至 007_aivis_foundation
+./scripts/verify.sh
 ```
+
+## AIVIS smoke 端点
+
+- `GET /api/admin/strategy/monitor/scenes|templates|competitors|snapshots|insights|reports`
+- `POST /api/admin/strategy/monitor/reports/generate`
+- `POST /api/admin/strategy/monitor/scenes/{id}/create-task`
 
 ## 待 UAT（非阻塞）
 
+- 通义/文心/Kimi/元宝 API Connector 全量 E2E
+- LLM 探针 daily_limit 限流
 - Admin 6 语言 i18n
-- Monitor 真实探针扫描（当前为简化 orchestrator）
-- RAG sandbox 专页
-- Shadcn UI 全面替换
+- RAG 生产 embedding（缺口分析精度）

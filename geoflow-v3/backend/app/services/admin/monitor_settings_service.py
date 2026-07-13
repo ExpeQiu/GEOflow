@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.services.admin.production_service import _table_exists
 from app.services.admin.settings_crud_service import SiteSettingBody, upsert_site_setting
-from app.services.geoeval.monitor_probe import PLATFORMS
+from app.services.geoeval.platform_connectors.base import PLATFORMS_CN
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,10 @@ logger = logging.getLogger(__name__)
 class MonitorSettingsBody(BaseModel):
     brand_name: str = ""
     brand_aliases: str = ""
-    probe_mode: str = Field(default="corpus", pattern="^(corpus|llm)$")
+    probe_mode: str = Field(default="corpus", pattern="^(corpus|llm|api)$")
+    monitor_platforms: str = ""
+    monitor_scan_limit: int = Field(default=50, ge=1, le=500)
+    default_knowledge_base_id: int | None = None
 
 
 async def get_monitor_settings(db: AsyncSession) -> dict:
@@ -25,6 +28,9 @@ async def get_monitor_settings(db: AsyncSession) -> dict:
     brand_name = settings.app_name
     brand_aliases = ""
     probe_mode = "corpus"
+    monitor_platforms = ",".join(PLATFORMS_CN)
+    monitor_scan_limit = 50
+    default_knowledge_base_id: int | None = None
 
     if await _table_exists(db, "site_settings"):
         rows = (
@@ -32,7 +38,10 @@ async def get_monitor_settings(db: AsyncSession) -> dict:
                 text(
                     """
                     SELECT setting_key, setting_value FROM site_settings
-                    WHERE setting_key IN ('brand_name', 'brand_aliases', 'monitor_probe_mode')
+                    WHERE setting_key IN (
+                        'brand_name', 'brand_aliases', 'monitor_probe_mode',
+                        'monitor_platforms', 'monitor_scan_limit', 'default_knowledge_base_id'
+                    )
                     """
                 )
             )
@@ -42,14 +51,31 @@ async def get_monitor_settings(db: AsyncSession) -> dict:
                 brand_name = str(value)
             elif key == "brand_aliases":
                 brand_aliases = str(value or "")
-            elif key == "monitor_probe_mode" and value in ("corpus", "llm"):
+            elif key == "monitor_probe_mode" and value in ("corpus", "llm", "api"):
                 probe_mode = str(value)
+            elif key == "monitor_platforms" and value:
+                monitor_platforms = str(value)
+            elif key == "monitor_scan_limit" and value:
+                try:
+                    monitor_scan_limit = int(value)
+                except (TypeError, ValueError):
+                    pass
+            elif key == "default_knowledge_base_id" and value:
+                try:
+                    default_knowledge_base_id = int(value)
+                except (TypeError, ValueError):
+                    pass
+
+    platforms = tuple(p.strip() for p in monitor_platforms.split(",") if p.strip()) or PLATFORMS_CN
 
     return {
         "brand_name": brand_name,
         "brand_aliases": brand_aliases,
         "probe_mode": probe_mode,
-        "platforms": list(PLATFORMS),
+        "monitor_platforms": monitor_platforms,
+        "monitor_scan_limit": monitor_scan_limit,
+        "default_knowledge_base_id": default_knowledge_base_id,
+        "platforms": list(platforms),
         "ai_mock_mode": settings.ai_mock_mode,
     }
 
@@ -59,11 +85,19 @@ async def save_monitor_settings(db: AsyncSession, body: MonitorSettingsBody) -> 
         ("brand_name", body.brand_name.strip(), "string", "monitor"),
         ("brand_aliases", body.brand_aliases.strip(), "string", "monitor"),
         ("monitor_probe_mode", body.probe_mode, "string", "monitor"),
+        ("monitor_platforms", body.monitor_platforms.strip() or ",".join(PLATFORMS_CN), "string", "monitor"),
+        ("monitor_scan_limit", str(body.monitor_scan_limit), "integer", "monitor"),
+        (
+            "default_knowledge_base_id",
+            str(body.default_knowledge_base_id or ""),
+            "integer",
+            "monitor",
+        ),
     ]
     for key, value, vtype, group in items:
         await upsert_site_setting(
             db,
             SiteSettingBody(setting_key=key, setting_value=value, value_type=vtype, group_name=group),
         )
-    logger.info("monitor_settings_saved probe_mode=%s", body.probe_mode)
+    logger.info("monitor_settings_saved probe_mode=%s platforms=%s", body.probe_mode, body.monitor_platforms)
     return await get_monitor_settings(db)

@@ -64,6 +64,12 @@ from app.services.admin.task_form_service import (
     delete_admin_task,
     update_admin_task,
 )
+from app.services.admin.distribution_citation_service import (
+    build_article_citation_detail,
+    build_distribution_citation_overview,
+    build_distributed_article_citations,
+    refresh_distribution_citation_cache,
+)
 from app.services.admin.distribution_detail_service import (
     AdminDistributionUpdateBody,
     DistributionJobUpdateBody,
@@ -118,6 +124,23 @@ from app.services.admin.upload_service import read_knowledge_upload, save_image_
 from app.services.admin.knowledge_crud_service import KnowledgeBaseBody, append_knowledge_file_content, create_knowledge_base, delete_knowledge_base, get_knowledge_base, list_knowledge_bases_detail, update_knowledge_base
 from app.services.admin.ai_config_crud_service import AiModelBody, PromptBody, create_ai_model, create_prompt, delete_ai_model, delete_prompt, list_ai_models, list_prompts, test_ai_model, update_ai_model, update_prompt
 from app.services.admin.monitor_detail_service import build_monitor_run_detail, list_monitor_runs
+from app.services.admin.monitor_aivis_service import (
+    CompetitorBody,
+    MonitorSceneBody,
+    QueryTemplateBody,
+    create_competitor,
+    create_monitor_scene,
+    create_product,
+    create_query_template,
+    generate_questions_from_template,
+    list_competitors,
+    list_products,
+    list_monitor_insights,
+    list_monitor_scenes,
+    list_monitor_snapshots,
+    list_query_templates,
+    list_visibility_reports,
+)
 from app.services.admin.monitor_settings_service import MonitorSettingsBody, get_monitor_settings, save_monitor_settings
 from app.services.admin.url_import_service import UrlImportBody, commit_url_import_job, get_url_import_job, list_url_import_history, run_url_import
 from app.services.admin.strategy_crud_service import (
@@ -170,6 +193,13 @@ from app.services.admin.strategy_service import (
     build_strategy_overview,
     build_web_intel_panel,
 )
+from app.services.admin.aivis_service import (
+    build_brand_panel,
+    build_collection_panel,
+    build_diagnosis_panel,
+    build_product_panel,
+)
+from app.services.geoeval.aivis_analyzers import assess_difficulty, build_optimization_panel
 from app.services.geoflow.article_publish import ArticlePublishService
 from app.services.geoflow.task_lifecycle import TaskLifecycleService
 from app.ws.tasks import broadcast_tasks_overview
@@ -552,6 +582,59 @@ async def delete_distribution_job_route(job_id: int, request: Request, db: DbSes
     return success(request, await delete_distribution_job(db, job_id))
 
 
+@router.get("/distribution/citations/overview")
+async def distribution_citations_overview(
+    request: Request,
+    db: DbSession,
+    jwt=Depends(get_admin_jwt),
+    days: int = Query(default=7, ge=1, le=90),
+):
+    try:
+        return success(request, await build_distribution_citation_overview(db, days=days))
+    except Exception as exc:
+        logger.exception("distribution_citations_overview_failed days=%s", days)
+        raise HTTPException(status_code=500, detail="distribution_citations_overview_failed") from exc
+
+
+@router.get("/distribution/citations/articles")
+async def distribution_citations_articles(
+    request: Request,
+    db: DbSession,
+    jwt=Depends(get_admin_jwt),
+    status: str = Query(default="all", pattern="^(all|indexed|not_indexed|pending_scan)$"),
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=50, ge=1, le=100),
+):
+    try:
+        return success(
+            request,
+            await build_distributed_article_citations(db, status=status, page=page, per_page=per_page),
+        )
+    except Exception as exc:
+        logger.exception("distribution_citations_articles_failed status=%s", status)
+        raise HTTPException(status_code=500, detail="distribution_citations_articles_failed") from exc
+
+
+@router.get("/distribution/citations/articles/{article_id}")
+async def distribution_citations_article_detail(
+    article_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)
+):
+    try:
+        return success(request, await build_article_citation_detail(db, article_id))
+    except Exception as exc:
+        logger.exception("distribution_citations_detail_failed article_id=%s", article_id)
+        raise HTTPException(status_code=500, detail="distribution_citations_detail_failed") from exc
+
+
+@router.post("/distribution/citations/refresh")
+async def distribution_citations_refresh(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    try:
+        return success(request, await refresh_distribution_citation_cache(db))
+    except Exception as exc:
+        logger.exception("distribution_citations_refresh_failed")
+        raise HTTPException(status_code=500, detail="distribution_citations_refresh_failed") from exc
+
+
 @router.delete("/distribution/channels/{channel_id}")
 async def delete_distribution_channel(channel_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     return success(request, await delete_admin_distribution_channel(db, channel_id))
@@ -636,18 +719,210 @@ async def strategy_overview(request: Request, db: DbSession, jwt=Depends(get_adm
     return success(request, await build_strategy_overview(db))
 
 
+@router.get("/strategy/diagnosis")
+async def strategy_diagnosis(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await build_diagnosis_panel(db))
+
+
+@router.get("/strategy/collection")
+async def strategy_collection(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await build_collection_panel(db))
+
+
+@router.get("/strategy/brand")
+async def strategy_brand(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await build_brand_panel(db))
+
+
+@router.get("/strategy/product")
+async def strategy_product(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await build_product_panel(db))
+
+
+@router.get("/strategy/optimization")
+async def strategy_optimization(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await build_optimization_panel(db))
+
+
+@router.get("/strategy/difficulty")
+async def strategy_difficulty(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await assess_difficulty(db))
+
+
 @router.get("/strategy/monitor")
 async def strategy_monitor(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     return success(request, await build_monitor_panel(db))
 
 
 @router.post("/strategy/monitor/scan")
-async def strategy_monitor_scan(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+async def strategy_monitor_scan(
+    request: Request,
+    db: DbSession,
+    jwt=Depends(get_admin_jwt),
+    scan_type: str = Query(default="daily", pattern="^(daily|market)$"),
+):
     from app.workers.celery_app import celery_app
 
-    celery_app.send_task("app.workers.tasks.run_monitor_scan", args=["daily"])
-    logger.info("admin_monitor_scan_queued")
-    return success(request, {"queued": True})
+    celery_app.send_task("app.workers.tasks.run_monitor_scan", args=[scan_type])
+    logger.info("admin_monitor_scan_queued scan_type=%s", scan_type)
+    return success(request, {"queued": True, "scan_type": scan_type})
+
+
+@router.get("/strategy/monitor/scenes")
+async def strategy_monitor_scenes_list(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await list_monitor_scenes(db))
+
+
+@router.post("/strategy/monitor/scenes")
+async def strategy_monitor_scenes_create(body: MonitorSceneBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await create_monitor_scene(db, body), status=201)
+
+
+@router.post("/strategy/monitor/scenes/{scene_id}/compute-gap")
+async def strategy_monitor_scene_gap(scene_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.scene_gap_analyzer import compute_scene_gap
+
+    return success(request, await compute_scene_gap(db, scene_id))
+
+
+@router.post("/strategy/monitor/scenes/{scene_id}/create-task")
+async def strategy_monitor_scene_create_task(scene_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.gap_task_generator import create_task_from_scene_gap
+
+    return success(request, await create_task_from_scene_gap(db, scene_id), status=201)
+
+
+@router.get("/strategy/monitor/scenes/{scene_id}/citation-chain")
+async def strategy_monitor_scene_citation_chain(scene_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.citation_chain_service import get_scene_citation_chain
+
+    return success(request, await get_scene_citation_chain(db, scene_id))
+
+
+@router.get("/strategy/monitor/questions/{question_id}/citations")
+async def strategy_monitor_question_citations(question_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.citation_chain_service import get_question_citation_detail
+
+    return success(request, await get_question_citation_detail(db, question_id))
+
+
+@router.get("/strategy/monitor/templates")
+async def strategy_monitor_templates_list(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await list_query_templates(db))
+
+
+@router.post("/strategy/monitor/templates")
+async def strategy_monitor_templates_create(body: QueryTemplateBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await create_query_template(db, body), status=201)
+
+
+@router.post("/strategy/monitor/templates/{template_id}/generate")
+async def strategy_monitor_templates_generate(
+    template_id: int,
+    request: Request,
+    db: DbSession,
+    jwt=Depends(get_admin_jwt),
+    limit: int = Query(default=20, ge=1, le=100),
+):
+    return success(request, await generate_questions_from_template(db, template_id, limit))
+
+
+@router.get("/strategy/monitor/competitors")
+async def strategy_monitor_competitors_list(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await list_competitors(db))
+
+
+@router.post("/strategy/monitor/competitors")
+async def strategy_monitor_competitors_create(body: CompetitorBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await create_competitor(db, body), status=201)
+
+
+@router.get("/strategy/monitor/products")
+async def strategy_monitor_products_list(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await list_products(db))
+
+
+@router.post("/strategy/monitor/products")
+async def strategy_monitor_products_create(body: CompetitorBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await create_product(db, body), status=201)
+
+
+@router.get("/strategy/monitor/snapshots")
+async def strategy_monitor_snapshots_list(
+    request: Request, db: DbSession, jwt=Depends(get_admin_jwt), days: int = Query(default=30, ge=7, le=90)
+):
+    return success(request, await list_monitor_snapshots(db, days))
+
+
+@router.get("/strategy/monitor/insights")
+async def strategy_monitor_insights_list(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await list_monitor_insights(db))
+
+
+@router.get("/strategy/monitor/reports")
+async def strategy_monitor_reports_list(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await list_visibility_reports(db))
+
+
+@router.post("/strategy/monitor/reports/generate")
+async def strategy_monitor_reports_generate(
+    request: Request, db: DbSession, jwt=Depends(get_admin_jwt), period_days: int = Query(default=7, ge=1, le=90)
+):
+    from app.services.geoeval.report_composer import compose_visibility_report
+
+    return success(request, await compose_visibility_report(db, period_days), status=201)
+
+
+@router.post("/strategy/monitor/reports/import/tjg")
+async def strategy_monitor_reports_import_tjg(
+    request: Request,
+    db: DbSession,
+    jwt=Depends(get_admin_jwt),
+    token: str | None = Query(default=None),
+    share_url: str | None = Query(default=None),
+    replace_existing: bool = Query(default=False),
+):
+    from app.services.geoeval.tjg_report_parser import (
+        import_tjg_report,
+        import_tjg_report_from_token,
+        import_tjg_report_from_url,
+    )
+
+    body: dict | None = None
+    try:
+        body = await request.json()
+    except Exception:
+        body = None
+
+    if isinstance(body, dict) and body.get("data"):
+        result = await import_tjg_report(
+            db,
+            body,
+            token=str(body.get("token") or token or ""),
+            replace_existing=replace_existing,
+        )
+    elif share_url:
+        result = await import_tjg_report_from_url(db, share_url, replace_existing=replace_existing)
+    elif token:
+        result = await import_tjg_report_from_token(db, token, replace_existing=replace_existing)
+    else:
+        raise HTTPException(status_code=400, detail="token_share_url_or_payload_required")
+
+    return success(request, result, status=201)
+
+
+@router.get("/strategy/reports/{report_id}")
+async def strategy_report_detail(report_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.report_composer import get_visibility_report_detail
+
+    return success(request, await get_visibility_report_detail(db, report_id))
+
+
+@router.get("/strategy/monitor/competitor-matrix")
+async def strategy_monitor_competitor_matrix(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.competitive_analyzer import build_competitor_matrix
+
+    return success(request, await build_competitor_matrix(db))
 
 
 @router.get("/strategy/monitor/settings")

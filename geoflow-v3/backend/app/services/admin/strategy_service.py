@@ -13,6 +13,7 @@ from app.models.geoeval import ArticleEvaluation, InsightTemplate
 from app.models.material import AiModel
 from app.models.task import Task, TaskRun
 from app.models.tech_ip import TechIpAsset
+from app.services.admin.production_service import _table_exists
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -28,18 +29,45 @@ async def build_strategy_overview(db: AsyncSession) -> dict:
 
 
 async def build_monitor_panel(db: AsyncSession) -> dict:
-    return {
-        "dashboard": await _monitor_kpis(db),
-        "questions": await _fetch_rows(
-            db,
-            """
+    from app.services.admin.monitor_aivis_service import (
+        list_competitors,
+        list_monitor_insights,
+        list_monitor_scenes,
+        list_monitor_snapshots,
+        list_query_templates,
+        list_visibility_reports,
+    )
+    from app.services.geoeval.competitive_analyzer import build_competitor_matrix
+
+    questions_sql = """
+        SELECT id, question_text, priority, status, last_scan_at,
+               scene_id, template_id, query_type
+        FROM geo_monitor_questions
+        ORDER BY priority DESC, id DESC
+        LIMIT 50
+    """
+    question_cols = (
+        "id",
+        "question_text",
+        "priority",
+        "status",
+        "last_scan_at",
+        "scene_id",
+        "template_id",
+        "query_type",
+    )
+    if not await _table_exists(db, "geo_monitor_scenes"):
+        questions_sql = """
             SELECT id, question_text, priority, status, last_scan_at
             FROM geo_monitor_questions
             ORDER BY priority DESC, id DESC
             LIMIT 50
-            """,
-            ("id", "question_text", "priority", "status", "last_scan_at"),
-        ),
+        """
+        question_cols = ("id", "question_text", "priority", "status", "last_scan_at")
+
+    panel = {
+        "dashboard": await _monitor_kpis(db),
+        "questions": await _fetch_rows(db, questions_sql, question_cols),
         "recent_runs": await _fetch_rows(
             db,
             """
@@ -53,15 +81,33 @@ async def build_monitor_panel(db: AsyncSession) -> dict:
         "recent_probes": await _fetch_rows(
             db,
             """
-            SELECT pr.id, pr.platform, pr.brand_rank, pr.mentioned, pr.snippet, mq.question_text
+            SELECT pr.id, pr.platform, pr.brand_rank, pr.mentioned, pr.snippet, mq.question_text, pr.engine
             FROM geo_monitor_probe_results pr
             JOIN geo_monitor_questions mq ON mq.id = pr.question_id
             ORDER BY pr.id DESC
             LIMIT 24
             """,
-            ("id", "platform", "brand_rank", "mentioned", "snippet", "question_text"),
+            ("id", "platform", "brand_rank", "mentioned", "snippet", "question_text", "engine"),
         ),
     }
+    try:
+        panel["scenes"] = (await list_monitor_scenes(db)).get("items", [])
+        panel["templates"] = (await list_query_templates(db)).get("items", [])
+        panel["competitors"] = (await list_competitors(db)).get("items", [])
+        panel["insights"] = (await list_monitor_insights(db)).get("items", [])
+        panel["snapshots"] = (await list_monitor_snapshots(db, 30)).get("items", [])
+        panel["reports"] = (await list_visibility_reports(db)).get("items", [])
+        panel["competitor_matrix"] = await build_competitor_matrix(db)
+    except Exception:
+        logger.exception("monitor_panel_aivis_extras_failed")
+        panel.setdefault("scenes", [])
+        panel.setdefault("templates", [])
+        panel.setdefault("competitors", [])
+        panel.setdefault("insights", [])
+        panel.setdefault("snapshots", [])
+        panel.setdefault("reports", [])
+        panel.setdefault("competitor_matrix", {})
+    return panel
 
 
 async def build_geo_eval_panel(db: AsyncSession) -> dict:
@@ -75,6 +121,8 @@ async def build_geo_eval_panel(db: AsyncSession) -> dict:
 
 
 async def build_analytics_panel(db: AsyncSession) -> dict:
+    from app.services.admin.monitor_aivis_service import list_monitor_insights, list_monitor_snapshots
+
     snapshot = await _analytics_snapshot(db)
     trend = await _publication_trend(db, days=7)
     return {
@@ -83,6 +131,8 @@ async def build_analytics_panel(db: AsyncSession) -> dict:
         "task_health": await _task_health(db),
         "ai_usage": await _ai_usage(db),
         "top_articles": await _top_articles(db),
+        "insights": (await list_monitor_insights(db)).get("items", []),
+        "visibility_trends": (await list_monitor_snapshots(db, 30)).get("items", []),
     }
 
 

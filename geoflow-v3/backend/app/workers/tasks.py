@@ -104,9 +104,39 @@ def run_monitor_scan(scan_type: str = "daily") -> dict:
             from app.services.geoeval.monitor_scan import MonitorScanOrchestrator
 
             svc = MonitorScanOrchestrator(db)
-            return await svc.run_daily_scan()
+            result = await svc.run_scan(scan_type)
+            await db.commit()
+            return result
 
     logger.info("monitor_scan", scan_type=scan_type)
+    return _run_async(_inner())
+
+
+@celery_app.task(name="app.workers.tasks.aggregate_monitor_snapshots")
+def aggregate_monitor_snapshots() -> dict:
+    async def _inner():
+        async with async_session_factory() as db:
+            from app.services.geoeval.monitor_probe import aggregate_monitor_snapshot
+
+            result = await aggregate_monitor_snapshot(db)
+            await db.commit()
+            return result
+
+    logger.info("aggregate_monitor_snapshots")
+    return _run_async(_inner())
+
+
+@celery_app.task(name="app.workers.tasks.check_monitor_alerts")
+def check_monitor_alerts_task() -> dict:
+    async def _inner():
+        async with async_session_factory() as db:
+            from app.services.geoeval.monitor_alerts import check_monitor_alerts
+
+            result = await check_monitor_alerts(db)
+            await db.commit()
+            return result
+
+    logger.info("check_monitor_alerts")
     return _run_async(_inner())
 
 

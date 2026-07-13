@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { GeoEvalPanel } from "@/components/strategy/GeoEvalPanel";
 import type { EvalFailureRow, FailureTopN, GateConfig, GeoEvalSummary } from "@/lib/strategy-types";
+import { surfaceCardClass, surfaceInputClass } from "./shared/AivisPrimitives";
 
 export function SimulatorPanel({
   gate,
@@ -38,11 +39,11 @@ export function SimulatorPanel({
 
   return (
     <div className="space-y-6">
-      <form onSubmit={handleBatch} className="rounded-lg border bg-white p-4 shadow-sm">
+      <form onSubmit={handleBatch} className={`${surfaceCardClass} p-4`}>
         <h3 className="text-sm font-semibold text-gray-900">批量重评</h3>
         <p className="mt-1 text-xs text-gray-500">输入文章 ID，逗号或空格分隔</p>
         <div className="mt-3 flex gap-2">
-          <input className="flex-1 rounded-md border px-3 py-2 text-sm" placeholder="1, 2, 3" value={idsText} onChange={(e) => setIdsText(e.target.value)} />
+          <input className={`flex-1 ${surfaceInputClass}`} placeholder="1, 2, 3" value={idsText} onChange={(e) => setIdsText(e.target.value)} />
           <button type="submit" className="rounded-md bg-violet-600 px-4 py-2 text-sm text-white">批量入队</button>
         </div>
       </form>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
+import { DistributionSubNav } from "@/components/operations/DistributionSubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiDelete, apiGet, apiPatch, apiPost, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
@@ -76,6 +77,7 @@ export default function DistributionJobsPage() {
     <div>
       <HubHeader title={zh.distribution.jobsTitle} subtitle="" />
       <HubNav items={OPERATIONS_NAV} tone="blue" />
+      <DistributionSubNav />
       <Link href="/operations/distribution" className="mb-4 inline-block text-sm text-blue-600">← 返回分发概览</Link>
 
       <div className="mb-4 flex flex-wrap gap-3">

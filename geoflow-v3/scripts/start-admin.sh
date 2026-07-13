@@ -1,29 +1,31 @@
 #!/usr/bin/env bash
-# 启动 geoflow-admin 前端（外置盘 npm 慢/缓存问题时，复制到 /tmp 安装）
+# 启动 geoflow-admin 前端（源码目录直跑，Next.js HMR 热更新）
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SRC="${ROOT}/apps/geoflow-admin"
-DEV_DIR="${GEOFLOW_ADMIN_DEV_DIR:-/tmp/geoflow-admin-dev}"
+ADMIN_DIR="${GEOFLOW_ADMIN_SRC:-${ROOT}/apps/geoflow-admin}"
 PORT="${ADMIN_PORT:-13001}"
 API_URL="${NEXT_PUBLIC_API_URL:-http://127.0.0.1:${API_PORT:-18081}}"
 
 log() { echo "[$(date '+%H:%M:%S')] $*"; }
 
-if [ ! -d "${DEV_DIR}/node_modules/next" ]; then
-  log "首次安装：复制到 ${DEV_DIR} 并 npm install..."
-  rm -rf "${DEV_DIR}"
-  cp -R "${SRC}" "${DEV_DIR}"
-  cd "${DEV_DIR}"
-  NPM_CONFIG_CACHE=/tmp/npm-cache-geoflow-admin npm install
-else
-  log "同步源码到 ${DEV_DIR}..."
-  rsync -a --delete \
-    --exclude node_modules --exclude .next \
-    "${SRC}/" "${DEV_DIR}/"
-  cd "${DEV_DIR}"
+if [ ! -d "${ADMIN_DIR}" ]; then
+  log "ERROR: Admin 源码目录不存在: ${ADMIN_DIR}"
+  exit 1
 fi
 
-log "启动 Admin → http://127.0.0.1:${PORT}/login"
+cd "${ADMIN_DIR}"
+
+if [ ! -d "node_modules/next" ]; then
+  log "首次安装依赖 → ${ADMIN_DIR}"
+  NPM_CONFIG_CACHE=/tmp/npm-cache-geoflow-admin npm install
+fi
+
+# 外置盘/网络盘默认轮询监听，否则保存后 HMR 可能不触发
+export WATCHPACK_POLLING="${WATCHPACK_POLLING:-true}"
+export CHOKIDAR_USEPOLLING="${CHOKIDAR_USEPOLLING:-true}"
+
+log "Admin 源码目录: ${ADMIN_DIR}"
+log "启动 Admin (HMR) → http://127.0.0.1:${PORT}/login"
 log "API 代理目标: ${API_URL} (浏览器请求走 /api/* 同源代理)"
 
 admin_alive() {
@@ -44,10 +46,9 @@ if [ "${GEOFLOW_ADMIN_DAEMON:-0}" = "1" ]; then
   pkill -f "next dev.*--port ${PORT}" 2>/dev/null || true
   pkill -f "run-admin-watchdog.sh" 2>/dev/null || true
   sleep 1
-  (nohup "${ROOT}/scripts/run-admin-watchdog.sh" >> /tmp/geoflow-v3-admin.log 2>&1 &)
-  sleep 1
-  pgrep -f "run-admin-watchdog.sh" | head -1 > /tmp/geoflow-v3-admin.pid
-  sleep 4
+  "${ROOT}/scripts/daemonize.sh" "${ROOT}/scripts/run-admin-watchdog.sh" /tmp/geoflow-v3-admin.log /tmp/geoflow-v3-admin.pid
+  WATCHDOG_PID=$(cat /tmp/geoflow-v3-admin.pid)
+  sleep 8
   if ! admin_alive; then
     log "ERROR: Admin 启动失败，见 /tmp/geoflow-v3-admin.log"
     tail -20 /tmp/geoflow-v3-admin.log
@@ -57,5 +58,5 @@ if [ "${GEOFLOW_ADMIN_DAEMON:-0}" = "1" ]; then
 else
   exec env NEXT_PUBLIC_API_URL="${API_URL}" \
     NPM_CONFIG_CACHE=/tmp/npm-cache-geoflow-admin \
-    npx next dev --port "${PORT}" --hostname 127.0.0.1
+    npm run dev -- --port "${PORT}" --hostname 127.0.0.1 --webpack
 fi

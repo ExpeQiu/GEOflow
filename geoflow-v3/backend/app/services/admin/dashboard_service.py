@@ -147,7 +147,10 @@ async def build_dashboard_payload(db: AsyncSession) -> dict:
         defaults["eval_failed"] = eval_counts.get("failed", 0)
         defaults["eval_passed"] = eval_counts.get("passed", 0)
 
-        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        # Article.created_at 为 naive UTC，避免 asyncpg 时区混用报错
+        today_start = datetime.now(timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0, tzinfo=None
+        )
         defaults["today_articles"] = int(
             await db.scalar(
                 select(func.count()).select_from(Article).where(Article.created_at >= today_start, Article.deleted_at.is_(None))

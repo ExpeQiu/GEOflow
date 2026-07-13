@@ -6,7 +6,9 @@ import { FlashAlert } from "@/components/admin/FlashAlert";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
 import { ArticlesPanel } from "@/components/operations/ArticlesPanel";
+import { DistributionCitationPanel } from "@/components/operations/DistributionCitationPanel";
 import { DistributionPanel } from "@/components/operations/DistributionPanel";
+import { DistributionSubNav } from "@/components/operations/DistributionSubNav";
 import { OperationsOverview } from "@/components/operations/OperationsOverview";
 import { TasksPanel } from "@/components/operations/TasksPanel";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
@@ -179,9 +181,13 @@ export default function OperationsPage() {
     }
   }
 
+  const headerTitle = tab === "distribution-citations" ? zh.distribution.citationsTitle : zh.operations.hubTitle;
+  const headerSubtitle =
+    tab === "distribution-citations" ? zh.distribution.citationsSubtitle : zh.operations.hubSubtitle;
+
   return (
     <div>
-      <HubHeader title={zh.operations.hubTitle} subtitle={zh.operations.hubSubtitle} />
+      <HubHeader title={headerTitle} subtitle={headerSubtitle} />
       <HubNav items={OPERATIONS_NAV} tone="blue" />
 
       {flash && <FlashAlert variant={flash.variant === "success" ? "success" : "error"}>{flash.message}</FlashAlert>}
@@ -219,8 +225,13 @@ export default function OperationsPage() {
       )}
 
       {tab === "distribution" && distStats && (
-        <DistributionPanel stats={distStats} channels={channels} recentJobs={recentJobs} />
+        <>
+          <DistributionSubNav />
+          <DistributionPanel stats={distStats} channels={channels} recentJobs={recentJobs} />
+        </>
       )}
+
+      {tab === "distribution-citations" && <DistributionCitationPanel />}
     </div>
   );
 }

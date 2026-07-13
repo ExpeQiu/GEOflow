@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { zh } from "@/lib/i18n/zh";
 import type { EvalFailureRow, FailureTopN, GateConfig, GeoAlert, GeoEvalSummary } from "@/lib/strategy-types";
+import { surfaceCardClass } from "./shared/AivisPrimitives";
 
 export function GeoEvalPanel({
   gate,
@@ -46,7 +47,7 @@ export function GeoEvalPanel({
             ["skipped", zh.strategy.geoEval.skipped],
           ] as const
         ).map(([key, label]) => (
-          <div key={key} className="rounded-lg border border-gray-200 bg-white p-4">
+          <div key={key} className={`${surfaceCardClass} p-4`}>
             <p className="text-xs text-gray-500">{label}</p>
             <p className="mt-1 text-xl font-semibold">{summary[key]}</p>
           </div>
@@ -69,7 +70,7 @@ export function GeoEvalPanel({
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
+        <div className={`${surfaceCardClass} p-4`}>
           <h2 className="mb-3 text-sm font-semibold text-gray-900">{zh.strategy.geoEval.failureTopN}</h2>
           <ul className="space-y-2 text-sm text-gray-700">
             {failureTopN.length === 0 ? (
@@ -83,7 +84,7 @@ export function GeoEvalPanel({
             )}
           </ul>
         </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
+        <div className={`${surfaceCardClass} p-4`}>
           <h2 className="mb-3 text-sm font-semibold text-gray-900">{zh.strategy.geoEval.recentFailures}</h2>
           <ul className="space-y-3 text-sm text-gray-700">
             {recentFailures.length === 0 ? (

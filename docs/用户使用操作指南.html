@@ -1,0 +1,1340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GEOFlow 用户使用操作指南</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --surface: #ffffff;
+      --stroke: #d8dee4;
+      --text: #1a2332;
+      --muted: #5c6b7a;
+      --primary: #2563eb;
+      --primary-bg: #eff6ff;
+      --secondary: #0891b2;
+      --secondary-bg: #ecfeff;
+      --accent: #7c3aed;
+      --accent-bg: #f5f3ff;
+      --emerald: #059669;
+      --emerald-bg: #ecfdf5;
+      --warn: #d97706;
+      --warn-bg: #fffbeb;
+      --danger: #dc2626;
+      --danger-bg: #fef2f2;
+      --mono: "SF Mono", "Menlo", "Consolas", monospace;
+      --sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+      --toc-w: 240px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; scroll-padding-top: 1.5rem; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 0.92rem;
+    }
+
+    /* ── Layout ── */
+    .layout {
+      display: grid;
+      grid-template-columns: var(--toc-w) 1fr;
+      min-height: 100vh;
+    }
+
+    .toc {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      background: var(--surface);
+      border-right: 1px solid var(--stroke);
+      padding: 1.25rem 0;
+    }
+
+    .toc-brand {
+      padding: 0 1rem 1rem;
+      border-bottom: 1px solid var(--stroke);
+      margin-bottom: 0.75rem;
+    }
+
+    .toc-brand strong {
+      display: block;
+      font-size: 0.95rem;
+      color: var(--primary);
+    }
+
+    .toc-brand span {
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    .toc nav a {
+      display: block;
+      padding: 0.35rem 1rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-decoration: none;
+      border-left: 2px solid transparent;
+    }
+
+    .toc nav a:hover { color: var(--primary); background: var(--primary-bg); }
+    .toc nav a.sub { padding-left: 1.75rem; font-size: 0.74rem; }
+
+    .main {
+      padding: 2rem 2.5rem 4rem;
+      max-width: 960px;
+    }
+
+    /* ── Typography ── */
+    header.doc-header {
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--stroke);
+    }
+
+    header.doc-header h1 {
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .lead {
+      margin-top: 0.75rem;
+      color: var(--muted);
+      font-size: 0.95rem;
+      max-width: 680px;
+    }
+
+    .badge-row { margin-top: 0.85rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+    .badge {
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.25rem 0.6rem;
+      border-radius: 4px;
+    }
+
+    .badge-blue { background: var(--primary-bg); color: var(--primary); }
+    .badge-violet { background: var(--accent-bg); color: var(--accent); }
+    .badge-emerald { background: var(--emerald-bg); color: var(--emerald); }
+
+    section { margin-bottom: 2.5rem; }
+
+    h2 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 2px solid var(--primary);
+      display: inline-block;
+    }
+
+    h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin: 1.25rem 0 0.65rem;
+      color: var(--text);
+    }
+
+    h4 {
+      font-size: 0.88rem;
+      font-weight: 600;
+      margin: 1rem 0 0.5rem;
+      color: var(--muted);
+    }
+
+    p { margin-bottom: 0.65rem; }
+
+    ul, ol { margin: 0.5rem 0 0.75rem 1.25rem; }
+    li { margin-bottom: 0.3rem; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--stroke);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+
+    .card-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.75rem;
+    }
+
+    .note {
+      background: var(--primary-bg);
+      border-left: 3px solid var(--primary);
+      padding: 0.75rem 1rem;
+      border-radius: 0 6px 6px 0;
+      font-size: 0.85rem;
+      margin: 0.75rem 0;
+    }
+
+    .warn-box {
+      background: var(--warn-bg);
+      border-left: 3px solid var(--warn);
+      padding: 0.75rem 1rem;
+      border-radius: 0 6px 6px 0;
+      font-size: 0.85rem;
+      margin: 0.75rem 0;
+    }
+
+    code {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      background: var(--bg);
+      padding: 0.12rem 0.4rem;
+      border-radius: 3px;
+      border: 1px solid var(--stroke);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.84rem;
+      margin: 0.75rem 0;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 0.55rem 0.75rem;
+      border: 1px solid var(--stroke);
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--bg);
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    /* ── Pipeline / Flow ── */
+    .pipeline {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.78rem;
+    }
+
+    .step {
+      background: var(--primary-bg);
+      border: 1px solid #bfdbfe;
+      border-radius: 4px;
+      padding: 0.4rem 0.65rem;
+      white-space: nowrap;
+    }
+
+    .step.emerald { background: var(--emerald-bg); border-color: #a7f3d0; }
+    .step.violet { background: var(--accent-bg); border-color: #ddd6fe; }
+    .step.warn { background: var(--warn-bg); border-color: #fde68a; }
+
+    .arrow { color: var(--muted); font-size: 0.85rem; }
+
+    /* ── UI Mockups ── */
+    .mock-browser {
+      border: 1px solid var(--stroke);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--surface);
+      margin: 1rem 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .mock-chrome {
+      background: #e8eaed;
+      padding: 0.5rem 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-bottom: 1px solid var(--stroke);
+    }
+
+    .mock-dots { display: flex; gap: 4px; }
+    .mock-dots span { width: 10px; height: 10px; border-radius: 50%; }
+    .mock-dots span:nth-child(1) { background: #ff5f57; }
+    .mock-dots span:nth-child(2) { background: #febc2e; }
+    .mock-dots span:nth-child(3) { background: #28c840; }
+
+    .mock-url {
+      flex: 1;
+      background: #fff;
+      border-radius: 4px;
+      padding: 0.25rem 0.6rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+    .mock-body { padding: 1rem; }
+
+    /* Login mock */
+    .mock-login {
+      max-width: 360px;
+      margin: 0 auto;
+      padding: 1.5rem;
+      text-align: center;
+    }
+
+    .mock-login h5 {
+      font-size: 1.1rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .mock-login p { font-size: 0.78rem; color: var(--muted); margin-bottom: 1rem; }
+
+    .mock-field {
+      text-align: left;
+      margin-bottom: 0.75rem;
+    }
+
+    .mock-field label {
+      display: block;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+    }
+
+    .mock-input {
+      width: 100%;
+      border: 1px solid var(--stroke);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.82rem;
+      background: #fafbfc;
+    }
+
+    .mock-btn {
+      width: 100%;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 0.55rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-top: 0.5rem;
+    }
+
+    /* Top nav mock */
+    .mock-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid var(--stroke);
+      background: #fff;
+    }
+
+    .mock-logo { font-weight: 700; font-size: 0.95rem; color: var(--text); }
+
+    .mock-nav { display: flex; gap: 0.25rem; flex-wrap: wrap; }
+
+    .mock-nav-item {
+      font-size: 0.75rem;
+      padding: 0.35rem 0.65rem;
+      border-radius: 4px;
+      color: var(--muted);
+    }
+
+    .mock-nav-item.active {
+      background: var(--primary-bg);
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    /* Health cards */
+    .mock-cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.65rem;
+      margin: 0.75rem 0;
+    }
+
+    .mock-card {
+      border: 1px solid var(--stroke);
+      border-radius: 6px;
+      padding: 0.75rem;
+      background: #fafbfc;
+    }
+
+    .mock-card .label { font-size: 0.68rem; color: var(--muted); margin-bottom: 0.25rem; }
+    .mock-card .value { font-size: 1.1rem; font-weight: 700; }
+    .mock-card .meta { font-size: 0.68rem; color: var(--muted); margin-top: 0.2rem; }
+
+    /* Layer cards */
+    .layer-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      margin: 0.75rem 0;
+    }
+
+    .layer-card {
+      border-radius: 8px;
+      padding: 1rem;
+      border: 1px solid var(--stroke);
+    }
+
+    .layer-card.l1 { background: var(--accent-bg); border-color: #ddd6fe; }
+    .layer-card.l2 { background: var(--emerald-bg); border-color: #a7f3d0; }
+    .layer-card.l3 { background: var(--primary-bg); border-color: #bfdbfe; }
+
+    .layer-card .tag {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.35rem;
+    }
+
+    .layer-card.l1 .tag { color: var(--accent); }
+    .layer-card.l2 .tag { color: var(--emerald); }
+    .layer-card.l3 .tag { color: var(--primary); }
+
+    .layer-card h5 { font-size: 0.88rem; margin-bottom: 0.35rem; }
+    .layer-card p { font-size: 0.76rem; color: var(--muted); margin: 0; }
+
+    /* Hub tabs */
+    .mock-tabs {
+      display: flex;
+      gap: 0.25rem;
+      flex-wrap: wrap;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--stroke);
+      margin-bottom: 0.75rem;
+    }
+
+    .mock-tab {
+      font-size: 0.72rem;
+      padding: 0.35rem 0.7rem;
+      border-radius: 4px;
+      color: var(--muted);
+    }
+
+    .mock-tab.active-emerald { background: #d1fae5; color: #065f46; font-weight: 600; }
+    .mock-tab.active-blue { background: #dbeafe; color: #1e40af; font-weight: 600; }
+    .mock-tab.active-violet { background: #ede9fe; color: #5b21b6; font-weight: 600; }
+
+    /* Form sections mock */
+    .form-sections {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .form-section {
+      border: 1px solid var(--stroke);
+      border-radius: 6px;
+      padding: 0.65rem 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: #fafbfc;
+    }
+
+    .form-section .num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .form-section .info strong { display: block; font-size: 0.82rem; }
+    .form-section .info span { font-size: 0.72rem; color: var(--muted); }
+
+    /* Lifecycle diagram */
+    .lifecycle {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 1rem;
+      background: var(--bg);
+      border-radius: 6px;
+      font-size: 0.78rem;
+    }
+
+    .lc-node {
+      padding: 0.4rem 0.65rem;
+      border-radius: 4px;
+      border: 1px solid var(--stroke);
+      background: var(--surface);
+    }
+
+    .lc-node.highlight { background: var(--emerald-bg); border-color: #a7f3d0; font-weight: 600; }
+
+    /* Scenario cards */
+    .scenario-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 0.85rem;
+    }
+
+    .scenario {
+      border: 1px solid var(--stroke);
+      border-radius: 8px;
+      padding: 1rem;
+      background: var(--surface);
+    }
+
+    .scenario .letter {
+      display: inline-block;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: var(--primary);
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.85rem;
+      text-align: center;
+      line-height: 28px;
+      margin-bottom: 0.5rem;
+    }
+
+    .scenario h4 { margin: 0 0 0.5rem; font-size: 0.9rem; color: var(--text); }
+    .scenario ol { margin: 0; padding-left: 1.1rem; font-size: 0.8rem; }
+
+    /* Checklist */
+    .checklist { list-style: none; margin-left: 0; }
+    .checklist li {
+      padding: 0.4rem 0 0.4rem 1.75rem;
+      position: relative;
+      border-bottom: 1px dashed var(--stroke);
+      font-size: 0.84rem;
+    }
+    .checklist li:last-child { border-bottom: none; }
+    .checklist li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.55rem;
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--stroke);
+      border-radius: 3px;
+      background: var(--surface);
+    }
+
+    /* FAQ */
+    details.faq {
+      border: 1px solid var(--stroke);
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
+      background: var(--surface);
+    }
+
+    details.faq summary {
+      padding: 0.75rem 1rem;
+      font-weight: 600;
+      font-size: 0.88rem;
+      cursor: pointer;
+      list-style: none;
+    }
+
+    details.faq summary::-webkit-details-marker { display: none; }
+
+    details.faq summary::before {
+      content: "+ ";
+      color: var(--primary);
+      font-weight: 700;
+    }
+
+    details.faq[open] summary::before { content: "− "; }
+
+    details.faq .answer {
+      padding: 0 1rem 0.75rem;
+      font-size: 0.84rem;
+      color: var(--muted);
+    }
+
+    /* SVG diagram container */
+    .diagram-wrap {
+      background: var(--surface);
+      border: 1px solid var(--stroke);
+      border-radius: 8px;
+      padding: 1rem;
+      margin: 1rem 0;
+      overflow-x: auto;
+    }
+
+    .diagram-wrap svg { display: block; margin: 0 auto; max-width: 100%; }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .caption {
+      font-size: 0.74rem;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 0.5rem;
+    }
+
+    .path-tag {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      background: var(--bg);
+      border: 1px solid var(--stroke);
+      padding: 0.15rem 0.45rem;
+      border-radius: 3px;
+      margin-left: 0.35rem;
+    }
+
+    footer {
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--stroke);
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .toc { position: relative; height: auto; max-height: 220px; }
+      .main { padding: 1.25rem; }
+      .mock-cards { grid-template-columns: repeat(2, 1fr); }
+      .layer-cards { grid-template-columns: 1fr; }
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+
+    @media print {
+      .toc { display: none; }
+      .layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <!-- 侧边目录 -->
+    <aside class="toc">
+      <div class="toc-brand">
+        <strong>GEOFlow</strong>
+        <span>用户使用操作指南</span>
+      </div>
+      <nav>
+        <a href="#intro">一、GEOFlow 是什么</a>
+        <a href="#login">二、登录与界面总览</a>
+        <a href="#login-access" class="sub">访问与登录</a>
+        <a href="#login-nav" class="sub">顶部导航</a>
+        <a href="#login-loop" class="sub">业务闭环</a>
+        <a href="#dashboard">三、首页仪表盘</a>
+        <a href="#production">四、内容生产 L2</a>
+        <a href="#operations">五、运营与分发 L3</a>
+        <a href="#strategy">六、策略与分析 L1</a>
+        <a href="#settings">七、网站设置</a>
+        <a href="#scenarios">八、典型业务场景</a>
+        <a href="#glossary">九、关键概念</a>
+        <a href="#faq">十、常见问题</a>
+        <a href="#routine">十一、日/周操作</a>
+        <a href="#help">十二、获取帮助</a>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <header class="doc-header">
+        <h1>GEOFlow 用户使用操作指南</h1>
+        <p class="lead">面向内容运营、技术品牌团队、策略分析人员的日常操作手册。通过管理后台完成 AI 内容生产、审核发布、多站点分发与 GEO 策略优化。</p>
+        <div class="badge-row">
+          <span class="badge badge-blue">geoflow-admin 管理后台</span>
+          <span class="badge badge-violet">L1 策略 · L2 生产 · L3 运营</span>
+          <span class="badge badge-emerald">v3 主栈 · 2026-07</span>
+        </div>
+      </header>
+
+      <!-- 一、介绍 -->
+      <section id="intro">
+        <h2>一、GEOFlow 是什么</h2>
+        <p>GEOFlow 是一套 <strong>GEO（生成式引擎优化）内容工程平台</strong>，帮助团队用 AI 批量生产高质量内容，并结合知识库、任务调度与策略分析形成完整闭环。</p>
+
+        <div class="card">
+          <div class="card-title">核心能力</div>
+          <div class="pipeline">
+            <span class="step">AI 批量生产</span>
+            <span class="arrow">→</span>
+            <span class="step emerald">知识库 RAG</span>
+            <span class="arrow">→</span>
+            <span class="step">任务调度</span>
+            <span class="arrow">→</span>
+            <span class="step warn">审核 · GEO 门禁</span>
+            <span class="arrow">→</span>
+            <span class="step violet">多站点分发</span>
+            <span class="arrow">→</span>
+            <span class="step">策略监控复盘</span>
+          </div>
+        </div>
+
+        <h3>读者在哪里看内容？</h3>
+        <table>
+          <thead><tr><th>运营模式</th><th>读者访问</th></tr></thead>
+          <tbody>
+            <tr><td>通用内容站</td><td>本站公开前台（可选开启）</td></tr>
+            <tr><td>技术品牌 / Wiki 模式</td><td><strong>Gweb</strong> 独立 Wiki 站点（GEOFlow 负责生产与同步）</td></tr>
+          </tbody>
+        </table>
+        <div class="note">日常操作均在 <strong>管理后台（geoflow-admin）</strong> 完成，读者不直接访问后台。</div>
+
+        <!-- 双模式架构示意 -->
+        <div class="diagram-wrap">
+          <svg viewBox="0 0 720 200" width="720" height="200" aria-label="双运营模式架构">
+            <defs>
+              <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                <path d="M0,0 L6,3 L0,6 Z" fill="#5c6b7a"/>
+              </marker>
+            </defs>
+            <!-- GEOFlow box -->
+            <rect x="20" y="60" width="200" height="80" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="120" y="92" text-anchor="middle" font-size="13" font-weight="700" fill="#1a2332">GEOFlow 管理后台</text>
+            <text x="120" y="112" text-anchor="middle" font-size="10" fill="#5c6b7a">生产 · 审核 · 分发 · 策略</text>
+            <!-- Arrow split -->
+            <line x1="220" y1="100" x2="280" y2="100" stroke="#5c6b7a" stroke-width="1.5" marker-end="url(#arr)"/>
+            <!-- General mode -->
+            <rect x="290" y="30" width="180" height="60" rx="6" fill="#ecfdf5" stroke="#059669" stroke-width="1.5"/>
+            <text x="380" y="55" text-anchor="middle" font-size="11" font-weight="600" fill="#065f46">通用内容站</text>
+            <text x="380" y="72" text-anchor="middle" font-size="9" fill="#5c6b7a">本站 SEO 前台</text>
+            <!-- Tech brand mode -->
+            <rect x="290" y="110" width="180" height="60" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="380" y="135" text-anchor="middle" font-size="11" font-weight="600" fill="#5b21b6">技术品牌 Wiki</text>
+            <text x="380" y="152" text-anchor="middle" font-size="9" fill="#5c6b7a">Gweb 公网展现</text>
+            <!-- Readers -->
+            <line x1="470" y1="60" x2="530" y2="60" stroke="#5c6b7a" stroke-width="1.5" marker-end="url(#arr)"/>
+            <line x1="470" y1="140" x2="530" y2="140" stroke="#5c6b7a" stroke-width="1.5" marker-end="url(#arr)"/>
+            <rect x="540" y="35" width="160" height="50" rx="6" fill="#fff" stroke="#d8dee4"/>
+            <text x="620" y="65" text-anchor="middle" font-size="11" fill="#1a2332">👤 内容读者</text>
+            <rect x="540" y="115" width="160" height="50" rx="6" fill="#fff" stroke="#d8dee4"/>
+            <text x="620" y="145" text-anchor="middle" font-size="11" fill="#1a2332">👤 技术百科读者</text>
+          </svg>
+          <p class="caption">图 1 · 双运营模式：GEOFlow 统一后台，读者端按模式分流</p>
+        </div>
+      </section>
+
+      <!-- 二、登录 -->
+      <section id="login">
+        <h2>二、登录与界面总览</h2>
+
+        <h3 id="login-access">2.1 访问与登录</h3>
+        <ol>
+          <li>在浏览器打开管理后台地址（由运维提供，本地默认 <code>http://127.0.0.1:13001/login</code>）</li>
+          <li>输入管理员账号和密码</li>
+          <li>登录成功后自动进入 <strong>首页（仪表盘）</strong></li>
+        </ol>
+
+        <!-- 登录页示意 -->
+        <div class="mock-browser">
+          <div class="mock-chrome">
+            <div class="mock-dots"><span></span><span></span><span></span></div>
+            <div class="mock-url">http://127.0.0.1:13001/login</div>
+          </div>
+          <div class="mock-body">
+            <div class="mock-login">
+              <h5>管理后台登录</h5>
+              <p>登录 GEOFlow 内容工程平台</p>
+              <div class="mock-field">
+                <label>用户名</label>
+                <div class="mock-input">admin</div>
+              </div>
+              <div class="mock-field">
+                <label>密码</label>
+                <div class="mock-input">••••••••</div>
+              </div>
+              <button class="mock-btn" type="button">登 录</button>
+            </div>
+          </div>
+        </div>
+        <p class="caption">图 2 · 登录页界面示意</p>
+        <div class="warn-box">演示环境常见默认账号为 <code>admin</code> / <code>password</code>，<strong>生产环境务必修改</strong>。首次使用请联系系统管理员获取账号。</div>
+
+        <h3 id="login-nav">2.2 顶部主导航（五大模块）</h3>
+        <div class="mock-browser">
+          <div class="mock-header">
+            <div class="mock-logo">GEOFlow</div>
+            <div class="mock-nav">
+              <span class="mock-nav-item active">首页</span>
+              <span class="mock-nav-item">内容生产</span>
+              <span class="mock-nav-item">运营与分发</span>
+              <span class="mock-nav-item">策略与分析</span>
+              <span class="mock-nav-item">网站设置</span>
+            </div>
+          </div>
+        </div>
+        <p class="caption">图 3 · 顶部主导航结构</p>
+
+        <table>
+          <thead><tr><th>导航</th><th>业务层</th><th>主要职责</th></tr></thead>
+          <tbody>
+            <tr><td><strong>首页</strong></td><td>—</td><td>数据概览、快速开始、自动化工作流状态</td></tr>
+            <tr><td><strong>内容生产</strong></td><td>L2</td><td>知识库、素材库、AI 模型与提示词</td></tr>
+            <tr><td><strong>运营与分发</strong></td><td>L3</td><td>任务、文章审核发布、多站点分发</td></tr>
+            <tr><td><strong>策略与分析</strong></td><td>L1</td><td>监控排名、GEO 诊断、数据分析、外部信源</td></tr>
+            <tr><td><strong>网站设置</strong></td><td>系统</td><td>站点信息、管理员、安全、API Token</td></tr>
+          </tbody>
+        </table>
+
+        <div class="layer-cards">
+          <div class="layer-card l1">
+            <div class="tag">L1 策略</div>
+            <h5>策略与分析</h5>
+            <p>监控问题库 · 外部信源 · GEO 诊断 · 仿真建议 · 数据分析</p>
+          </div>
+          <div class="layer-card l2">
+            <div class="tag">L2 生产</div>
+            <h5>内容生产</h5>
+            <p>AI 配置 · 素材库 · 知识库 RAG · 技术 IP 资产</p>
+          </div>
+          <div class="layer-card l3">
+            <div class="tag">L3 运营</div>
+            <h5>运营与分发</h5>
+            <p>任务调度 · 文章审核 · 发布 · 多站点分发</p>
+          </div>
+        </div>
+
+        <h3 id="login-loop">2.3 核心业务闭环</h3>
+        <div class="card">
+          <div class="pipeline">
+            <span class="step">配置 AI 模型</span>
+            <span class="arrow">→</span>
+            <span class="step emerald">准备素材 / 知识库</span>
+            <span class="arrow">→</span>
+            <span class="step">创建并启用任务</span>
+            <span class="arrow">→</span>
+            <span class="step">AI 自动生成草稿</span>
+            <span class="arrow">→</span>
+            <span class="step warn">人工审核（可选）</span>
+            <span class="arrow">→</span>
+            <span class="step warn">GEO 评估门禁</span>
+            <span class="arrow">→</span>
+            <span class="step">发布</span>
+            <span class="arrow">→</span>
+            <span class="step violet">分发到远端渠道</span>
+            <span class="arrow">→</span>
+            <span class="step">策略分析复盘</span>
+          </div>
+        </div>
+        <p>首页的 <strong>「快速开始」</strong> 和 <strong>「GEO 自动化工作流」</strong> 会实时反映上述各环节是否就绪；有阻塞项时会给出建议动作，点击可跳转到对应模块。</p>
+      </section>
+
+      <!-- 三、首页 -->
+      <section id="dashboard">
+        <h2>三、首页（仪表盘）</h2>
+        <p>路径：<strong>首页</strong> <span class="path-tag">/dashboard</span></p>
+
+        <h3>3.1 健康卡片</h3>
+        <div class="mock-browser">
+          <div class="mock-body">
+            <div class="mock-cards">
+              <div class="mock-card">
+                <div class="label">任务队列</div>
+                <div class="value">3</div>
+                <div class="meta">运行 1 · 排队 2 · 失败 0</div>
+              </div>
+              <div class="mock-card">
+                <div class="label">内容资产</div>
+                <div class="value">128</div>
+                <div class="meta">已发布 96 · 草稿 20 · 待审 12</div>
+              </div>
+              <div class="mock-card">
+                <div class="label">分发渠道</div>
+                <div class="value">2</div>
+                <div class="meta">活跃 2 · 待分发 5 · 失败 0</div>
+              </div>
+              <div class="mock-card">
+                <div class="label">今日访问</div>
+                <div class="value">1.2k</div>
+                <div class="meta">访问 1200 · AI 调用 48</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="caption">图 4 · 首页健康卡片示意</p>
+
+        <h3>3.2 快速开始（三步）</h3>
+        <div class="form-sections">
+          <div class="form-section">
+            <div class="num">1</div>
+            <div class="info"><strong>配置 API</strong><span>添加 Chat 模型；使用 RAG 时需 Embedding 模型</span></div>
+          </div>
+          <div class="form-section">
+            <div class="num">2</div>
+            <div class="info"><strong>配置素材库</strong><span>维护分类、标题库、关键词库等</span></div>
+          </div>
+          <div class="form-section">
+            <div class="num">3</div>
+            <div class="info"><strong>新建任务</strong><span>选择标题库、提示词、模型，启动自动生产</span></div>
+          </div>
+        </div>
+
+        <h3>3.3 运营车道</h3>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">单站点运营</div>
+            <p style="font-size:0.84rem;margin:0">本站从配置到发布的完整流程</p>
+          </div>
+          <div class="card">
+            <div class="card-title">多站点分发</div>
+            <p style="font-size:0.84rem;margin:0">渠道接入与远端同步</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 四、L2 -->
+      <section id="production">
+        <h2>四、内容生产（L2）</h2>
+        <p>路径：<strong>内容生产</strong> → 各子 Tab <span class="path-tag">/production/*</span></p>
+        <div class="note">内容生产是「喂料」环节：任务生成文章时，会从这里读取模型、提示词、标题、关键词、知识库片段等。</div>
+
+        <div class="mock-tabs">
+          <span class="mock-tab active-emerald">总览</span>
+          <span class="mock-tab">AI 配置器</span>
+          <span class="mock-tab">素材管理</span>
+          <span class="mock-tab">知识库</span>
+          <span class="mock-tab">RAG 沙箱</span>
+          <span class="mock-tab">知识设置</span>
+          <span class="mock-tab">技术 IP 资产</span>
+        </div>
+        <p class="caption">图 5 · L2 内容生产二级导航</p>
+
+        <h3>4.1 素材管理初始化顺序</h3>
+        <div class="diagram-wrap">
+          <svg viewBox="0 0 600 120" width="600" height="120">
+            <defs><marker id="arr2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#059669"/></marker></defs>
+            <rect x="10" y="40" width="90" height="40" rx="6" fill="#ecfdf5" stroke="#059669"/><text x="55" y="65" text-anchor="middle" font-size="10" font-weight="600">① 分类</text>
+            <line x1="100" y1="60" x2="120" y2="60" stroke="#059669" marker-end="url(#arr2)"/>
+            <rect x="125" y="40" width="90" height="40" rx="6" fill="#ecfdf5" stroke="#059669"/><text x="170" y="65" text-anchor="middle" font-size="10" font-weight="600">② 标题库</text>
+            <line x1="215" y1="60" x2="235" y2="60" stroke="#059669" marker-end="url(#arr2)"/>
+            <rect x="240" y="40" width="90" height="40" rx="6" fill="#ecfdf5" stroke="#059669"/><text x="285" y="65" text-anchor="middle" font-size="10" font-weight="600">③ 关键词</text>
+            <line x1="330" y1="60" x2="350" y2="60" stroke="#059669" marker-end="url(#arr2)"/>
+            <rect x="355" y="40" width="90" height="40" rx="6" fill="#f4f6f8" stroke="#d8dee4"/><text x="400" y="65" text-anchor="middle" font-size="10">④ 图片/作者</text>
+            <line x1="445" y1="60" x2="465" y2="60" stroke="#059669" marker-end="url(#arr2)"/>
+            <rect x="470" y="40" width="110" height="40" rx="6" fill="#eff6ff" stroke="#2563eb"/><text x="525" y="65" text-anchor="middle" font-size="10" font-weight="600">⑤ 创建任务</text>
+            <text x="55" y="30" text-anchor="middle" font-size="8" fill="#dc2626" font-weight="600">必做</text>
+          </svg>
+          <p class="caption">图 6 · 素材库建议初始化顺序</p>
+        </div>
+
+        <h3>4.2 AI 配置器</h3>
+        <p>路径：<span class="path-tag">/production/ai_config</span></p>
+        <table>
+          <thead><tr><th>配置项</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Chat 模型</strong></td><td>正文生成，至少配置一个；填写 API Key（加密存储）</td></tr>
+            <tr><td><strong>Embedding 模型</strong></td><td>知识库向量化与 RAG 召回，使用知识库时必填</td></tr>
+            <tr><td><strong>提示词模板</strong></td><td>普通文章 / Wiki 专用（概念、对比、指南、数据）</td></tr>
+            <tr><td><strong>Content Agent 编排</strong></td><td>多步流水线：Legacy 单步 或 编辑部 Pipeline</td></tr>
+          </tbody>
+        </table>
+
+        <h3>4.3 知识库（RAG）工作流</h3>
+        <div class="card">
+          <div class="pipeline">
+            <span class="step">新建知识库</span>
+            <span class="arrow">→</span>
+            <span class="step">上传/粘贴内容</span>
+            <span class="arrow">→</span>
+            <span class="step emerald">同步切片</span>
+            <span class="arrow">→</span>
+            <span class="step">RAG 沙箱验证</span>
+            <span class="arrow">→</span>
+            <span class="step violet">任务绑定知识库</span>
+          </div>
+        </div>
+        <p>支持 <code>.txt</code>、<code>.md</code>、<code>.pdf</code> 上传；也可通过 URL 导入网页内容。</p>
+
+        <h3>4.4 技术 IP 资产（技术品牌模式）</h3>
+        <p>路径：<span class="path-tag">/production/tech-assets</span></p>
+        <table>
+          <thead><tr><th>字段</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><strong>ip_id</strong></td><td>技术 IP 唯一标识</td></tr>
+            <tr><td><strong>名称 / 描述</strong></td><td>对外展示的技术点名称与摘要</td></tr>
+            <tr><td><strong>Wiki 类型</strong></td><td>概念、对比、指南、数据等</td></tr>
+            <tr><td><strong>优先级</strong></td><td>P0 / P1 等，影响策略 KPI 统计</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- 五、L3 -->
+      <section id="operations">
+        <h2>五、运营与分发（L3）</h2>
+        <p>路径：<strong>运营与分发</strong> <span class="path-tag">/operations/*</span></p>
+
+        <div class="mock-tabs">
+          <span class="mock-tab active-blue">总览</span>
+          <span class="mock-tab">任务管理</span>
+          <span class="mock-tab">文章管理</span>
+          <span class="mock-tab">分发管理</span>
+        </div>
+        <p class="caption">图 7 · L3 运营与分发二级导航</p>
+
+        <h3>5.1 创建任务（七区块表单）</h3>
+        <p>路径：<span class="path-tag">/operations/tasks/new</span></p>
+        <div class="form-sections">
+          <div class="form-section"><div class="num">1</div><div class="info"><strong>基本信息</strong><span>任务名称、标题库、启用状态</span></div></div>
+          <div class="form-section"><div class="num">2</div><div class="info"><strong>内容格式</strong><span>普通文章 或 Wiki MDX（绑定技术 IP）</span></div></div>
+          <div class="form-section"><div class="num">3</div><div class="info"><strong>内容生成</strong><span>提示词、AI 模型、知识库、编排模式、作者</span></div></div>
+          <div class="form-section"><div class="num">4</div><div class="info"><strong>配图（可选）</strong><span>图片库与配图数量</span></div></div>
+          <div class="form-section"><div class="num">5</div><div class="info"><strong>发布策略</strong><span>人工审核 / 发布间隔（分钟）</span></div></div>
+          <div class="form-section"><div class="num">6</div><div class="info"><strong>分发范围</strong><span>本站+分发 / 仅本站 / 仅分发</span></div></div>
+          <div class="form-section"><div class="num">7</div><div class="info"><strong>高级选项</strong><span>生成上限、循环、自动关键词/描述、分类策略</span></div></div>
+        </div>
+        <p class="caption">图 8 · 新建任务表单区块结构</p>
+
+        <h4>发布范围说明</h4>
+        <table>
+          <thead><tr><th>选项</th><th>含义</th></tr></thead>
+          <tbody>
+            <tr><td><strong>本站 + 分发</strong></td><td>本地发布并同步到所选渠道</td></tr>
+            <tr><td><strong>仅本站</strong></td><td>不在远端发布</td></tr>
+            <tr><td><strong>仅分发</strong></td><td>只推送到远端（Wiki 任务固定此项）</td></tr>
+          </tbody>
+        </table>
+
+        <h3>5.2 创建任务前置检查清单</h3>
+        <ul class="checklist">
+          <li>至少一个 <strong>文章分类</strong></li>
+          <li>至少一个 <strong>标题库</strong>（库内有标题）</li>
+          <li>至少一个 <strong>提示词模板</strong> 和 <strong>AI 聊天模型</strong></li>
+          <li>若使用知识库：Embedding 模型已配置且知识库已向量化</li>
+          <li>若「仅分发」：至少一个 <strong>活跃分发渠道</strong></li>
+          <li>若 Wiki MDX：已配置 <strong>技术 IP 资产</strong> 与 <strong>GWeb Wiki 渠道</strong></li>
+        </ul>
+
+        <h3>5.3 文章生命周期</h3>
+        <div class="lifecycle">
+          <span class="lc-node">AI 生成 / 手动创建</span>
+          <span class="arrow">→</span>
+          <span class="lc-node">草稿</span>
+          <span class="arrow">→</span>
+          <span class="lc-node">待审核</span>
+          <span class="arrow">→</span>
+          <span class="lc-node highlight">通过审核</span>
+          <span class="arrow">→</span>
+          <span class="lc-node highlight">发布</span>
+          <span class="arrow">↓</span>
+          <span class="lc-node">回收站（可恢复/永久删除）</span>
+        </div>
+        <p class="caption">图 9 · 文章状态流转</p>
+
+        <h3>5.4 日常审核发布流程</h3>
+        <ol>
+          <li>文章列表 → <strong>待审核</strong> 筛选</li>
+          <li>进入编辑页，检查标题、正文、SEO 字段</li>
+          <li>查看 <strong>GEO 评估</strong>：已通过 / 未通过 / 待评估</li>
+          <li>点击 <strong>通过审核</strong> → <strong>发布</strong></li>
+        </ol>
+
+        <h3>5.5 分发渠道类型</h3>
+        <table>
+          <thead><tr><th>类型</th><th>适用场景</th></tr></thead>
+          <tbody>
+            <tr><td><strong>GEOFlow Agent</strong></td><td>对接另一套 GEOFlow 远端站点</td></tr>
+            <tr><td><strong>GWeb Wiki</strong></td><td>技术品牌 Wiki，同步 MDX 到 Gweb</td></tr>
+            <tr><td><strong>WordPress REST</strong></td><td>发布到 WordPress 博客</td></tr>
+            <tr><td><strong>通用 HTTP API</strong></td><td>自定义接口对接</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- 六、L1 -->
+      <section id="strategy">
+        <h2>六、策略与分析（L1）</h2>
+        <p>路径：<strong>策略与分析</strong> <span class="path-tag">/strategy/*</span></p>
+
+        <div class="mock-tabs">
+          <span class="mock-tab active-violet">总览</span>
+          <span class="mock-tab">监控问题库</span>
+          <span class="mock-tab">外部信源</span>
+          <span class="mock-tab">仿真与建议</span>
+          <span class="mock-tab">GEO 诊断</span>
+          <span class="mock-tab">数据分析</span>
+          <span class="mock-tab">洞察模板</span>
+        </div>
+        <p class="caption">图 10 · L1 策略与分析二级导航</p>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">监控问题库</div>
+            <p style="font-size:0.84rem">维护探针问题 → 全量扫描 → 追踪各 AI 平台排名与提及率</p>
+          </div>
+          <div class="card">
+            <div class="card-title">GEO 诊断</div>
+            <p style="font-size:0.84rem">门禁状态 · 失败原因 Top N · 单篇/批量重评</p>
+          </div>
+          <div class="card">
+            <div class="card-title">仿真与建议</div>
+            <p style="font-size:0.84rem">批量重评低分文章，将优化建议应用到正文</p>
+          </div>
+          <div class="card">
+            <div class="card-title">洞察模板</div>
+            <p style="font-size:0.84rem">从优秀外部 URL 挖掘写作风格，注入 Prompt</p>
+          </div>
+        </div>
+
+        <h3>GEO 优化闭环</h3>
+        <div class="diagram-wrap">
+          <svg viewBox="0 0 640 160" width="640" height="160">
+            <defs><marker id="arr3" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#7c3aed"/></marker></defs>
+            <rect x="20" y="55" width="100" height="50" rx="6" fill="#f5f3ff" stroke="#7c3aed"/><text x="70" y="85" text-anchor="middle" font-size="9" font-weight="600">监控扫描</text>
+            <line x1="120" y1="80" x2="145" y2="80" stroke="#7c3aed" marker-end="url(#arr3)"/>
+            <rect x="150" y="55" width="100" height="50" rx="6" fill="#f5f3ff" stroke="#7c3aed"/><text x="200" y="85" text-anchor="middle" font-size="9" font-weight="600">GEO 诊断</text>
+            <line x1="250" y1="80" x2="275" y2="80" stroke="#7c3aed" marker-end="url(#arr3)"/>
+            <rect x="280" y="55" width="100" height="50" rx="6" fill="#f5f3ff" stroke="#7c3aed"/><text x="330" y="85" text-anchor="middle" font-size="9" font-weight="600">仿真优化</text>
+            <line x1="380" y1="80" x2="405" y2="80" stroke="#7c3aed" marker-end="url(#arr3)"/>
+            <rect x="410" y="55" width="100" height="50" rx="6" fill="#f5f3ff" stroke="#7c3aed"/><text x="460" y="85" text-anchor="middle" font-size="9" font-weight="600">更新内容</text>
+            <line x1="510" y1="80" x2="535" y2="80" stroke="#7c3aed" marker-end="url(#arr3)"/>
+            <rect x="540" y="55" width="80" height="50" rx="6" fill="#ecfdf5" stroke="#059669"/><text x="580" y="85" text-anchor="middle" font-size="9" font-weight="600">复盘 KPI</text>
+            <path d="M 580 105 Q 580 140 70 140 Q 20 140 20 105" fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arr3)"/>
+            <text x="320" y="155" text-anchor="middle" font-size="9" fill="#5c6b7a">持续迭代闭环</text>
+          </svg>
+          <p class="caption">图 11 · GEO 监控与优化闭环</p>
+        </div>
+      </section>
+
+      <!-- 七、设置 -->
+      <section id="settings">
+        <h2>七、网站设置</h2>
+        <p>路径：<span class="path-tag">/settings/site</span></p>
+        <table>
+          <thead><tr><th>子页面</th><th>路径</th><th>功能</th></tr></thead>
+          <tbody>
+            <tr><td>站点信息</td><td><code>/settings/site</code></td><td>站点名称、只读功能开关（GEO 评估、技术品牌模式等）</td></tr>
+            <tr><td>管理员</td><td><code>/settings/admins</code></td><td>增删改管理员、活动日志</td></tr>
+            <tr><td>安全</td><td><code>/settings/security</code></td><td>敏感词列表、修改密码</td></tr>
+            <tr><td>API Token</td><td><code>/settings/api-tokens</code></td><td>创建/吊销 REST API 访问令牌</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- 八、场景 -->
+      <section id="scenarios">
+        <h2>八、典型业务场景操作手册</h2>
+        <div class="scenario-grid">
+          <div class="scenario">
+            <div class="letter">A</div>
+            <h4>每日自动资讯站</h4>
+            <ol>
+              <li>AI 配置器添加 Chat 模型</li>
+              <li>创建分类、标题库、关键词库</li>
+              <li>（可选）建知识库并同步切片</li>
+              <li>新建普通文章任务并启用</li>
+              <li>审核或等待自动发布</li>
+              <li>周报查看数据分析与 GEO 诊断</li>
+            </ol>
+          </div>
+          <div class="scenario">
+            <div class="letter">B</div>
+            <h4>知识库增强深度文章</h4>
+            <ol>
+              <li>上传白皮书 PDF 到知识库</li>
+              <li>RAG 沙箱验证召回效果</li>
+              <li>任务绑定知识库</li>
+              <li>编排模式选「编辑部 Pipeline」</li>
+            </ol>
+          </div>
+          <div class="scenario">
+            <div class="letter">C</div>
+            <h4>多站点同步 WordPress</h4>
+            <ol>
+              <li>新建 WordPress 分发渠道</li>
+              <li>任务选「本站 + 分发」</li>
+              <li>发布后自动入分发队列</li>
+              <li>分发管理排查失败项</li>
+            </ol>
+          </div>
+          <div class="scenario">
+            <div class="letter">D</div>
+            <h4>技术品牌 Wiki → Gweb</h4>
+            <ol>
+              <li>维护 P0 技术 IP 资产卡</li>
+              <li>新建 GWeb Wiki 渠道</li>
+              <li>任务选 Wiki MDX 格式</li>
+              <li>通过 Wiki 合规门禁后自动同步</li>
+              <li>策略总览查看同步率 KPI</li>
+            </ol>
+          </div>
+          <div class="scenario">
+            <div class="letter">E</div>
+            <h4>GEO 监控优化闭环</h4>
+            <ol>
+              <li>添加 10–20 个探针问题</li>
+              <li>每周全量扫描</li>
+              <li>GEO 诊断处理失败 Top</li>
+              <li>仿真批量优化低分文章</li>
+              <li>洞察模板更新 Prompt</li>
+            </ol>
+          </div>
+          <div class="scenario">
+            <div class="letter">F</div>
+            <h4>单篇精修活动稿</h4>
+            <ol>
+              <li>文章管理 → 新建文章</li>
+              <li>Markdown 编辑 + SEO 优化</li>
+              <li>通过审核 → 发布</li>
+              <li>GEO 诊断单篇重评</li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- Wiki 场景详细流程 -->
+        <h3>场景 D 详解：技术品牌 Wiki 同步流程</h3>
+        <div class="card">
+          <div class="pipeline">
+            <span class="step violet">技术 IP 资产</span>
+            <span class="arrow">→</span>
+            <span class="step">Wiki MDX 任务</span>
+            <span class="arrow">→</span>
+            <span class="step emerald">LangGraph 生成</span>
+            <span class="arrow">→</span>
+            <span class="step warn">Wiki 合规门禁</span>
+            <span class="arrow">→</span>
+            <span class="step">发布</span>
+            <span class="arrow">→</span>
+            <span class="step violet">Gweb 同步</span>
+            <span class="arrow">→</span>
+            <span class="step">读者访问 Wiki</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 九、术语 -->
+      <section id="glossary">
+        <h2>九、关键概念速查</h2>
+        <table>
+          <thead><tr><th>术语</th><th>通俗解释</th></tr></thead>
+          <tbody>
+            <tr><td><strong>GEO</strong></td><td>让内容更容易被 AI 搜索、问答引擎引用和推荐</td></tr>
+            <tr><td><strong>任务（Task）</strong></td><td>自动生产的调度单元，绑定素材与发布策略</td></tr>
+            <tr><td><strong>标题库</strong></td><td>待生成文章的题目队列</td></tr>
+            <tr><td><strong>RAG</strong></td><td>从知识库检索相关片段，注入 AI 生成上下文</td></tr>
+            <tr><td><strong>发布范围</strong></td><td>本站、远端、或两者同时发布</td></tr>
+            <tr><td><strong>GEO 评估 / 门禁</strong></td><td>发布前自动检查内容是否满足 GEO 规范</td></tr>
+            <tr><td><strong>探针 / Monitor</strong></td><td>向 AI 平台提问以监测品牌排名</td></tr>
+            <tr><td><strong>技术 IP 资产</strong></td><td>企业技术点在 Wiki 体系中的「身份证」</td></tr>
+            <tr><td><strong>Wiki MDX</strong></td><td>面向 Gweb 的结构化百科页面格式</td></tr>
+            <tr><td><strong>分发渠道</strong></td><td>内容发布后的远端同步目标</td></tr>
+            <tr><td><strong>Content Agent</strong></td><td>多步骤 AI 写作流水线（大纲、初稿、润色等）</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- 十、FAQ -->
+      <section id="faq">
+        <h2>十、常见问题</h2>
+
+        <details class="faq">
+          <summary>Q1：创建任务时提示「尚未配置分类」</summary>
+          <div class="answer">请先到 <strong>内容生产 → 素材管理 → 分类管理</strong> 创建至少一个分类。</div>
+        </details>
+
+        <details class="faq">
+          <summary>Q2：知识库一直显示「待向量化」</summary>
+          <div class="answer">
+            <ol>
+              <li>确认已在 AI 配置器中添加 <strong>Embedding 模型</strong></li>
+              <li>点击知识库列表的 <strong>同步切片</strong></li>
+              <li>仍失败请联系管理员查看后台日志</li>
+            </ol>
+          </div>
+        </details>
+
+        <details class="faq">
+          <summary>Q3：任务启用后没有生成文章</summary>
+          <div class="answer">检查：任务是否 <strong>已启用</strong>、标题库是否有剩余标题、是否已达 <strong>生成上限</strong>、队列是否有 <strong>失败</strong> 记录（运营总览 / 首页健康卡片）。</div>
+        </details>
+
+        <details class="faq">
+          <summary>Q4：文章 GEO 评估未通过无法发布</summary>
+          <div class="answer">
+            <ol>
+              <li>进入 <strong>策略与分析 → GEO 诊断</strong> 查看失败原因</li>
+              <li>编辑文章补充结构（FAQ、内链、摘要等）</li>
+              <li>单篇 <strong>重新评估</strong> 或批量重评</li>
+            </ol>
+          </div>
+        </details>
+
+        <details class="faq">
+          <summary>Q5：Wiki 内容没有出现在 Gweb</summary>
+          <div class="answer">确认：任务为 <strong>Wiki MDX</strong>、渠道类型为 <strong>GWeb Wiki</strong> 且已启用、文章已 <strong>发布</strong>、Wiki 合规门禁已通过、网站设置中 <strong>GWeb 同步</strong> 为已启用。</div>
+        </details>
+
+        <details class="faq">
+          <summary>Q6：开启「人工审核」后无法设发布间隔</summary>
+          <div class="answer">这是预期行为：审核模式下需人工确认后再发布，自动发布间隔不可用。</div>
+        </details>
+
+        <details class="faq">
+          <summary>Q7：演示环境生成内容质量很低</summary>
+          <div class="answer">若 <strong>AI Mock 模式</strong> 已启用，系统不调用真实大模型。正式使用需关闭 Mock 并配置真实 API Key。</div>
+        </details>
+      </section>
+
+      <!-- 十一、日常 -->
+      <section id="routine">
+        <h2>十一、每日 / 每周操作建议</h2>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">每日（约 10 分钟）</div>
+            <ul class="checklist">
+              <li>打开首页，查看任务队列与待审文章数</li>
+              <li>处理 <strong>待审核</strong> 文章</li>
+              <li>检查分发失败项并处理</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-title">每周（约 30 分钟）</div>
+            <ul class="checklist">
+              <li>监控问题库执行一次 <strong>全量扫描</strong></li>
+              <li>查看 <strong>数据分析</strong> 与热门内容</li>
+              <li><strong>GEO 诊断</strong> 处理失败 Top 原因</li>
+              <li>补充标题库、更新知识库文档</li>
+              <li>检查技术品牌 KPI（若适用）</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 十二、帮助 -->
+      <section id="help">
+        <h2>十二、获取帮助</h2>
+        <table>
+          <thead><tr><th>需求</th><th>参考文档</th></tr></thead>
+          <tbody>
+            <tr><td>系统架构与模块关系</td><td><a href="geoflow-architecture.html">系统架构 HTML</a>、<a href="../guide/系统设计学习笔记.md">系统设计学习笔记</a></td></tr>
+            <tr><td>Gweb Wiki 同步细节</td><td><a href="../guide/gweb-integration.md">Gweb 集成说明</a>、<a href="gweb-geoflow-architecture.html">Gweb 架构图</a></td></tr>
+            <tr><td>业务域与 API 概念</td><td><a href="../guide/解析文档.md">解析文档</a></td></tr>
+            <tr><td>Markdown 原版指南</td><td><a href="../guide/用户使用操作指南.md">用户使用操作指南.md</a></td></tr>
+            <tr><td>部署与运维</td><td>联系系统管理员或查阅 geoflow-v3/README.md</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <footer>
+        GEOFlow 用户使用操作指南 · 基于 v3 管理后台（geoflow-admin）· 最后更新 2026-07<br>
+        在浏览器中直接打开本文件，或使用本地 HTTP 服务访问以获得最佳体验
+      </footer>
+    </main>
+  </div>
+</body>
+</html>

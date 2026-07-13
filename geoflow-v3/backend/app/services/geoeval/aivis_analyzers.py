@@ -1,0 +1,445 @@
+"""AIVIS 分析器 — 平台评分、难度评估、情感主题、场景漏斗。"""
+
+import logging
+import re
+from collections import defaultdict
+
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.services.admin.production_service import _table_exists
+from app.services.geoeval.competitive_analyzer import compute_optimization_potential
+from app.services.geoeval.monitor_probe import aggregate_probe_kpis
+from app.services.geoeval.platform_connectors.base import PLATFORMS_CN
+
+logger = logging.getLogger(__name__)
+
+TJG_PROVIDER = "tjg_youzan"
+
+
+async def _load_tjg_scene_visibility(db: AsyncSession) -> dict[str, dict[str, float | str | int | dict]]:
+    """从最新 TJG 报告快照读取 intent 级可见性与元数据。"""
+    if not await _table_exists(db, "geo_visibility_reports"):
+        return {}
+    row = (
+        await db.execute(
+            text(
+                """
+                SELECT sections->'product'->'scenes' AS scenes
+                FROM geo_visibility_reports
+                WHERE sections->'source'->>'provider' = :provider
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ),
+            {"provider": TJG_PROVIDER},
+        )
+    ).scalar_one_or_none()
+    if not row or not isinstance(row, list):
+        return {}
+
+    mapping: dict[str, dict[str, float | str | int | dict]] = {}
+    for item in row:
+        if not isinstance(item, dict):
+            continue
+        key = f"{item.get('persona')}|{item.get('scene_name')}|{item.get('intent')}"
+        mapping[key] = {
+            "visibility_pct": float(item.get("visibility_pct") or 0),
+            "gap_priority": str(item.get("gap_priority") or "covered"),
+            "article_count": int(item.get("article_count") or 0),
+            "external_id": str(item.get("external_id") or ""),
+            "node_metadata": item.get("node_metadata") or {},
+        }
+    return mapping
+
+
+async def _load_tjg_touchpoint_tree(db: AsyncSession) -> dict | None:
+    if not await _table_exists(db, "geo_visibility_reports"):
+        return None
+    row = (
+        await db.execute(
+            text(
+                """
+                SELECT sections->'product'->'touchpoint_tree' AS tree
+                FROM geo_visibility_reports
+                WHERE sections->'source'->>'provider' = :provider
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ),
+            {"provider": TJG_PROVIDER},
+        )
+    ).scalar_one_or_none()
+    return row if isinstance(row, dict) and row.get("tree") else None
+
+
+async def _load_tjg_platform_breakdown(db: AsyncSession, layer: str = "brand") -> list[dict]:
+    if not await _table_exists(db, "geo_visibility_reports"):
+        return []
+    layer_key = "brand" if layer == "brand" else "product"
+    row = (
+        await db.execute(
+            text(
+                f"""
+                SELECT sections->'{layer_key}'->'platform_breakdown' AS breakdown
+                FROM geo_visibility_reports
+                WHERE sections->'source'->>'provider' = :provider
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ),
+            {"provider": TJG_PROVIDER},
+        )
+    ).scalar_one_or_none()
+    return list(row) if isinstance(row, list) else []
+
+PLATFORM_LABELS = {
+    "doubao": "豆包",
+    "deepseek": "DeepSeek",
+    "tongyi": "通义千问",
+    "yuanbao": "元宝",
+    "wenxin": "文心一言",
+    "kimi": "Kimi",
+}
+
+SENTIMENT_TOPIC_RULES: dict[str, list[str]] = {
+    "技术实力": ["电池", "安全", "智驾", "芯片", "雷达", "架构", "自研", "算法", "NOA", "L3"],
+    "产品体验": ["互联", "座舱", "续航", "空间", "舒适", "体验", "配置", "屏幕", "音响"],
+    "品牌感知": ["口碑", "品牌", "历史", "进步", "信任", "服务", "售后", "形象"],
+}
+
+
+async def _load_market_settings(db: AsyncSession) -> dict:
+    defaults = {"monthly_search_volume": 50000, "ai_platform_mau": 820000000}
+    if not await _table_exists(db, "site_settings"):
+        return defaults
+    rows = (
+        await db.execute(
+            text(
+                """
+                SELECT setting_key, setting_value FROM site_settings
+                WHERE setting_key IN ('aivis_monthly_search_volume', 'aivis_ai_platform_mau')
+                """
+            )
+        )
+    ).all()
+    for key, value in rows:
+        try:
+            if key == "aivis_monthly_search_volume":
+                defaults["monthly_search_volume"] = int(value)
+            elif key == "aivis_ai_platform_mau":
+                defaults["ai_platform_mau"] = int(value)
+        except (TypeError, ValueError):
+            pass
+    return defaults
+
+
+async def score_platforms(db: AsyncSession, query_type: str | None = None) -> list[dict]:
+    """平台选择建议：可见性 40% + 排名 30% + 好感度 30%。"""
+    kpis = await aggregate_probe_kpis(db, query_type=query_type)
+    platform_rows = kpis.get("platform_summary") or []
+    if not platform_rows:
+        return [
+            {"platform": p, "label": PLATFORM_LABELS.get(p, p), "score": 0, "visibility_pct": 0, "weighted_rank_score": None, "sentiment_score": None}
+            for p in PLATFORMS_CN
+        ]
+
+    max_vis = max((r.get("visibility_pct") or 0) for r in platform_rows) or 1
+    max_rank = max((r.get("weighted_rank_score") or 0) for r in platform_rows) or 1
+    sentiment = kpis.get("sentiment_score") or 50
+
+    scored: list[dict] = []
+    for row in platform_rows:
+        vis_norm = (row.get("visibility_pct") or 0) / max_vis * 100
+        rank_norm = (row.get("weighted_rank_score") or 0) / max_rank * 100 if max_rank else 0
+        sent_norm = sentiment
+        score = round(vis_norm * 0.4 + rank_norm * 0.3 + sent_norm * 0.3)
+        plat = str(row["platform"])
+        scored.append(
+            {
+                "platform": plat,
+                "label": PLATFORM_LABELS.get(plat, plat),
+                "score": score,
+                "visibility_pct": row.get("visibility_pct", 0),
+                "weighted_rank_score": row.get("weighted_rank_score"),
+                "sentiment_score": sentiment,
+            }
+        )
+    scored.sort(key=lambda x: x["score"], reverse=True)
+    logger.info("platform_scored count=%s top=%s", len(scored), scored[0]["platform"] if scored else "none")
+    return scored
+
+
+async def assess_difficulty(db: AsyncSession) -> dict:
+    """三维难度评估：监管合规、市场竞争、实体基础。"""
+    from app.services.admin.strategy_service import _tech_brand_metrics
+    from app.services.geoeval.competitive_analyzer import build_competitor_matrix
+
+    matrix = await build_competitor_matrix(db)
+    tech = await _tech_brand_metrics(db)
+    kpis = await aggregate_probe_kpis(db)
+
+    gap = float(matrix.get("gap_vs_leader") or 0)
+    competitor_count = len(matrix.get("competitors") or [])
+
+    # 市场竞争：差距越大 + 竞品越多 → 难度越高
+    if gap >= 30:
+        market_score = 5
+    elif gap >= 20:
+        market_score = 4
+    elif gap >= 10:
+        market_score = 3
+    elif gap >= 5:
+        market_score = 2
+    else:
+        market_score = 1
+    if competitor_count >= 8:
+        market_score = min(5, market_score + 1)
+
+    # 实体基础：Wiki/Gweb/资产覆盖越高 → 难度越低（分越低越容易）
+    wiki = float(tech.get("wiki_compliance_pct") or 0)
+    gweb = float(tech.get("gweb_sync_rate_pct") or 0)
+    p0 = float(tech.get("p0_coverage_pct") or 0)
+    entity_avg = (wiki + gweb + p0) / 3
+    if entity_avg >= 80:
+        entity_score = 1
+    elif entity_avg >= 60:
+        entity_score = 2
+    elif entity_avg >= 40:
+        entity_score = 3
+    elif entity_avg >= 20:
+        entity_score = 4
+    else:
+        entity_score = 5
+
+    # 监管合规：默认中等，可从 site_settings 覆盖
+    regulatory_score = 3
+    if await _table_exists(db, "site_settings"):
+        row = (
+            await db.execute(
+                text("SELECT setting_value FROM site_settings WHERE setting_key = 'aivis_regulatory_score' LIMIT 1")
+            )
+        ).scalar_one_or_none()
+        if row:
+            try:
+                regulatory_score = max(1, min(5, int(row)))
+            except (TypeError, ValueError):
+                pass
+
+    overall = round((regulatory_score + market_score + entity_score) / 3, 1)
+    opt = await compute_optimization_potential(
+        float(kpis.get("visibility_pct") or 0),
+        float(matrix.get("self_visibility_pct") or 0) + gap,
+    )
+
+    return {
+        "regulatory_compliance": {"score": regulatory_score, "label": _score_label(regulatory_score), "description": "监管与合规要求"},
+        "market_competition": {"score": market_score, "label": _score_label(market_score), "description": f"竞品 {competitor_count} 个，差距 {gap}pp"},
+        "entity_foundation": {"score": entity_score, "label": _score_label(entity_score), "description": f"Wiki {wiki}% · Gweb {gweb}% · P0 {p0}%"},
+        "overall_score": overall,
+        "overall_label": _score_label(round(overall)),
+        "lift_needed_pct": opt.get("lift_needed"),
+        "difficulty_score": opt.get("difficulty_score"),
+    }
+
+
+def _score_label(score: int | float) -> str:
+    s = int(score)
+    labels = {1: "低难度", 2: "较低", 3: "中等", 4: "较高", 5: "高难度"}
+    return labels.get(s, "中等")
+
+
+async def extract_sentiment_topics(db: AsyncSession, limit: int = 20) -> list[dict]:
+    """从探针 snippet 提取正负向主题标签。"""
+    if not await _table_exists(db, "geo_monitor_probe_results"):
+        return []
+
+    rows = (
+        await db.execute(
+            text(
+                """
+                SELECT snippet, sentiment FROM geo_monitor_probe_results
+                WHERE snippet IS NOT NULL AND snippet != ''
+                ORDER BY id DESC LIMIT 200
+                """
+            )
+        )
+    ).all()
+
+    topic_counts: dict[tuple[str, str], int] = defaultdict(int)
+    for snippet, sentiment in rows:
+        polarity = "positive"
+        if isinstance(sentiment, dict):
+            polarity = str(sentiment.get("polarity") or "neutral")
+        elif sentiment:
+            polarity = str(sentiment)
+        if polarity not in ("positive", "negative"):
+            continue
+        text_lower = str(snippet).lower()
+        for category, keywords in SENTIMENT_TOPIC_RULES.items():
+            if any(kw.lower() in text_lower for kw in keywords):
+                topic_counts[(category, polarity)] += 1
+
+    items = [
+        {"category": cat, "polarity": pol, "count": cnt, "label": f"{'正向' if pol == 'positive' else '负向'}·{cat}"}
+        for (cat, pol), cnt in sorted(topic_counts.items(), key=lambda x: x[1], reverse=True)
+    ]
+    return items[:limit]
+
+
+async def build_scene_funnel_tree(db: AsyncSession) -> dict:
+    """Persona → Scene → Intent → Query 五层漏斗树（对齐 TJG 场景图谱层级）。"""
+    if not await _table_exists(db, "geo_monitor_scenes"):
+        return {"personas": [], "stats": {"persona_count": 0, "scene_count": 0, "intent_count": 0, "query_count": 0}}
+
+    scenes = (
+        await db.execute(
+            text(
+                """
+                SELECT id, persona, scene_name, intent, weight_pct, gap_rate, gap_priority
+                FROM geo_monitor_scenes WHERE status = 'active'
+                ORDER BY weight_pct DESC, id ASC
+                """
+            )
+        )
+    ).all()
+
+    has_qtype = await _table_exists(db, "geo_monitor_questions")
+    tjg_visibility = await _load_tjg_scene_visibility(db)
+    persona_map: dict[str, dict] = {}
+
+    for sid, persona, scene_name, intent, weight, gap_rate, gap_priority in scenes:
+        persona_key = str(persona or "未分类画像")
+        if persona_key not in persona_map:
+            persona_map[persona_key] = {"name": persona_key, "weight_pct": 0.0, "scenes": {}}
+
+        scene_key = str(scene_name or intent or "未命名场景")
+        scene_bucket = persona_map[persona_key]["scenes"]
+        if scene_key not in scene_bucket:
+            scene_bucket[scene_key] = {"name": scene_key, "weight_pct": 0.0, "intents": []}
+
+        queries: list[dict] = []
+        if has_qtype:
+            cite_join = ""
+            cite_select = "0 AS citation_count"
+            if await _table_exists(db, "geo_monitor_probe_citations") and await _table_exists(db, "geo_monitor_probe_results"):
+                cite_join = """
+                    LEFT JOIN geo_monitor_probe_results pr ON pr.question_id = mq.id
+                    LEFT JOIN geo_monitor_probe_citations pc ON pc.probe_result_id = pr.id
+                """
+                cite_select = "COUNT(DISTINCT pc.id) AS citation_count"
+            qrows = (
+                await db.execute(
+                    text(
+                        f"""
+                        SELECT mq.id, mq.question_text, {cite_select}
+                        FROM geo_monitor_questions mq
+                        {cite_join}
+                        WHERE mq.scene_id = :sid AND mq.status = 'active'
+                        GROUP BY mq.id, mq.question_text
+                        ORDER BY mq.id
+                        LIMIT 20
+                        """
+                    ),
+                    {"sid": int(sid)},
+                )
+            ).all()
+            queries = [
+                {"id": int(q[0]), "text": str(q[1]), "citation_count": int(q[2] or 0)}
+                for q in qrows
+            ]
+
+        tjg_key = f"{persona_key}|{scene_key}|{intent or scene_name}"
+        tjg_meta = tjg_visibility.get(tjg_key, {})
+        visibility_pct = float(tjg_meta.get("visibility_pct") or 0)
+        intent_gap_priority = str(tjg_meta.get("gap_priority") or gap_priority or "covered")
+        if not visibility_pct:
+            visibility_pct = round(float(gap_rate or 0) * 100, 1)
+
+        article_count = int(tjg_meta.get("article_count") or 0)
+        node_metadata = tjg_meta.get("node_metadata") or {}
+        if not article_count and queries:
+            article_count = 0
+
+        scene_bucket[scene_key]["intents"].append(
+            {
+                "id": int(sid),
+                "name": str(intent or scene_name or "未命名意图"),
+                "visibility_pct": visibility_pct,
+                "gap_rate": float(gap_rate or 0),
+                "gap_priority": intent_gap_priority,
+                "queries": queries,
+                "query_count": len(queries),
+                "citation_count": sum(int(q.get("citation_count") or 0) for q in queries),
+                "article_count": article_count,
+                "external_id": str(tjg_meta.get("external_id") or ""),
+                "node_metadata": node_metadata if isinstance(node_metadata, dict) else {},
+            }
+        )
+        scene_bucket[scene_key]["weight_pct"] += float(weight or 0)
+        persona_map[persona_key]["weight_pct"] += float(weight or 0)
+
+    personas: list[dict] = []
+    scene_count = 0
+    intent_count = 0
+    query_count = 0
+    for persona in sorted(persona_map.values(), key=lambda p: p["weight_pct"], reverse=True):
+        scene_list = sorted(persona["scenes"].values(), key=lambda s: s["weight_pct"], reverse=True)
+        for scene in scene_list:
+            deduped: dict[str, dict] = {}
+            for intent in scene["intents"]:
+                key = str(intent.get("name") or intent.get("id"))
+                prev = deduped.get(key)
+                if not prev or intent.get("query_count", 0) > prev.get("query_count", 0):
+                    deduped[key] = intent
+            scene["intents"] = sorted(deduped.values(), key=lambda i: i.get("visibility_pct", 0))
+            scene_count += 1
+            intent_count += len(scene["intents"])
+            query_count += sum(i.get("query_count", 0) for i in scene["intents"])
+        persona["scenes"] = scene_list
+        personas.append(persona)
+
+    touchpoint = await _load_tjg_touchpoint_tree(db)
+    return {
+        "personas": personas,
+        "stats": {
+            "persona_count": len(personas),
+            "scene_count": scene_count,
+            "intent_count": intent_count,
+            "query_count": query_count,
+        },
+        "touchpoint_tree": touchpoint,
+        "highlight_node_id": str((touchpoint or {}).get("highlight_node_id") or ""),
+    }
+
+
+async def build_optimization_panel(db: AsyncSession) -> dict:
+    from app.services.admin.monitor_aivis_service import list_monitor_insights
+    from app.services.geoeval.scene_gap_analyzer import compute_all_scene_gaps
+
+    market = await _load_market_settings(db)
+    platform_scores = await score_platforms(db)
+    gaps = await compute_all_scene_gaps(db)
+    scenes = sorted(gaps.get("scenes") or [], key=lambda s: (s.get("gap_rate", 0) * s.get("weight_pct", 1)), reverse=True)
+    top_scenes = scenes[:3]
+
+    insights = (await list_monitor_insights(db)).get("items", [])
+
+    return {
+        "market_opportunity": {
+            "monthly_search_volume": market["monthly_search_volume"],
+            "ai_platform_mau": market["ai_platform_mau"],
+            "summary": f"月搜索量 {market['monthly_search_volume']:,}+，AI 平台月活 {market['ai_platform_mau'] / 1e8:.1f} 亿",
+        },
+        "platform_recommendations": platform_scores[:3],
+        "priority_scenes": [
+            {
+                "scene_name": s.get("scene_name"),
+                "gap_rate": s.get("gap_rate"),
+                "gap_priority": s.get("gap_priority"),
+                "weight_pct": s.get("weight_pct"),
+            }
+            for s in top_scenes
+        ],
+        "insights": insights[:5],
+    }

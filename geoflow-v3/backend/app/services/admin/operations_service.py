@@ -10,6 +10,7 @@ from app.models.article import Article
 from app.models.distribution import ArticleDistribution, DistributionChannel
 from app.models.material import AiModel
 from app.models.task import Task, TaskRun
+from app.services.admin.distribution_citation_service import build_distribution_citation_summary
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +162,8 @@ async def build_distribution_panel(db: AsyncSession) -> dict:
         await db.execute(select(ArticleDistribution).order_by(ArticleDistribution.id.desc()).limit(30))
     ).scalars().all()
 
+    citation_summary = await build_distribution_citation_summary(db)
+
     return {
         "stats": {
             "total": len(channels),
@@ -183,6 +186,7 @@ async def build_distribution_panel(db: AsyncSession) -> dict:
             }
             for j in recent_jobs
         ],
+        "citation_summary": citation_summary,
     }
 
 

@@ -23,6 +23,10 @@ class MonitorQuestionBody(BaseModel):
     question_text: str = Field(min_length=1)
     priority: int = Field(default=50, ge=0, le=100)
     status: str = Field(default="active", pattern="^(active|paused)$")
+    scene_id: int | None = None
+    template_id: int | None = None
+    query_type: str = Field(default="brand", pattern="^(brand|product|competitor)$")
+    competitor_brands: list[str] = Field(default_factory=list)
 
 
 class WebSourceBody(BaseModel):
@@ -83,14 +87,39 @@ async def remine_insight_template(db: AsyncSession, template_id: int) -> dict:
 async def create_monitor_question(db: AsyncSession, body: MonitorQuestionBody) -> dict:
     if not await _table_exists(db, "geo_monitor_questions"):
         raise HTTPException(status_code=503, detail="monitor_not_migrated")
-    row = (
-        await db.execute(
-            text(
-                "INSERT INTO geo_monitor_questions (question_text, priority, status) VALUES (:q, :p, :s) RETURNING id"
-            ),
-            {"q": body.question_text.strip(), "p": body.priority, "s": body.status},
-        )
-    ).first()
+    import json
+
+    if await _table_exists(db, "geo_monitor_scenes"):
+        row = (
+            await db.execute(
+                text(
+                    """
+                    INSERT INTO geo_monitor_questions
+                        (question_text, priority, status, scene_id, template_id, query_type, competitor_brands)
+                    VALUES (:q, :p, :s, :sid, :tid, :qt, CAST(:cb AS JSON))
+                    RETURNING id
+                    """
+                ),
+                {
+                    "q": body.question_text.strip(),
+                    "p": body.priority,
+                    "s": body.status,
+                    "sid": body.scene_id,
+                    "tid": body.template_id,
+                    "qt": body.query_type,
+                    "cb": json.dumps(body.competitor_brands, ensure_ascii=False),
+                },
+            )
+        ).first()
+    else:
+        row = (
+            await db.execute(
+                text(
+                    "INSERT INTO geo_monitor_questions (question_text, priority, status) VALUES (:q, :p, :s) RETURNING id"
+                ),
+                {"q": body.question_text.strip(), "p": body.priority, "s": body.status},
+            )
+        ).first()
     await db.flush()
     return {"item": {"id": int(row[0]), "question_text": body.question_text.strip()}}
 
@@ -98,12 +127,36 @@ async def create_monitor_question(db: AsyncSession, body: MonitorQuestionBody) -
 async def update_monitor_question(db: AsyncSession, question_id: int, body: MonitorQuestionBody) -> dict:
     if not await _table_exists(db, "geo_monitor_questions"):
         raise HTTPException(status_code=503, detail="monitor_not_migrated")
-    result = await db.execute(
-        text(
-            "UPDATE geo_monitor_questions SET question_text=:q, priority=:p, status=:s, updated_at=CURRENT_TIMESTAMP WHERE id=:id"
-        ),
-        {"q": body.question_text.strip(), "p": body.priority, "s": body.status, "id": question_id},
-    )
+    import json
+
+    if await _table_exists(db, "geo_monitor_scenes"):
+        result = await db.execute(
+            text(
+                """
+                UPDATE geo_monitor_questions
+                SET question_text=:q, priority=:p, status=:s, scene_id=:sid, template_id=:tid,
+                    query_type=:qt, competitor_brands=CAST(:cb AS JSON), updated_at=CURRENT_TIMESTAMP
+                WHERE id=:id
+                """
+            ),
+            {
+                "q": body.question_text.strip(),
+                "p": body.priority,
+                "s": body.status,
+                "sid": body.scene_id,
+                "tid": body.template_id,
+                "qt": body.query_type,
+                "cb": json.dumps(body.competitor_brands, ensure_ascii=False),
+                "id": question_id,
+            },
+        )
+    else:
+        result = await db.execute(
+            text(
+                "UPDATE geo_monitor_questions SET question_text=:q, priority=:p, status=:s, updated_at=CURRENT_TIMESTAMP WHERE id=:id"
+            ),
+            {"q": body.question_text.strip(), "p": body.priority, "s": body.status, "id": question_id},
+        )
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="question_not_found")
     return {"item": {"id": question_id}}

@@ -34,6 +34,19 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour=4, minute=0),
         "kwargs": {"scan_type": "daily"},
     },
+    "monitor-scan-market": {
+        "task": "app.workers.tasks.run_monitor_scan",
+        "schedule": crontab(hour=3, minute=0, day_of_week=1),
+        "kwargs": {"scan_type": "market"},
+    },
+    "aggregate-monitor-snapshots": {
+        "task": "app.workers.tasks.aggregate_monitor_snapshots",
+        "schedule": crontab(hour=4, minute=30),
+    },
+    "check-monitor-alerts": {
+        "task": "app.workers.tasks.check_monitor_alerts",
+        "schedule": crontab(hour=8, minute=45),
+    },
     "check-adoption-alerts": {
         "task": "app.workers.tasks.check_adoption_alerts",
         "schedule": crontab(hour=8, minute=30),

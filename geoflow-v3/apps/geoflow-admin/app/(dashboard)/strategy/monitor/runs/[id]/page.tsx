@@ -38,7 +38,7 @@ export default function MonitorRunDetailPage() {
 
       {data && (
         <div className="space-y-6">
-          <section className="rounded-lg border bg-white p-5 shadow-sm">
+          <section className="rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200">
             <div className="grid grid-cols-2 gap-4 md:grid-cols-5 text-sm">
               <Stat label="状态" value={data.run.status} />
               <Stat label="问题数" value={String(data.run.question_count)} />
@@ -49,8 +49,8 @@ export default function MonitorRunDetailPage() {
           </section>
 
           {data.platform_stats.length > 0 && (
-            <section className="overflow-hidden rounded-lg border bg-white shadow-sm">
-              <div className="border-b px-4 py-3 text-sm font-semibold">平台汇总</div>
+            <section className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
+              <div className="border-b border-gray-100 px-4 py-3 text-sm font-semibold">平台汇总</div>
               <table className="min-w-full divide-y text-sm">
                 <thead className="bg-gray-50">
                   <tr>
@@ -73,8 +73,8 @@ export default function MonitorRunDetailPage() {
             </section>
           )}
 
-          <section className="overflow-hidden rounded-lg border bg-white shadow-sm">
-            <div className="border-b px-4 py-3 text-sm font-semibold">探针明细 ({data.probes.length})</div>
+          <section className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
+            <div className="border-b border-gray-100 px-4 py-3 text-sm font-semibold">探针明细 ({data.probes.length})</div>
             <div className="max-h-[520px] overflow-y-auto">
               <table className="min-w-full divide-y text-sm">
                 <thead className="sticky top-0 bg-gray-50">

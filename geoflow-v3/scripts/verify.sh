@@ -33,6 +33,13 @@ if [ -n "${TOKEN:-}" ]; then
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor" -H "$AUTH_H" | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert 'recent_probes' in d" 2>/dev/null && log "Admin monitor probes OK" || log "WARN: monitor probes 未就绪（需 alembic 005）"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/settings" -H "$AUTH_H" | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert 'probe_mode' in d" 2>/dev/null && log "Admin monitor settings OK" || log "WARN: monitor settings 未就绪"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/runs" -H "$AUTH_H" >/dev/null && log "Admin monitor runs OK" || log "WARN: monitor runs 未就绪"
+  curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/scenes" -H "$AUTH_H" >/dev/null && log "Admin monitor scenes OK" || log "WARN: AIVIS scenes 未就绪（需 alembic 007）"
+  curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/templates" -H "$AUTH_H" >/dev/null && log "Admin monitor templates OK" || log "WARN: AIVIS templates 未就绪"
+  curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/competitors" -H "$AUTH_H" >/dev/null && log "Admin monitor competitors OK" || log "WARN: AIVIS competitors 未就绪"
+  curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/snapshots" -H "$AUTH_H" >/dev/null && log "Admin monitor snapshots OK" || log "WARN: AIVIS snapshots 未就绪"
+  curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/insights" -H "$AUTH_H" >/dev/null && log "Admin monitor insights OK" || log "WARN: AIVIS insights 未就绪"
+  curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/reports" -H "$AUTH_H" >/dev/null && log "Admin monitor reports OK" || log "WARN: AIVIS reports 未就绪"
+  curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/competitor-matrix" -H "$AUTH_H" >/dev/null && log "Admin competitor matrix OK" || log "WARN: competitor matrix 未就绪"
   curl -sf -X POST "http://127.0.0.1:${API_PORT}/api/admin/knowledge-bases/rag-sandbox" -H "$AUTH_H" -H "Content-Type: application/json" -d '{"knowledge_base_id":1,"query":"test","limit":3}' >/dev/null 2>&1 && log "Admin RAG sandbox OK" || log "WARN: RAG sandbox 跳过（需知识库数据）"
 else
   log "WARN: Admin 登录失败（请先 seed）"

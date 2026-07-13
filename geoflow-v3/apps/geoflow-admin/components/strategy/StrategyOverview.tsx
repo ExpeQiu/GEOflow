@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { zh } from "@/lib/i18n/zh";
 import type { AnalyticsSnapshot, GeoEvalSummary, MonitorKpis, TechBrandMetrics } from "@/lib/strategy-types";
+import { surfaceCardClass } from "./shared/AivisPrimitives";
 
 export function StrategyOverview({
   geoEval,
@@ -20,20 +21,27 @@ export function StrategyOverview({
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <MiniCard
+          label="可见性"
+          value={`${monitor.visibility_pct ?? Math.round(monitor.mention_rate * 100)}%`}
+          meta={`加权排名 ${monitor.weighted_rank_score ?? monitor.avg_brand_rank ?? "—"}`}
+          href="/strategy/monitor"
+          tone="violet"
+        />
+        <MiniCard
+          label="好感度"
+          value={monitor.sentiment_score != null ? `${monitor.sentiment_score}%` : "—"}
+          meta={`探针 ${monitor.probe_count}`}
+          href="/strategy/monitor"
+          tone="cyan"
+        />
         <MiniCard
           label="GEO 通过率"
           value={`${passRate}%`}
           meta={`通过 ${geoEval.passed} · 失败 ${geoEval.failed}`}
           href="/strategy/geo-eval"
           tone="cyan"
-        />
-        <MiniCard
-          label={zh.strategy.monitor.kpiQuestions}
-          value={String(monitor.question_count)}
-          meta={`探针 ${monitor.probe_count}`}
-          href="/strategy/monitor"
-          tone="violet"
         />
         <MiniCard
           label={zh.strategy.analytics.totalViews}
@@ -51,7 +59,7 @@ export function StrategyOverview({
 
 function TechBrandPanel({ metrics }: { metrics: TechBrandMetrics }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <section className={`${surfaceCardClass} p-5`}>
       <h2 className="text-base font-semibold text-gray-900">{zh.strategy.techBrand.title}</h2>
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard label={zh.strategy.techBrand.p0Coverage} value={`${metrics.p0_ready}/${metrics.p0_total}`} sub={`${metrics.p0_coverage_pct}%`} tone="violet" />

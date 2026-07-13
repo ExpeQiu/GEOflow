@@ -41,7 +41,8 @@ if [ ! -x "${BACKEND}/.venv/bin/python" ]; then
   python3 -m venv "${BACKEND}/.venv"
   "${BACKEND}/.venv/bin/pip" install -q \
     fastapi uvicorn sqlalchemy asyncpg psycopg2-binary alembic greenlet \
-    pydantic pydantic-settings "python-jose[cryptography]" bcrypt httpx pyyaml structlog pgvector
+    pydantic pydantic-settings "python-jose[cryptography]" bcrypt httpx pyyaml structlog pgvector \
+    python-multipart celery redis passlib
 fi
 
 log "数据库迁移 + seed..."
@@ -54,29 +55,26 @@ find alembic app -name '._*' -delete 2>/dev/null || true
 
 log "启动 API :${API_PORT:-18081}..."
 API_PORT="${API_PORT:-18081}"
-WATCHDOG_PID_FILE=/tmp/geoflow-v3-api.pid
-
-watchdog_alive() {
-  [ -f "${WATCHDOG_PID_FILE}" ] && ps -p "$(cat "${WATCHDOG_PID_FILE}")" >/dev/null 2>&1 \
-    && ps -p "$(cat "${WATCHDOG_PID_FILE}")" -o args= 2>/dev/null | grep -q run-api-watchdog
-}
-
-if watchdog_alive && curl -sf "http://127.0.0.1:${API_PORT}/health" | grep -q ok; then
-  log "API watchdog 已在运行 (PID $(cat "${WATCHDOG_PID_FILE}"))"
+if curl -sf "http://127.0.0.1:${API_PORT}/health" | grep -q ok 2>/dev/null; then
+  log "API 已在运行 :${API_PORT}"
 else
-  pkill -f "uvicorn app.main:app.*${API_PORT}" 2>/dev/null || true
+  pkill -f "uvicorn app.main:app.*127.0.0.1:${API_PORT}" 2>/dev/null || true
   pkill -f "run-api-watchdog.sh" 2>/dev/null || true
   sleep 1
-  nohup "${ROOT}/scripts/run-api-watchdog.sh" >> /tmp/geoflow-v3-api.log 2>&1 </dev/null &
-  API_PID=$!
-  echo "${API_PID}" > "${WATCHDOG_PID_FILE}"
-  sleep 2
+  "${ROOT}/scripts/daemonize.sh" "${ROOT}/scripts/run-api-watchdog.sh" /tmp/geoflow-v3-api.log /tmp/geoflow-v3-api.pid
+  API_PID=$(cat /tmp/geoflow-v3-api.pid)
+  for _ in 1 2 3 4 5; do
+    if curl -sf "http://127.0.0.1:${API_PORT}/health" | grep -q ok; then
+      break
+    fi
+    sleep 1
+  done
   if ! curl -sf "http://127.0.0.1:${API_PORT}/health" | grep -q ok; then
     log "ERROR: API 启动失败，见 /tmp/geoflow-v3-api.log"
     tail -20 /tmp/geoflow-v3-api.log
     exit 1
   fi
-  log "API watchdog PID=${API_PID} 健康检查通过"
+  log "API PID=${API_PID} 健康检查通过"
 fi
 log "完成 → http://127.0.0.1:${API_PORT:-18081}/health"
 log "Admin 登录 → POST /api/v1/auth/admin-login"
