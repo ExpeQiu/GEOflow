@@ -797,6 +797,34 @@ async def strategy_monitor_scene_create_task(scene_id: int, request: Request, db
     return success(request, await create_task_from_scene_gap(db, scene_id), status=201)
 
 
+@router.get("/strategy/monitor/remediations")
+async def strategy_monitor_remediations_list(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.remediation_service import list_remediations
+
+    return success(request, await list_remediations(db))
+
+
+@router.post("/strategy/monitor/remediations/process-due")
+async def strategy_monitor_remediations_process_due(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.remediation_service import process_due_remediations
+
+    return success(request, await process_due_remediations(db))
+
+
+@router.post("/strategy/monitor/remediations/{remediation_id}/rescan")
+async def strategy_monitor_remediation_rescan(remediation_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.remediation_service import complete_remediation_rescan
+
+    return success(request, await complete_remediation_rescan(db, remediation_id))
+
+
+@router.get("/strategy/monitor/gweb-alignment")
+async def strategy_monitor_gweb_alignment(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.gweb_alignment_service import compute_gweb_alignment
+
+    return success(request, await compute_gweb_alignment(db))
+
+
 @router.get("/strategy/monitor/scenes/{scene_id}/citation-chain")
 async def strategy_monitor_scene_citation_chain(scene_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     from app.services.geoeval.citation_chain_service import get_scene_citation_chain

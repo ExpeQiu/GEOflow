@@ -1,0 +1,25 @@
+# 策略旋钮草案（仿真沙箱输出建议后由人审写入；绝不自动覆盖 visibility_open_api）
+version: 0.1.0
+metric_policy:
+  primary: open_api
+  footnote_on_bias: true
+  do_not_overwrite_open_api_kpi: true
+
+rank:
+  report_weight:
+    list_order: 1.0
+    first_mention: 0.3
+    unknown: 0.0
+
+citation:
+  min_evidence_level_for_chain: L1
+  forbid_corpus_as_l1: true
+
+scan:
+  platforms: [doubao, deepseek]
+  priority_floor_daily: 80
+
+bias:
+  # 由 simsb calibrate 填充观察值；此处仅占位
+  mention_delta_open_api_vs_cend: null
+  rank_delta_open_api_vs_cend: null

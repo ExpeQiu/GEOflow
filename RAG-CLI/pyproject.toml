@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ragc"
+version = "0.1.0"
+description = "RAG-CLI — 独立知识库切分 / Embedding / Sync / Query（不依赖 GEOFlow）"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.1.0",
+    "pyyaml>=6.0.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0"]
+
+[project.scripts]
+ragc = "ragc.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ragc*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

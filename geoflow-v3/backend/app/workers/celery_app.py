@@ -51,4 +51,8 @@ celery_app.conf.beat_schedule = {
         "task": "app.workers.tasks.check_adoption_alerts",
         "schedule": crontab(hour=8, minute=30),
     },
+    "process-due-remediations": {
+        "task": "app.workers.tasks.process_due_remediations",
+        "schedule": 3600.0,
+    },
 }

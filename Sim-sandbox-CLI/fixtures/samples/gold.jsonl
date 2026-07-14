@@ -1,0 +1,4 @@
+{"question_id":"q1","platform":"doubao","mentioned":true,"brand_rank":2,"source":"manual"}
+{"question_id":"q2","platform":"doubao","mentioned":false,"brand_rank":null,"source":"manual"}
+{"question_id":"q3","platform":"deepseek","mentioned":false,"brand_rank":null,"source":"manual"}
+{"question_id":"q4","platform":"deepseek","mentioned":true,"brand_rank":2,"source":"manual"}

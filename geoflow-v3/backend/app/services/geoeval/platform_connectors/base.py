@@ -42,6 +42,12 @@ class ProbeOutcome:
     ranking_score: float = 0.0
     sentiment: dict | None = None
     competitor_mentions: list = field(default_factory=list)
+    # Rank v2 / Citation L0–L1（answer_parser）；旧路径可留默认
+    rank_method: str = "unknown"  # list_order | first_mention | unknown
+    evidence_level: str = "L0"  # L0 | L1
+    match_type: str = "none"  # domain_wiki | domain_official | none
+    parser_version: str | None = None
+    urls: list = field(default_factory=list)
 
 
 class PlatformConnector(Protocol):

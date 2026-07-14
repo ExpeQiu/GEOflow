@@ -4,11 +4,10 @@ import json
 import logging
 
 from fastapi import HTTPException
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.material import Prompt
-from app.models.task import Task
 from app.services.admin.production_service import _table_exists
 from app.services.admin.task_form_service import AdminTaskCreateBody, create_admin_task
 from app.services.geoeval.scene_gap_analyzer import compute_scene_gap
@@ -113,20 +112,42 @@ async def create_task_from_scene_gap(db: AsyncSession, scene_id: int) -> dict:
     result = await create_admin_task(db, body)
     task_id = result["task"]["id"]
 
+    meta = {
+        "source": "monitor_gap",
+        "scene_id": scene_id,
+        "gap_rate": float(scene_row[3] or 0),
+        "gap_priority": gap.get("gap_priority"),
+    }
+    logger.info(
+        "gap_task_created task_id=%s scene_id=%s gap_rate=%s meta=%s",
+        task_id,
+        scene_id,
+        scene_row[3],
+        json.dumps(meta, ensure_ascii=False),
+    )
+
+    from app.services.geoeval.remediation_service import create_remediation_for_gap
+
+    remediation = await create_remediation_for_gap(
+        db,
+        scene_id=scene_id,
+        task_id=task_id,
+        gap_rate=float(scene_row[3] or gap.get("gap_rate") or 0),
+        gap_priority=gap.get("gap_priority"),
+    )
+
+    # 若有最新 task_run，写入 meta 便于追踪
     if await _table_exists(db, "task_runs"):
-        meta = {
-            "source": "monitor_gap",
-            "scene_id": scene_id,
-            "gap_rate": float(scene_row[3] or 0),
-        }
-        task = await db.get(Task, task_id)
-        if task:
-            logger.info(
-                "gap_task_created task_id=%s scene_id=%s gap_rate=%s meta=%s",
-                task_id,
-                scene_id,
-                scene_row[3],
-                json.dumps(meta, ensure_ascii=False),
+        run_id = (
+            await db.execute(
+                text("SELECT id FROM task_runs WHERE task_id = :tid ORDER BY id DESC LIMIT 1"),
+                {"tid": task_id},
+            )
+        ).scalar_one_or_none()
+        if run_id:
+            await db.execute(
+                text("UPDATE task_runs SET meta = :meta WHERE id = :id"),
+                {"meta": json.dumps({**meta, "remediation_id": remediation.get("remediation_id")}), "id": int(run_id)},
             )
 
     return {
@@ -135,4 +156,5 @@ async def create_task_from_scene_gap(db: AsyncSession, scene_id: int) -> dict:
         "scene_id": scene_id,
         "gap_rate": float(scene_row[3] or 0),
         "gap_priority": gap.get("gap_priority"),
+        "remediation": remediation,
     }

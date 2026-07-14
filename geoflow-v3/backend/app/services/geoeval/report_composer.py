@@ -38,6 +38,40 @@ def _html_escape(s: str) -> str:
     )
 
 
+def _closed_loop_items(
+    rem_items: list[dict],
+    completed_lifts: list[dict],
+    alignment: dict,
+    high_scenes: list[dict],
+) -> list[str]:
+    items: list[str] = []
+    for r in completed_lifts[:8]:
+        items.append(
+            f"[{r.get('status')}] {r.get('scene_name') or r.get('scene_id')} "
+            f"基线 {r.get('baseline_visibility_pct')}% → 复测 {r.get('post_visibility_pct')}% "
+            f"(Δ {r.get('delta_visibility_pct')}pp) task={r.get('task_id')}"
+        )
+    for r in rem_items:
+        if r.get("status") == "completed":
+            continue
+        items.append(
+            f"[进行中] {r.get('scene_name') or r.get('scene_id')} status={r.get('status')} "
+            f"baseline={r.get('baseline_visibility_pct')}% rescan_after={r.get('rescan_after')}"
+        )
+        if len([x for x in items if x.startswith("[进行中]")]) >= 5:
+            break
+    if not rem_items:
+        items.append("暂无补缺实验记录：请从场景缺口「一键创建 Task」启动闭环")
+    items.append(
+        f"Gweb 对齐：匹配 {alignment.get('matched_count')} / "
+        f"仅远端 {alignment.get('only_gweb_count')} / 仅本地 {alignment.get('only_local_count')} "
+        f"(fetch={alignment.get('status')})"
+    )
+    for s in high_scenes:
+        items.append(f"高优缺口场景：{s.get('scene_name')} ({float(s.get('gap_rate', 0))*100:.0f}%)")
+    return items
+
+
 def _render_matrix_html(matrix: list, title: str = "竞品对标矩阵") -> str:
     if not matrix:
         return "<p>暂无矩阵数据</p>"
@@ -114,6 +148,14 @@ async def compose_visibility_report(db: AsyncSession, period_days: int = 7) -> d
     )
     high_scenes = [s for s in gaps.get("scenes", []) if s.get("gap_priority") == "high"][:3]
 
+    from app.services.geoeval.remediation_service import list_remediations
+    from app.services.geoeval.gweb_alignment_service import compute_gweb_alignment
+
+    remediations = await list_remediations(db, limit=10)
+    rem_items = remediations.get("items") or []
+    completed_lifts = [r for r in rem_items if r.get("status") == "completed"]
+    alignment = await compute_gweb_alignment(db)
+
     qstats = {"brand": 0, "product": 0}
     if await _table_exists(db, "geo_monitor_questions"):
         rows = (
@@ -189,6 +231,21 @@ async def compose_visibility_report(db: AsyncSession, period_days: int = 7) -> d
                 f"综合难度 {difficulty['overall_score']}/5",
                 f"优化提升需 {opt.get('lift_needed')}%",
             ],
+        },
+        "closed_loop": {
+            "title": "闭环验证 · 补缺 Lift 与数据质量",
+            "html": (
+                "<div class='kpi'>探针 engine 构成 <strong>"
+                + (
+                    ", ".join(f"{e['label']}:{e['count']}" for e in (kpis.get("engine_mix") or [])[:4])
+                    or "—"
+                )
+                + "</strong></div>"
+                f"<div class='kpi'>Gweb 对齐率 <strong>{alignment.get('alignment_pct', 0)}%</strong></div>"
+                f"<div class='kpi'>Gweb 页数 <strong>{alignment.get('gweb_page_count', 0)}</strong></div>"
+                f"<div class='kpi'>补缺实验 <strong>{len(rem_items)}</strong></div>"
+            ),
+            "items": _closed_loop_items(rem_items, completed_lifts, alignment, high_scenes),
         },
     }
 

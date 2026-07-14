@@ -2,32 +2,13 @@
 
 import logging
 import os
-import re
 
 import httpx
 
-from app.services.geoeval.platform_connectors.base import ProbeOutcome, calc_ranking_score
+from app.services.geoeval.answer_parser import PARSER_VERSION, parse_answer
+from app.services.geoeval.platform_connectors.base import ProbeOutcome
 
 logger = logging.getLogger(__name__)
-
-
-def _extract_brands(text: str, brands: list[str]) -> tuple[int | None, list[str]]:
-    """从回答文本中提取品牌排名。"""
-    low = text.lower()
-    found: list[tuple[int, str]] = []
-    for brand in brands:
-        if not brand:
-            continue
-        match = re.search(re.escape(brand.lower()), low)
-        if match:
-            found.append((match.start(), brand))
-    if not found:
-        return None, []
-    found.sort(key=lambda x: x[0])
-    rank = 1
-    target = found[0][1]
-    mentions = [b for _, b in found]
-    return rank, mentions
 
 
 class ApiConnector:
@@ -41,7 +22,6 @@ class ApiConnector:
         brand_list: list[str],
         competitor_brands: list[str] | None = None,
     ) -> ProbeOutcome | None:
-        all_brands = list(brand_list) + list(competitor_brands or [])
         try:
             if platform == "deepseek":
                 text = await self._call_deepseek(question_text)
@@ -56,24 +36,35 @@ class ApiConnector:
         if not text:
             return None
 
-        rank, comp_mentions = _extract_brands(text, all_brands)
-        self_mentioned = rank is not None and any(b in brand_list for b in (comp_mentions or []))
-        if rank is None:
-            for idx, brand in enumerate(all_brands, start=1):
-                if brand in brand_list and brand.lower() in text.lower():
-                    rank = idx
-                    self_mentioned = True
-                    break
-
+        parsed = parse_answer(
+            text,
+            brand_list=brand_list,
+            competitor_brands=competitor_brands,
+        )
+        logger.info(
+            "api_probe_parsed platform=%s rank_method=%s evidence_level=%s "
+            "parser_version=%s mentioned=%s brand_rank=%s",
+            platform,
+            parsed.rank_method,
+            parsed.evidence_level,
+            PARSER_VERSION,
+            parsed.mentioned,
+            parsed.brand_rank,
+        )
         return ProbeOutcome(
             question_id=0,
             platform=platform,
-            brand_rank=rank if self_mentioned else None,
-            mentioned=self_mentioned,
-            snippet=text[:240],
+            brand_rank=parsed.brand_rank,
+            mentioned=parsed.mentioned,
+            snippet=parsed.snippet or text[:240],
             engine="api",
-            ranking_score=calc_ranking_score(rank if self_mentioned else None),
-            competitor_mentions=[c for c in comp_mentions if c not in brand_list],
+            ranking_score=parsed.ranking_score,
+            competitor_mentions=list(parsed.competitor_mentions),
+            rank_method=parsed.rank_method,
+            evidence_level=parsed.evidence_level,
+            match_type=parsed.match_type,
+            parser_version=PARSER_VERSION,
+            urls=list(parsed.urls),
         )
 
     async def _call_deepseek(self, question: str) -> str:

@@ -58,4 +58,5 @@ Authorization: Bearer {GWEB_REVALIDATE_SECRET}
 | Step 0–1 | tech_ip_assets | — |
 | Step 2 生产 | Wiki Task + Prompt | MDX 渲染 |
 | Step 2 展现 | gweb_wiki 同步 | concepts/compare/... |
-| Step 5 | Strategy Hub KPI | 流量 / pages.json |
+| Step 5 | Strategy Hub KPI + Gweb 对齐率 | 流量入口 / pages.json 对齐 |
+

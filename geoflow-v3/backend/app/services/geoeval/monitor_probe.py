@@ -10,7 +10,12 @@ from app.models.article import Article
 from app.models.knowledge import KnowledgeBase
 from app.services.admin.production_service import _table_exists
 from app.services.geoeval.platform_connectors.base import PLATFORMS_CN, ProbeOutcome, calc_ranking_score
-from app.services.geoeval.platform_connectors.registry import load_platforms, load_probe_mode, probe_platform
+from app.services.geoeval.platform_connectors.registry import (
+    load_platforms,
+    load_probe_mode,
+    load_strict_api,
+    probe_platform,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +143,10 @@ async def _persist_probe(
         "ranking_score": outcome.ranking_score,
         "sentiment": json.dumps(outcome.sentiment) if outcome.sentiment else None,
         "competitor_mentions": json.dumps(outcome.competitor_mentions or []),
+        "rank_method": outcome.rank_method or "unknown",
+        "evidence_level": outcome.evidence_level or "L0",
+        "match_type": outcome.match_type or "none",
+        "parser_version": outcome.parser_version,
     }
     probe_id: int | None = None
     try:
@@ -147,9 +156,11 @@ async def _persist_probe(
                     """
                     INSERT INTO geo_monitor_probe_results
                         (run_id, question_id, platform, brand_rank, mentioned, snippet, engine,
-                         ranking_score, sentiment, competitor_mentions)
+                         ranking_score, sentiment, competitor_mentions,
+                         rank_method, evidence_level, match_type, parser_version)
                     VALUES (:run_id, :qid, :platform, :rank, :mentioned, :snippet, :engine,
-                            :ranking_score, CAST(:sentiment AS JSON), CAST(:competitor_mentions AS JSON))
+                            :ranking_score, CAST(:sentiment AS JSON), CAST(:competitor_mentions AS JSON),
+                            :rank_method, :evidence_level, :match_type, :parser_version)
                     RETURNING id
                     """
                 ),
@@ -158,22 +169,40 @@ async def _persist_probe(
         ).first()
         probe_id = int(row[0]) if row else None
     except Exception:
-        row = (
-            await db.execute(
-                text(
-                    """
-                    INSERT INTO geo_monitor_probe_results
-                        (run_id, question_id, platform, brand_rank, mentioned, snippet, engine)
-                    VALUES (:run_id, :qid, :platform, :rank, :mentioned, :snippet, :engine)
-                    RETURNING id
-                    """
-                ),
-                {k: v for k, v in params.items() if k in ("run_id", "qid", "platform", "rank", "mentioned", "snippet", "engine")},
-            )
-        ).first()
-        probe_id = int(row[0]) if row else None
+        try:
+            row = (
+                await db.execute(
+                    text(
+                        """
+                        INSERT INTO geo_monitor_probe_results
+                            (run_id, question_id, platform, brand_rank, mentioned, snippet, engine,
+                             ranking_score, sentiment, competitor_mentions)
+                        VALUES (:run_id, :qid, :platform, :rank, :mentioned, :snippet, :engine,
+                                :ranking_score, CAST(:sentiment AS JSON), CAST(:competitor_mentions AS JSON))
+                        RETURNING id
+                        """
+                    ),
+                    {k: v for k, v in params.items() if k not in ("rank_method", "evidence_level", "match_type", "parser_version")},
+                )
+            ).first()
+            probe_id = int(row[0]) if row else None
+        except Exception:
+            row = (
+                await db.execute(
+                    text(
+                        """
+                        INSERT INTO geo_monitor_probe_results
+                            (run_id, question_id, platform, brand_rank, mentioned, snippet, engine)
+                        VALUES (:run_id, :qid, :platform, :rank, :mentioned, :snippet, :engine)
+                        RETURNING id
+                        """
+                    ),
+                    {k: v for k, v in params.items() if k in ("run_id", "qid", "platform", "rank", "mentioned", "snippet", "engine")},
+                )
+            ).first()
+            probe_id = int(row[0]) if row else None
 
-    if probe_id and corpus and question_text:
+    if probe_id and corpus and question_text and outcome.engine == "corpus":
         await _persist_corpus_citations(db, probe_id=probe_id, question_text=question_text, corpus=corpus)
     return probe_id
 
@@ -189,7 +218,9 @@ async def run_probes_for_questions(
     corpus = await load_corpus(db)
     probe_mode = await load_probe_mode(db)
     platforms = await load_platforms(db)
+    strict_api = await load_strict_api(db)
     outcomes: list[ProbeOutcome] = []
+    engine_counts: dict[str, int] = {}
 
     for q_idx, (qid, question_text, priority, competitor_brands) in enumerate(questions):
         for platform in platforms:
@@ -203,9 +234,11 @@ async def run_probes_for_questions(
                 competitor_brands=competitor_brands,
                 probe_mode=probe_mode,
                 question_index=q_idx,
+                strict_api=strict_api,
             )
             outcome.question_id = qid
             outcomes.append(outcome)
+            engine_counts[outcome.engine] = engine_counts.get(outcome.engine, 0) + 1
             await _persist_probe(
                 db,
                 run_id=run_id,
@@ -215,17 +248,26 @@ async def run_probes_for_questions(
             )
 
     logger.info(
-        "monitor_probes_completed run_id=%s questions=%s probes=%s mode=%s platforms=%s",
+        "monitor_probes_completed run_id=%s questions=%s probes=%s mode=%s platforms=%s strict_api=%s engines=%s",
         run_id,
         len(questions),
         len(outcomes),
         probe_mode,
         len(platforms),
+        strict_api,
+        engine_counts,
     )
     return outcomes
 
 
-async def aggregate_probe_kpis(db: AsyncSession, query_type: str | None = None) -> dict:
+async def aggregate_probe_kpis(
+    db: AsyncSession,
+    query_type: str | None = None,
+    *,
+    scene_id: int | None = None,
+    run_id: int | None = None,
+    trusted_only: bool = False,
+) -> dict:
     empty = {
         "probe_count": 0,
         "avg_brand_rank": None,
@@ -236,6 +278,10 @@ async def aggregate_probe_kpis(db: AsyncSession, query_type: str | None = None) 
         "platform_summary": [],
         "platform_matrix": [],
         "query_type": query_type,
+        "engine_mix": [],
+        "trusted_only": trusted_only,
+        "scene_id": scene_id,
+        "run_id": run_id,
     }
     if not await _table_exists(db, "geo_monitor_probe_results"):
         return empty
@@ -243,10 +289,22 @@ async def aggregate_probe_kpis(db: AsyncSession, query_type: str | None = None) 
     join_sql = ""
     where_extra = ""
     params: dict = {}
-    if query_type and await _table_exists(db, "geo_monitor_questions"):
+    need_questions = bool(query_type or scene_id)
+    if need_questions and await _table_exists(db, "geo_monitor_questions"):
         join_sql = "JOIN geo_monitor_questions mq ON mq.id = pr.question_id"
-        where_extra = "AND COALESCE(mq.query_type, 'brand') = :qt"
-        params["qt"] = query_type
+        if query_type:
+            where_extra += " AND COALESCE(mq.query_type, 'brand') = :qt"
+            params["qt"] = query_type
+        if scene_id is not None:
+            where_extra += " AND mq.scene_id = :sid"
+            params["sid"] = scene_id
+    if run_id is not None:
+        where_extra += " AND pr.run_id = :rid"
+        params["rid"] = run_id
+    if trusted_only:
+        where_extra += " AND COALESCE(pr.engine, 'corpus') = 'api'"
+    else:
+        where_extra += " AND COALESCE(pr.engine, 'corpus') <> 'skipped'"
 
     total = int(
         await db.scalar(
@@ -354,6 +412,31 @@ async def aggregate_probe_kpis(db: AsyncSession, query_type: str | None = None) 
         for r in platform_rows
     ]
 
+    engine_mix: list[dict] = []
+    try:
+        engine_rows = (
+            await db.execute(
+                text(
+                    f"""
+                    SELECT COALESCE(pr.engine, 'corpus') AS eng, COUNT(*) AS cnt
+                    FROM geo_monitor_probe_results pr
+                    {join_sql}
+                    WHERE 1=1 {where_extra}
+                    GROUP BY COALESCE(pr.engine, 'corpus')
+                    ORDER BY cnt DESC
+                    """
+                ),
+                params,
+            )
+        ).all()
+        labels = {"corpus": "语料", "llm": "LLM 模拟", "api": "真实 API", "skipped": "跳过"}
+        engine_mix = [
+            {"engine": str(r[0]), "label": labels.get(str(r[0]), str(r[0])), "count": int(r[1])}
+            for r in engine_rows
+        ]
+    except Exception:
+        logger.debug("engine_mix_query_failed", exc_info=True)
+
     return {
         "probe_count": total,
         "avg_brand_rank": round(float(avg_rank), 2) if avg_rank is not None else None,
@@ -364,7 +447,50 @@ async def aggregate_probe_kpis(db: AsyncSession, query_type: str | None = None) 
         "platform_summary": platform_summary,
         "platform_matrix": platform_summary,
         "query_type": query_type,
+        "engine_mix": engine_mix,
+        "trusted_only": trusted_only,
+        "scene_id": scene_id,
+        "run_id": run_id,
     }
+
+
+async def aggregate_scene_visibility(
+    db: AsyncSession,
+    scene_id: int,
+    *,
+    run_id: int | None = None,
+    trusted_only: bool = False,
+) -> dict:
+    """按场景聚合可见性，供补缺实验 baseline/post 对比。"""
+    kpis = await aggregate_probe_kpis(
+        db,
+        scene_id=scene_id,
+        run_id=run_id,
+        trusted_only=trusted_only,
+    )
+    latest_run_id = run_id
+    if latest_run_id is None and await _table_exists(db, "geo_monitor_probe_results"):
+        latest_run_id = await db.scalar(
+            text(
+                """
+                SELECT pr.run_id FROM geo_monitor_probe_results pr
+                JOIN geo_monitor_questions mq ON mq.id = pr.question_id
+                WHERE mq.scene_id = :sid
+                ORDER BY pr.id DESC
+                LIMIT 1
+                """
+            ),
+            {"sid": scene_id},
+        )
+    kpis["latest_run_id"] = int(latest_run_id) if latest_run_id else None
+    logger.info(
+        "scene_visibility_aggregated scene_id=%s visibility=%s probes=%s trusted_only=%s",
+        scene_id,
+        kpis.get("visibility_pct"),
+        kpis.get("probe_count"),
+        trusted_only,
+    )
+    return kpis
 
 
 async def aggregate_monitor_snapshot(db: AsyncSession) -> dict:

@@ -1,0 +1,5 @@
+chunk_size: 1200
+chunk_overlap: 200
+retrieval_limit: 8
+hybrid_enabled: true
+# store_path: ~/.ragc/store.json

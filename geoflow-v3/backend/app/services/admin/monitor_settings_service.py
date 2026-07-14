@@ -21,6 +21,13 @@ class MonitorSettingsBody(BaseModel):
     monitor_platforms: str = ""
     monitor_scan_limit: int = Field(default=50, ge=1, le=500)
     default_knowledge_base_id: int | None = None
+    strict_api: bool = False
+    remediation_delay_hours: int = Field(default=72, ge=0, le=720)
+    gap_rag_score_threshold: float = Field(default=0.3, ge=0.05, le=0.95)
+
+
+def _as_bool(value: str | None) -> bool:
+    return str(value or "").lower() in ("1", "true", "yes", "on")
 
 
 async def get_monitor_settings(db: AsyncSession) -> dict:
@@ -31,6 +38,9 @@ async def get_monitor_settings(db: AsyncSession) -> dict:
     monitor_platforms = ",".join(PLATFORMS_CN)
     monitor_scan_limit = 50
     default_knowledge_base_id: int | None = None
+    strict_api = False
+    remediation_delay_hours = 72
+    gap_rag_score_threshold = 0.3
 
     if await _table_exists(db, "site_settings"):
         rows = (
@@ -40,7 +50,8 @@ async def get_monitor_settings(db: AsyncSession) -> dict:
                     SELECT setting_key, setting_value FROM site_settings
                     WHERE setting_key IN (
                         'brand_name', 'brand_aliases', 'monitor_probe_mode',
-                        'monitor_platforms', 'monitor_scan_limit', 'default_knowledge_base_id'
+                        'monitor_platforms', 'monitor_scan_limit', 'default_knowledge_base_id',
+                        'monitor_strict_api', 'remediation_delay_hours', 'gap_rag_score_threshold'
                     )
                     """
                 )
@@ -65,6 +76,18 @@ async def get_monitor_settings(db: AsyncSession) -> dict:
                     default_knowledge_base_id = int(value)
                 except (TypeError, ValueError):
                     pass
+            elif key == "monitor_strict_api":
+                strict_api = _as_bool(str(value))
+            elif key == "remediation_delay_hours" and value is not None:
+                try:
+                    remediation_delay_hours = max(0, min(720, int(value)))
+                except (TypeError, ValueError):
+                    pass
+            elif key == "gap_rag_score_threshold" and value is not None:
+                try:
+                    gap_rag_score_threshold = max(0.05, min(0.95, float(value)))
+                except (TypeError, ValueError):
+                    pass
 
     platforms = tuple(p.strip() for p in monitor_platforms.split(",") if p.strip()) or PLATFORMS_CN
 
@@ -77,6 +100,9 @@ async def get_monitor_settings(db: AsyncSession) -> dict:
         "default_knowledge_base_id": default_knowledge_base_id,
         "platforms": list(platforms),
         "ai_mock_mode": settings.ai_mock_mode,
+        "strict_api": strict_api,
+        "remediation_delay_hours": remediation_delay_hours,
+        "gap_rag_score_threshold": gap_rag_score_threshold,
     }
 
 
@@ -93,11 +119,20 @@ async def save_monitor_settings(db: AsyncSession, body: MonitorSettingsBody) -> 
             "integer",
             "monitor",
         ),
+        ("monitor_strict_api", "true" if body.strict_api else "false", "boolean", "monitor"),
+        ("remediation_delay_hours", str(body.remediation_delay_hours), "integer", "monitor"),
+        ("gap_rag_score_threshold", str(body.gap_rag_score_threshold), "float", "monitor"),
     ]
     for key, value, vtype, group in items:
         await upsert_site_setting(
             db,
             SiteSettingBody(setting_key=key, setting_value=value, value_type=vtype, group_name=group),
         )
-    logger.info("monitor_settings_saved probe_mode=%s platforms=%s", body.probe_mode, body.monitor_platforms)
+    logger.info(
+        "monitor_settings_saved probe_mode=%s platforms=%s strict_api=%s delay_h=%s",
+        body.probe_mode,
+        body.monitor_platforms,
+        body.strict_api,
+        body.remediation_delay_hours,
+    )
     return await get_monitor_settings(db)

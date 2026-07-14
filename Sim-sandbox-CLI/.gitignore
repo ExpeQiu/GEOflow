@@ -1,0 +1,17 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.env
+.pytest_cache/
+*.log
+.DS_Store
+._*
+data/
+.out/
+.simsb-web.pid
+.simsb-web.log

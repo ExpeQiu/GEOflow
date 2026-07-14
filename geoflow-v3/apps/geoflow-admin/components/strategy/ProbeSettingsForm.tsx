@@ -18,6 +18,9 @@ export function ProbeSettingsForm({ onSaved }: { onSaved?: () => void }) {
     monitor_scan_limit: 50,
     default_knowledge_base_id: null as number | null,
     selectedPlatforms: [] as string[],
+    strict_api: false,
+    remediation_delay_hours: 72,
+    gap_rag_score_threshold: 0.3,
   });
   const [msg, setMsg] = useState("");
 
@@ -36,6 +39,9 @@ export function ProbeSettingsForm({ onSaved }: { onSaved?: () => void }) {
           monitor_scan_limit: s.monitor_scan_limit || 50,
           default_knowledge_base_id: s.default_knowledge_base_id ?? null,
           selectedPlatforms: plats,
+          strict_api: Boolean(s.strict_api),
+          remediation_delay_hours: s.remediation_delay_hours ?? 72,
+          gap_rag_score_threshold: s.gap_rag_score_threshold ?? 0.3,
         });
       })
       .catch(() => {});
@@ -69,6 +75,9 @@ export function ProbeSettingsForm({ onSaved }: { onSaved?: () => void }) {
         monitor_platforms: form.selectedPlatforms.join(","),
         monitor_scan_limit: form.monitor_scan_limit,
         default_knowledge_base_id: form.default_knowledge_base_id,
+        strict_api: form.strict_api,
+        remediation_delay_hours: form.remediation_delay_hours,
+        gap_rag_score_threshold: form.gap_rag_score_threshold,
       };
       const saved = await apiPatch<MonitorSettings>("/api/admin/strategy/monitor/settings", t, payload);
       setSettings(saved);
@@ -84,6 +93,11 @@ export function ProbeSettingsForm({ onSaved }: { onSaved?: () => void }) {
   return (
     <form onSubmit={save} className={`${surfaceCardClass} space-y-3 p-4`}>
       <h3 className="text-sm font-semibold">探针设置（国内 6 平台）</h3>
+      {settings.ai_mock_mode && (
+        <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          当前 AI_MOCK_MODE=true：RAG 缺口可能失真，生产闭环请关闭 Mock 并配置 Embedding / 探针 API Key。
+        </p>
+      )}
       <div className="grid gap-3 md:grid-cols-4">
         <input
           className={surfaceInputClass}
@@ -132,6 +146,34 @@ export function ProbeSettingsForm({ onSaved }: { onSaved?: () => void }) {
             </option>
           ))}
         </select>
+        <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={form.strict_api}
+            onChange={(e) => setForm({ ...form, strict_api: e.target.checked })}
+          />
+          严格 API（禁止降级污染）
+        </label>
+        <input
+          type="number"
+          min={0}
+          max={720}
+          className={surfaceInputClass}
+          placeholder="补缺再扫延迟(小时)"
+          value={form.remediation_delay_hours}
+          onChange={(e) => setForm({ ...form, remediation_delay_hours: Number(e.target.value) })}
+          title="发布后延迟多少小时再扫同场景"
+        />
+        <input
+          type="number"
+          min={0.05}
+          max={0.95}
+          step={0.05}
+          className={surfaceInputClass}
+          placeholder="RAG 缺口阈值"
+          value={form.gap_rag_score_threshold}
+          onChange={(e) => setForm({ ...form, gap_rag_score_threshold: Number(e.target.value) })}
+        />
         <button type="submit" className="rounded-md bg-violet-600 px-4 py-2 text-sm text-white">
           保存
         </button>
@@ -145,6 +187,9 @@ export function ProbeSettingsForm({ onSaved }: { onSaved?: () => void }) {
           </label>
         ))}
       </div>
+      <p className="text-xs text-gray-500">
+        真实闭环建议：probe_mode=api + 勾选严格 API + 平台选豆包/DeepSeek；补缺再扫默认 72 小时（联调可设 0）。
+      </p>
       {msg && <p className="text-xs text-violet-700">{msg}</p>}
     </form>
   );

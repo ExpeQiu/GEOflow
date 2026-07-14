@@ -1,0 +1,3 @@
+{"id":"rank_first_01","platform":"doubao","question":"吉利电池怎么样","brand_list":["吉利"],"competitor_brands":["比亚迪"],"answer_text":"很多人会拿吉利和比亚迪对比，吉利神盾电池在热安全上有特色。","expected":{"mentioned":true,"brand_rank":1,"rank_method":"first_mention","evidence_level":"L0"}}
+{"id":"rank_first_02","platform":"deepseek","question":"竞品对比","brand_list":["吉利"],"competitor_brands":["比亚迪","特斯拉"],"answer_text":"特斯拉仍是标杆，其次是比亚迪，吉利也在追赶。","expected":{"mentioned":true,"brand_rank":3,"rank_method":"first_mention","evidence_level":"L0"}}
+{"id":"rank_first_03","platform":"doubao","question":"有没有出现","brand_list":["吉利"],"competitor_brands":["比亚迪"],"answer_text":"目前主流推荐还是比亚迪和特斯拉，暂时不展开其他品牌。","expected":{"mentioned":false,"brand_rank":null,"rank_method":"unknown","evidence_level":"L0"}}

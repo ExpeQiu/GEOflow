@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SimSB · 仿真沙箱</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="atmosphere" aria-hidden="true"></div>
+
+  <header class="hero">
+    <p class="brand">SimSB</p>
+    <h1 class="headline">探针仿真沙箱</h1>
+    <p class="lede">离线解析答文、评测夹具、对照金标偏移——不改写生产 KPI。</p>
+    <div class="cta-row">
+      <button type="button" class="btn primary" data-jump="panel-parse">开始解析</button>
+      <button type="button" class="btn ghost" data-jump="panel-eval">运行评测</button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="沙箱功能">
+    <button type="button" class="tab active" role="tab" aria-selected="true" data-tab="parse">解析</button>
+    <button type="button" class="tab" role="tab" aria-selected="false" data-tab="eval">评测</button>
+    <button type="button" class="tab" role="tab" aria-selected="false" data-tab="calibrate">对照</button>
+  </nav>
+
+  <main>
+    <section id="panel-parse" class="panel active" role="tabpanel">
+      <div class="work">
+        <div class="compose">
+          <label>监控品牌 <span class="hint">逗号分隔</span>
+            <input id="brands" value="吉利" autocomplete="off" />
+          </label>
+          <label>竞品 <span class="hint">可选</span>
+            <input id="competitors" value="比亚迪,小鹏,特斯拉" autocomplete="off" />
+          </label>
+          <label>官网域名 <span class="hint">可选，用于 L1 official</span>
+            <input id="official" value="geely.com" autocomplete="off" />
+          </label>
+          <label class="grow">答文
+            <textarea id="answer" rows="12">综合来看可以关注：
+1. 比亚迪 海豹06
+2. 吉利 银河E5
+3. 小鹏 G6
+4. 特斯拉 Model Y</textarea>
+          </label>
+          <button type="button" class="btn primary" id="btn-parse">解析答文</button>
+          <p class="status" id="parse-status"></p>
+        </div>
+        <div class="result" id="parse-result" aria-live="polite">
+          <p class="placeholder">解析结果将显示在这里</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="panel-eval" class="panel" role="tabpanel" hidden>
+      <div class="work single">
+        <div class="compose">
+          <p class="section-copy">对内置 <code>fixtures/rank</code> 与 <code>fixtures/citation</code> 跑 L1 门禁。</p>
+          <label>list_order 准确率门槛
+            <input id="min-acc" type="number" min="0" max="1" step="0.05" value="0.8" />
+          </label>
+          <button type="button" class="btn primary" id="btn-eval">运行评测</button>
+          <p class="status" id="eval-status"></p>
+        </div>
+        <div class="result" id="eval-result" aria-live="polite">
+          <p class="placeholder">评测摘要与用例列表</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="panel-calibrate" class="panel" role="tabpanel" hidden>
+      <div class="work">
+        <div class="compose">
+          <p class="section-copy">同题 Open-API vs 金标偏移。默认演示样本；可粘贴 JSONL。</p>
+          <label class="check">
+            <input type="checkbox" id="cal-demo" checked />
+            使用内置 samples
+          </label>
+          <label class="grow">open_api.jsonl
+            <textarea id="open-api" rows="8" disabled></textarea>
+          </label>
+          <label class="grow">gold.jsonl
+            <textarea id="gold" rows="8" disabled></textarea>
+          </label>
+          <button type="button" class="btn primary" id="btn-calibrate">生成偏移报告</button>
+          <p class="status" id="cal-status"></p>
+        </div>
+        <div class="result" id="cal-result" aria-live="polite">
+          <p class="placeholder">偏移统计与策略建议</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span id="health">连接中…</span>
+    <span>metric 永不混报 · 金标不覆盖 open_api</span>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

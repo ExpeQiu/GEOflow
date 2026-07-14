@@ -88,6 +88,25 @@ class DistributionOrchestrator:
                     dist.status = "skipped"
                     dist.error_message = f"unsupported_channel:{channel.channel_type}"
                 logger.info("distribution_ok", article_id=article_id, channel=channel.channel_type)
+                if dist.status == "published" and article.task_id:
+                    try:
+                        from app.services.geoeval.remediation_service import mark_remediation_published
+
+                        rem = await mark_remediation_published(
+                            self.db, task_id=int(article.task_id), article_id=int(article.id)
+                        )
+                        logger.info(
+                            "remediation_hook_after_distribution article_id=%s task_id=%s result=%s",
+                            article_id,
+                            article.task_id,
+                            rem.get("status"),
+                        )
+                    except Exception as rem_exc:  # noqa: BLE001
+                        logger.warning(
+                            "remediation_hook_failed article_id=%s error=%s",
+                            article_id,
+                            rem_exc,
+                        )
             except Exception as exc:  # noqa: BLE001
                 dist.status = "failed"
                 dist.error_message = str(exc)[:500]

@@ -20,11 +20,17 @@ settings = get_settings()
 
 
 async def build_strategy_overview(db: AsyncSession) -> dict:
+    from app.services.geoeval.gweb_alignment_service import compute_gweb_alignment
+    from app.services.geoeval.remediation_service import list_remediations
+
+    rem = await list_remediations(db, limit=8)
     return {
         "geo_eval": await _geo_eval_summary(db),
         "tech_brand": await _tech_brand_metrics(db),
         "monitor": await _monitor_kpis(db),
         "analytics": await _analytics_snapshot(db),
+        "gweb_alignment": await compute_gweb_alignment(db),
+        "remediations": rem.get("items", []),
     }
 
 
@@ -365,6 +371,9 @@ async def _monitor_kpis(db: AsyncSession) -> dict:
     kpis["question_count"] = await _safe_count(db, "geo_monitor_questions")
     if kpis["probe_count"] == 0:
         kpis["probe_count"] = await _safe_count(db, "geo_monitor_runs")
+    api_count = next((e["count"] for e in kpis.get("engine_mix") or [] if e.get("engine") == "api"), 0)
+    total_engines = sum(int(e.get("count") or 0) for e in kpis.get("engine_mix") or [])
+    kpis["api_probe_ratio_pct"] = round(api_count / total_engines * 100, 1) if total_engines else 0.0
     return kpis
 
 

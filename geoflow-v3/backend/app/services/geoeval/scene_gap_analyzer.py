@@ -3,10 +3,10 @@
 import logging
 import re
 
-from sqlalchemy import select, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.article import Article
+from app.core.config import get_settings
 from app.services.admin.production_service import _table_exists
 from app.services.geoflow.rag.retrieval import KnowledgeRetrievalService
 from app.services.geoeval.monitor_probe import load_corpus
@@ -52,26 +52,66 @@ async def _load_default_kb_id(db: AsyncSession) -> int | None:
         return None
 
 
+async def _load_rag_score_threshold(db: AsyncSession) -> float:
+    if not await _table_exists(db, "site_settings"):
+        return RAG_SCORE_THRESHOLD
+    row = (
+        await db.execute(
+            text("SELECT setting_value FROM site_settings WHERE setting_key = 'gap_rag_score_threshold' LIMIT 1")
+        )
+    ).scalar_one_or_none()
+    try:
+        val = float(row) if row is not None else RAG_SCORE_THRESHOLD
+        return max(0.05, min(val, 0.95))
+    except (TypeError, ValueError):
+        return RAG_SCORE_THRESHOLD
+
+
 async def question_has_content_support(
     db: AsyncSession,
     question_text: str,
     kb_id: int | None,
     corpus: list[dict] | None = None,
-) -> bool:
+    *,
+    rag_threshold: float = RAG_SCORE_THRESHOLD,
+) -> dict:
+    """双通道判定：已发布语料关键词命中，或 RAG score≥阈值。返回明细便于排查。"""
     docs = corpus or await load_corpus(db)
+    keyword_hit = False
+    keyword_title = None
     for doc in docs:
         if _keyword_overlap(question_text, f"{doc.get('title', '')} {doc.get('text', '')}") >= KEYWORD_OVERLAP_MIN:
-            return True
+            keyword_hit = True
+            keyword_title = str(doc.get("title") or "")[:80]
+            break
 
+    rag_hit = False
+    rag_top_score = None
+    rag_mock = get_settings().ai_mock_mode
     if kb_id:
         try:
             chunks = await KnowledgeRetrievalService(db).retrieve(kb_id, question_text, limit=5)
-            if chunks:
-                return True
+            scored = [float(c.get("score") or 0) for c in chunks if c.get("source") != "fallback"]
+            if scored:
+                rag_top_score = max(scored)
+                rag_hit = rag_top_score >= rag_threshold
+            elif chunks:
+                # fallback 低分兜底不视为有支撑
+                rag_top_score = max(float(c.get("score") or 0) for c in chunks)
+                rag_hit = False
         except Exception:
-            logger.debug("rag_retrieve_skipped kb_id=%s", kb_id)
+            logger.debug("rag_retrieve_skipped kb_id=%s", kb_id, exc_info=True)
 
-    return False
+    supported = keyword_hit or rag_hit
+    return {
+        "supported": supported,
+        "keyword_hit": keyword_hit,
+        "keyword_title": keyword_title,
+        "rag_hit": rag_hit,
+        "rag_top_score": rag_top_score,
+        "rag_mock": rag_mock,
+        "rag_threshold": rag_threshold,
+    }
 
 
 async def compute_scene_gap(db: AsyncSession, scene_id: int, kb_id: int | None = None) -> dict:
@@ -94,6 +134,7 @@ async def compute_scene_gap(db: AsyncSession, scene_id: int, kb_id: int | None =
 
     kb = kb_id if kb_id is not None else await _load_default_kb_id(db)
     corpus = await load_corpus(db)
+    rag_threshold = await _load_rag_score_threshold(db)
 
     questions = (
         await db.execute(
@@ -108,14 +149,20 @@ async def compute_scene_gap(db: AsyncSession, scene_id: int, kb_id: int | None =
     ).all()
 
     total = len(questions)
+    unsupported_questions: list[dict] = []
     if total == 0:
         gap_rate = 1.0
         supported = 0
     else:
         supported = 0
-        for _, qtext in questions:
-            if await question_has_content_support(db, str(qtext), kb, corpus):
+        for qid, qtext in questions:
+            detail = await question_has_content_support(
+                db, str(qtext), kb, corpus, rag_threshold=rag_threshold
+            )
+            if detail["supported"]:
                 supported += 1
+            else:
+                unsupported_questions.append({"id": int(qid), "question_text": str(qtext)[:120]})
         gap_rate = round((total - supported) / total, 3)
 
     priority = _gap_priority(gap_rate)
@@ -130,13 +177,16 @@ async def compute_scene_gap(db: AsyncSession, scene_id: int, kb_id: int | None =
         ),
         {"gr": gap_rate, "gp": priority, "id": scene_id},
     )
+    mock_warn = get_settings().ai_mock_mode
     logger.info(
-        "scene_gap_computed scene_id=%s gap_rate=%s priority=%s supported=%s/%s",
+        "scene_gap_computed scene_id=%s gap_rate=%s priority=%s supported=%s/%s rag_threshold=%s ai_mock=%s",
         scene_id,
         gap_rate,
         priority,
         supported,
         total,
+        rag_threshold,
+        mock_warn,
     )
     return {
         "scene_id": scene_id,
@@ -148,6 +198,9 @@ async def compute_scene_gap(db: AsyncSession, scene_id: int, kb_id: int | None =
         "supported_count": supported,
         "gap_rate": gap_rate,
         "gap_priority": priority,
+        "rag_threshold": rag_threshold,
+        "ai_mock_mode": mock_warn,
+        "unsupported_sample": unsupported_questions[:5],
     }
 
 
@@ -166,4 +219,4 @@ async def compute_all_scene_gaps(db: AsyncSession) -> dict:
             high += 1
 
     logger.info("scene_gap_all_completed scenes=%s high_gap=%s", len(results), high)
-    return {"scenes": results, "high_gap_count": high}
+    return {"scenes": results, "high_gap_count": high, "ai_mock_mode": get_settings().ai_mock_mode}

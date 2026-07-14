@@ -43,6 +43,34 @@ export type MonitorKpis = {
   sentiment_score?: number | null;
   platform_summary: PlatformSummary[];
   platform_matrix?: PlatformSummary[];
+  engine_mix?: Array<{ engine: string; label: string; count: number }>;
+  api_probe_ratio_pct?: number;
+};
+
+export type GwebAlignment = {
+  status: string;
+  alignment_pct: number;
+  gweb_page_count: number;
+  matched_count: number;
+  only_gweb_count: number;
+  only_local_count: number;
+  source_url?: string;
+  fetch_reason?: string;
+};
+
+export type GapRemediation = {
+  id: number;
+  scene_id: number;
+  task_id: number | null;
+  status: string;
+  gap_rate_at_create: number;
+  baseline_visibility_pct: number | null;
+  post_visibility_pct: number | null;
+  delta_visibility_pct: number | null;
+  published_at: string | null;
+  rescan_after: string | null;
+  created_at: string | null;
+  scene_name: string;
 };
 
 export type MonitorQuestion = {
@@ -195,6 +223,9 @@ export type MonitorSettings = {
   default_knowledge_base_id?: number | null;
   platforms: string[];
   ai_mock_mode: boolean;
+  strict_api?: boolean;
+  remediation_delay_hours?: number;
+  gap_rag_score_threshold?: number;
 };
 
 export type MonitorRunDetail = {

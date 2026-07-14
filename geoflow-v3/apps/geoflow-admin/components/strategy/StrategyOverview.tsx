@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { zh } from "@/lib/i18n/zh";
-import type { AnalyticsSnapshot, GeoEvalSummary, MonitorKpis, TechBrandMetrics } from "@/lib/strategy-types";
+import type { AnalyticsSnapshot, GapRemediation, GeoEvalSummary, GwebAlignment, MonitorKpis, TechBrandMetrics } from "@/lib/strategy-types";
 import { surfaceCardClass } from "./shared/AivisPrimitives";
 
 export function StrategyOverview({
@@ -8,16 +8,23 @@ export function StrategyOverview({
   techBrand,
   monitor,
   analytics,
+  gwebAlignment,
+  remediations = [],
 }: {
   geoEval: GeoEvalSummary;
   techBrand: TechBrandMetrics;
   monitor: MonitorKpis;
   analytics: AnalyticsSnapshot;
+  gwebAlignment?: GwebAlignment | null;
+  remediations?: GapRemediation[];
 }) {
   const passRate =
     geoEval.passed + geoEval.failed > 0
       ? Math.round((geoEval.passed / (geoEval.passed + geoEval.failed)) * 100)
       : 0;
+
+  const completed = remediations.filter((r) => r.status === "completed");
+  const latestLift = completed[0];
 
   return (
     <div className="space-y-6">
@@ -25,7 +32,7 @@ export function StrategyOverview({
         <MiniCard
           label="可见性"
           value={`${monitor.visibility_pct ?? Math.round(monitor.mention_rate * 100)}%`}
-          meta={`加权排名 ${monitor.weighted_rank_score ?? monitor.avg_brand_rank ?? "—"}`}
+          meta={`API 占比 ${monitor.api_probe_ratio_pct ?? 0}% · 加权 ${monitor.weighted_rank_score ?? monitor.avg_brand_rank ?? "—"}`}
           href="/strategy/monitor"
           tone="violet"
         />
@@ -37,20 +44,40 @@ export function StrategyOverview({
           tone="cyan"
         />
         <MiniCard
+          label="Gweb 对齐"
+          value={gwebAlignment ? `${gwebAlignment.alignment_pct}%` : "—"}
+          meta={gwebAlignment ? `${gwebAlignment.matched_count}/${gwebAlignment.gweb_page_count} 页` : "未拉取"}
+          href="/strategy/monitor"
+          tone="green"
+        />
+        <MiniCard
           label="GEO 通过率"
           value={`${passRate}%`}
           meta={`通过 ${geoEval.passed} · 失败 ${geoEval.failed}`}
           href="/strategy/geo-eval"
           tone="cyan"
         />
-        <MiniCard
-          label={zh.strategy.analytics.totalViews}
-          value={String(analytics.total_views)}
-          meta={`文章 ${analytics.total_articles}`}
-          href="/strategy/analytics"
-          tone="green"
-        />
       </div>
+
+      {(latestLift || remediations.length > 0) && (
+        <section className={`${surfaceCardClass} p-5`}>
+          <h2 className="text-base font-semibold text-gray-900">补缺 Lift 闭环</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            实验 {remediations.length} 条
+            {latestLift
+              ? ` · 最近 Δ ${latestLift.delta_visibility_pct ?? "—"}pp（${latestLift.scene_name || latestLift.scene_id}）`
+              : " · 等待发布后再扫"}
+          </p>
+          <ul className="mt-3 space-y-1 text-sm text-gray-700">
+            {remediations.slice(0, 5).map((r) => (
+              <li key={r.id}>
+                [{r.status}] {r.scene_name || r.scene_id} · 基线 {r.baseline_visibility_pct ?? "—"}%
+                {r.delta_visibility_pct != null ? ` → Δ ${r.delta_visibility_pct}pp` : ""}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <TechBrandPanel metrics={techBrand} />
     </div>

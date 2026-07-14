@@ -1,7 +1,9 @@
 # LangGraph 编排设计与 Agent 配置
 
 > Content Agent 侧车（`services/content-agent`）的 workflow 编排规范。Laravel 业务层只认 `ContentAgentClientInterface` 契约，不出现 LangGraph 类名。
-
+>
+> **v3 主路径**：内嵌 `run_workflow_sync`（见 `geoflow-v3/backend/app/ai/workflow_runner.py`）。  
+> **外挂**：`content-LangGraph-CLI` 仅作离线 `--demo` 试跑与 YAML 契约门禁，不替换生产引擎。详见 [cli-plugins.md](./cli-plugins.md)。
 ---
 
 ## 1. 架构定位

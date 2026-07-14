@@ -120,6 +120,20 @@ def run_monitor_scan(scan_type: str = "daily") -> dict:
     return _run_async(_inner())
 
 
+@celery_app.task(name="app.workers.tasks.process_due_remediations")
+def process_due_remediations() -> dict:
+    async def _inner():
+        async with async_session_factory() as db:
+            from app.services.geoeval.remediation_service import process_due_remediations as run_due
+
+            result = await run_due(db)
+            await db.commit()
+            return result
+
+    logger.info("process_due_remediations")
+    return _run_async(_inner())
+
+
 @celery_app.task(name="app.workers.tasks.aggregate_monitor_snapshots")
 def aggregate_monitor_snapshots() -> dict:
     async def _inner():

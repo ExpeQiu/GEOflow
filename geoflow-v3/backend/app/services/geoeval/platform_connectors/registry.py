@@ -1,4 +1,4 @@
-"""探针连接器注册与降级链：api → llm → corpus。"""
+"""探针连接器注册与降级链：api → llm → corpus；strict_api 时禁止静默污染。"""
 
 import logging
 
@@ -32,6 +32,21 @@ async def load_probe_mode(db: AsyncSession) -> str:
     return mode if mode in ("corpus", "llm", "api") else "corpus"
 
 
+async def load_strict_api(db: AsyncSession) -> bool:
+    from sqlalchemy import text
+
+    from app.services.admin.production_service import _table_exists
+
+    if not await _table_exists(db, "site_settings"):
+        return False
+    row = (
+        await db.execute(
+            text("SELECT setting_value FROM site_settings WHERE setting_key = 'monitor_strict_api' LIMIT 1")
+        )
+    ).scalar_one_or_none()
+    return str(row or "").lower() in ("1", "true", "yes", "on")
+
+
 async def load_platforms(db: AsyncSession) -> tuple[str, ...]:
     from sqlalchemy import text
 
@@ -50,6 +65,19 @@ async def load_platforms(db: AsyncSession) -> tuple[str, ...]:
     return platforms or PLATFORMS_CN
 
 
+def _skipped_outcome(platform: str, reason: str) -> ProbeOutcome:
+    return ProbeOutcome(
+        question_id=0,
+        platform=platform,
+        brand_rank=None,
+        mentioned=False,
+        snippet=f"[skipped:{reason}]",
+        engine="skipped",
+        ranking_score=0.0,
+        competitor_mentions=[],
+    )
+
+
 async def probe_platform(
     db: AsyncSession,
     *,
@@ -61,8 +89,11 @@ async def probe_platform(
     competitor_brands: list[str] | None,
     probe_mode: str,
     question_index: int,
+    strict_api: bool | None = None,
 ) -> ProbeOutcome:
     outcome: ProbeOutcome | None = None
+    if strict_api is None:
+        strict_api = await load_strict_api(db)
 
     if probe_mode == "api":
         outcome = await _api.probe(
@@ -73,18 +104,28 @@ async def probe_platform(
             brand_list=brand_list,
             competitor_brands=competitor_brands,
         )
+        if outcome is None and strict_api:
+            logger.warning(
+                "probe_strict_api_no_fallback platform=%s question_index=%s",
+                platform,
+                question_index,
+            )
+            return _skipped_outcome(platform, "api_unavailable_strict")
 
     if outcome is None and probe_mode in ("api", "llm") and question_index < LLM_MAX_QUESTIONS:
-        outcome = await LlmConnector(db).probe(
-            question_text=question_text,
-            priority=priority,
-            platform=platform,
-            corpus=corpus,
-            brand_list=brand_list,
-            competitor_brands=competitor_brands,
-        )
+        if not (probe_mode == "api" and strict_api):
+            outcome = await LlmConnector(db).probe(
+                question_text=question_text,
+                priority=priority,
+                platform=platform,
+                corpus=corpus,
+                brand_list=brand_list,
+                competitor_brands=competitor_brands,
+            )
 
     if outcome is None:
+        if probe_mode == "api" and strict_api:
+            return _skipped_outcome(platform, "no_api_result_strict")
         outcome = await _corpus.probe(
             question_text=question_text,
             priority=priority,
@@ -95,10 +136,15 @@ async def probe_platform(
         )
 
     logger.debug(
-        "probe_platform platform=%s engine=%s mentioned=%s rank=%s",
+        "probe_platform platform=%s engine=%s mentioned=%s rank=%s "
+        "rank_method=%s evidence_level=%s parser_version=%s strict=%s",
         platform,
         outcome.engine,
         outcome.mentioned,
         outcome.brand_rank,
+        getattr(outcome, "rank_method", "unknown"),
+        getattr(outcome, "evidence_level", "L0"),
+        getattr(outcome, "parser_version", None),
+        strict_api,
     )
     return outcome
