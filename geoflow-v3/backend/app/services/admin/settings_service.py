@@ -10,6 +10,7 @@ def build_site_settings_payload() -> dict:
         "version": settings.app_version,
         "geo_eval_enabled": settings.geo_eval_enabled,
         "geo_eval_wiki_gate_enabled": settings.geo_eval_wiki_gate_enabled,
+        "geo_eval_hard_gate": settings.geo_eval_hard_gate,
         "tech_brand_mode": settings.geoflow_tech_brand_mode,
         "public_site_enabled": settings.geoflow_public_site_enabled,
         "ai_mock_mode": settings.ai_mock_mode,

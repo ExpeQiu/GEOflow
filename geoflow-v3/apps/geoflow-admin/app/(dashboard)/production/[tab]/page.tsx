@@ -8,23 +8,32 @@ import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
 import { DataTable } from "@/components/admin/PlaceholderPanel";
 import { AiConfigPanel } from "@/components/production/AiConfigPanel";
+import { AiConfigSubNav } from "@/components/production/AiConfigSubNav";
 import { KnowledgePanel } from "@/components/production/KnowledgePanel";
+import { KnowledgeSubNav } from "@/components/production/KnowledgeSubNav";
 import { MaterialsPanel } from "@/components/production/MaterialsPanel";
 import { ProductionOverview, type KnowledgeHealth } from "@/components/production/ProductionOverview";
+import { GeoEvalPanel } from "@/components/strategy/GeoEvalPanel";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
-import { apiGet, apiPost, getToken } from "@/lib/api-client";
+import { apiGet, apiPost, apiPut, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
 import { PRODUCTION_NAV } from "@/lib/nav-config";
 import type {
-  AiModelRow,
   AiStats,
   KnowledgeItem,
   MaterialStats,
   OrchestrationStats,
-  PromptRow,
   TechAsset,
   WorkflowCatalog,
 } from "@/lib/production-types";
+import type {
+  EvalFailureRow,
+  FailureTopN,
+  GateConfig,
+  GeoAlert,
+  GeoEvalSummary,
+  ProbeStandardsConfig,
+} from "@/lib/strategy-types";
 
 export default function ProductionPage() {
   const { tab } = useParams<{ tab: string }>();
@@ -34,8 +43,6 @@ export default function ProductionPage() {
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>([]);
   const [orchestration, setOrchestration] = useState<OrchestrationStats | null>(null);
   const [workflowCatalog, setWorkflowCatalog] = useState<WorkflowCatalog | null>(null);
-  const [models, setModels] = useState<AiModelRow[]>([]);
-  const [prompts, setPrompts] = useState<PromptRow[]>([]);
   const [assets, setAssets] = useState<TechAsset[]>([]);
   const [yamlText, setYamlText] = useState("");
   const [yamlFlash, setYamlFlash] = useState("");
@@ -43,6 +50,13 @@ export default function ProductionPage() {
   const [flash, setFlash] = useState<{ variant: "success" | "error"; message: string } | null>(null);
   const [knowledgeHealth, setKnowledgeHealth] = useState<KnowledgeHealth>("empty");
   const [loading, setLoading] = useState(true);
+  const [geoEval, setGeoEval] = useState<GeoEvalSummary | null>(null);
+  const [gate, setGate] = useState<GateConfig | null>(null);
+  const [probeStandards, setProbeStandards] = useState<ProbeStandardsConfig | null>(null);
+  const [failureTopN, setFailureTopN] = useState<FailureTopN[]>([]);
+  const [recentFailures, setRecentFailures] = useState<EvalFailureRow[]>([]);
+  const [geoAlerts, setGeoAlerts] = useState<GeoAlert[]>([]);
+  const [savingSettings, setSavingSettings] = useState(false);
 
   const reload = useCallback(async () => {
     const t = getToken();
@@ -74,14 +88,25 @@ export default function ProductionPage() {
           ai_stats: AiStats;
           orchestration: OrchestrationStats;
           workflow_catalog: WorkflowCatalog;
-          models: AiModelRow[];
-          prompts: PromptRow[];
         }>("/api/admin/production/ai-config", t);
         setAiStats(data.ai_stats);
         setOrchestration(data.orchestration);
         setWorkflowCatalog(data.workflow_catalog);
-        setModels(data.models);
-        setPrompts(data.prompts);
+      } else if (tab === "geo-eval") {
+        const data = await apiGet<{
+          gate: GateConfig;
+          probe_standards?: ProbeStandardsConfig;
+          summary: GeoEvalSummary;
+          failure_top_n: FailureTopN[];
+          recent_failures: EvalFailureRow[];
+          recent_alerts: GeoAlert[];
+        }>("/api/admin/strategy/geo-eval", t);
+        setGate(data.gate);
+        setProbeStandards(data.probe_standards ?? null);
+        setGeoEval(data.summary);
+        setFailureTopN(data.failure_top_n);
+        setRecentFailures(data.recent_failures);
+        setGeoAlerts(data.recent_alerts ?? []);
       } else if (tab === "tech-assets") {
         const data = await apiGet<{ items: TechAsset[] }>("/api/admin/tech-assets", t);
         setAssets(data.items);
@@ -112,14 +137,116 @@ export default function ProductionPage() {
     }
   }
 
+  async function reevaluate(articleId: number) {
+    const t = getToken();
+    if (!t) return;
+    setBusyId(articleId);
+    try {
+      await apiPost(`/api/admin/strategy/geo-eval/reevaluate/${articleId}`, t);
+      setFlash({ variant: "success", message: `文章 #${articleId} 评估已入队` });
+      await reload();
+    } catch {
+      setFlash({ variant: "error", message: "评估入队失败" });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function batchReevaluate(articleIds: number[]) {
+    const t = getToken();
+    if (!t || articleIds.length === 0) return;
+    setBusyId(-1);
+    try {
+      const res = await apiPost<{ queued: number }>("/api/admin/strategy/simulator/batch-reevaluate", t, {
+        article_ids: articleIds.slice(0, 50),
+      });
+      setFlash({ variant: "success", message: `已入队 ${res.queued} 篇重评` });
+      await reload();
+    } catch {
+      setFlash({ variant: "error", message: "批量重评失败" });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function saveGate(next: {
+    enabled: boolean;
+    hard_gate: boolean;
+    wiki_checks_enabled: boolean;
+    simulation_pass_score: number;
+    audit_pass_score: number;
+  }) {
+    const t = getToken();
+    if (!t) return;
+    setSavingSettings(true);
+    try {
+      const data = await apiPut<{ gate: GateConfig; probe_standards: ProbeStandardsConfig }>(
+        "/api/admin/strategy/geo-eval/settings",
+        t,
+        { gate: next },
+      );
+      setGate(data.gate);
+      if (data.probe_standards) setProbeStandards(data.probe_standards);
+      setFlash({ variant: "success", message: "内容门禁已保存" });
+    } catch {
+      setFlash({ variant: "error", message: "内容门禁保存失败" });
+    } finally {
+      setSavingSettings(false);
+    }
+  }
+
+  async function saveProbeStandards(next: {
+    footnote_on_bias: boolean;
+    do_not_overwrite_open_api_kpi: true;
+    rank_report_weight: { list_order: number; first_mention: number; unknown: number };
+    min_evidence_level: string;
+    forbid_corpus_as_l1: boolean;
+    fixture_min_list_acc: number;
+    scan_platforms: string;
+    priority_floor_daily: number;
+  }) {
+    const t = getToken();
+    if (!t) return;
+    setSavingSettings(true);
+    try {
+      const data = await apiPut<{ gate: GateConfig; probe_standards: ProbeStandardsConfig }>(
+        "/api/admin/strategy/geo-eval/settings",
+        t,
+        { probe_standards: next },
+      );
+      setGate(data.gate);
+      setProbeStandards(data.probe_standards);
+      setFlash({ variant: "success", message: "探针标准已保存" });
+    } catch {
+      setFlash({ variant: "error", message: "探针标准保存失败" });
+    } finally {
+      setSavingSettings(false);
+    }
+  }
+
+  const headerTitle =
+    tab === "geo-eval"
+      ? zh.production.tabs["geo-eval"]
+      : tab === "knowledge" || tab === "tech-assets"
+        ? zh.production.tabs.knowledge
+        : zh.production.hubTitle;
+  const headerSubtitle =
+    tab === "geo-eval"
+      ? zh.strategy.geoEval.dualTrackTitle
+      : tab === "knowledge" || tab === "tech-assets"
+        ? zh.production.knowledge.hubDesc
+        : zh.production.hubSubtitle;
+
   return (
     <div>
-      <HubHeader title={zh.production.hubTitle} subtitle={zh.production.hubSubtitle} />
+      <HubHeader title={headerTitle} subtitle={headerSubtitle} />
       <HubNav items={PRODUCTION_NAV} tone="emerald" />
+      {(tab === "knowledge" || tab === "tech-assets") && <KnowledgeSubNav />}
+      {tab === "ai_config" && <AiConfigSubNav />}
 
       {flash && <FlashAlert variant={flash.variant === "success" ? "success" : "error"}>{flash.message}</FlashAlert>}
       {loading && tab === "overview" && !stats && <FlashAlert variant="info">{zh.common.loading}</FlashAlert>}
-      {loading && (tab === "knowledge" || tab === "ai_config") && (
+      {loading && (tab === "knowledge" || tab === "ai_config" || tab === "geo-eval") && (
         <FlashAlert variant="info">{zh.common.loading}</FlashAlert>
       )}
 
@@ -138,8 +265,23 @@ export default function ProductionPage() {
           aiStats={aiStats}
           orchestration={orchestration}
           workflowCatalog={workflowCatalog}
-          models={models}
-          prompts={prompts}
+        />
+      )}
+
+      {tab === "geo-eval" && gate && geoEval && (
+        <GeoEvalPanel
+          gate={gate}
+          probeStandards={probeStandards}
+          summary={geoEval}
+          failureTopN={failureTopN}
+          recentFailures={recentFailures}
+          recentAlerts={geoAlerts}
+          onReevaluate={reevaluate}
+          onBatchReevaluate={batchReevaluate}
+          onSaveGate={saveGate}
+          onSaveProbeStandards={saveProbeStandards}
+          busyId={busyId}
+          saving={savingSettings}
         />
       )}
 

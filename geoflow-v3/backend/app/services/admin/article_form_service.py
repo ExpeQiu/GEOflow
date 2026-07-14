@@ -10,11 +10,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
 from app.models.article import Article
 from app.models.geoeval import ArticleEvaluation
 from app.models.material import Author, Category
 from app.models.task import Task
+from app.services.admin.geo_eval_settings_service import get_geo_eval_gate_config
 
 logger = logging.getLogger(__name__)
 
@@ -65,19 +65,37 @@ async def build_article_detail(db: AsyncSession, article_id: int) -> dict[str, A
             task_name = task.name
             publish_scope = task.publish_scope or publish_scope
 
-    eval_failure_reason = ""
-    if article.eval_status == "failed":
-        row = (
-            await db.execute(
-                select(ArticleEvaluation.failure_reason)
-                .where(ArticleEvaluation.article_id == article_id, ArticleEvaluation.status == "failed")
-                .order_by(ArticleEvaluation.id.desc())
-                .limit(1)
-            )
-        ).scalar_one_or_none()
-        eval_failure_reason = str(row or "")
+    eval_meta = article.eval_meta if isinstance(article.eval_meta, dict) else {}
+    latest_eval = (
+        await db.execute(
+            select(ArticleEvaluation)
+            .where(ArticleEvaluation.article_id == article_id)
+            .order_by(ArticleEvaluation.id.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if latest_eval and isinstance(latest_eval.metrics, dict):
+        # 以最新评估 metrics 为准，覆盖可能过期的 article.eval_meta
+        eval_meta = {**eval_meta, **latest_eval.metrics}
 
-    settings = get_settings()
+    sim = eval_meta.get("simulation") if isinstance(eval_meta.get("simulation"), dict) else {}
+    audit = eval_meta.get("audit") if isinstance(eval_meta.get("audit"), dict) else {}
+    eval_failure_reason = ""
+    if latest_eval and latest_eval.failure_reason:
+        eval_failure_reason = str(latest_eval.failure_reason)
+    elif article.eval_status in ("failed", "advisory"):
+        eval_failure_reason = "; ".join(eval_meta.get("advisory_issues") or [])[:500]
+
+    gate = await get_geo_eval_gate_config(db)
+    hard_gate = bool(gate["hard_gate"])
+    geo_eval_enabled = bool(gate["enabled"])
+    sim_score = eval_meta.get("simulation_score")
+    if sim_score is None and sim:
+        sim_score = sim.get("simulation_score")
+    audit_score = eval_meta.get("audit_score")
+    if audit_score is None and audit:
+        audit_score = audit.get("audit_score")
+
     return {
         "article": {
             "id": article.id,
@@ -101,8 +119,20 @@ async def build_article_detail(db: AsyncSession, article_id: int) -> dict[str, A
             "created_at": article.created_at.isoformat() if article.created_at else None,
             "updated_at": article.updated_at.isoformat() if article.updated_at else None,
             "eval_failure_reason": eval_failure_reason,
-            "geo_eval_enabled": settings.geo_eval_enabled,
-            "geo_eval_gate_enabled": settings.geo_eval_enabled and settings.geo_eval_wiki_gate_enabled,
+            "eval_simulation_score": sim_score,
+            "eval_audit_score": audit_score,
+            "eval_audit_passed": eval_meta.get("audit_passed", audit.get("audit_passed")),
+            "eval_retrieval_score": sim.get("retrieval_score"),
+            "eval_query": sim.get("query") or "",
+            "eval_simulated_answer": (sim.get("simulated_answer") or "")[:280],
+            "eval_recommendations": eval_meta.get("recommendations") or [],
+            "eval_advisory_issues": eval_meta.get("advisory_issues") or [],
+            "eval_meets_thresholds": eval_meta.get("meets_thresholds"),
+            "eval_gate_mode": eval_meta.get("gate_mode") or ("hard" if hard_gate else "soft"),
+            "geo_eval_enabled": geo_eval_enabled,
+            # 展示用：硬门禁才真正拦发布；软门禁仅评分建议
+            "geo_eval_gate_enabled": geo_eval_enabled and hard_gate,
+            "geo_eval_hard_gate": hard_gate,
         }
     }
 

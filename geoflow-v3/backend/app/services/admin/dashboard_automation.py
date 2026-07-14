@@ -124,7 +124,7 @@ def build_automation(stats: dict[str, int]) -> dict[str, Any]:
             "cyan",
             geo_eval_status,
             [f"待评 {eval_pending}", f"失败 {eval_failed}", f"通过 {eval_passed}"],
-            [("/strategy/geo-eval", "诊断", True, eval_failed > 0)],
+            [("/production/geo-eval", "诊断", True, eval_failed > 0)],
         ),
         _node(
             "distribution",
@@ -144,14 +144,14 @@ def build_automation(stats: dict[str, int]) -> dict[str, Any]:
             "violet",
             feedback_status,
             [f"今日访问 {today_views}"],
-            [("/strategy/analytics", "分析", True)],
+            [("/dashboard", "分析", True)],
         ),
     ]
 
     recommendations = [
         r
         for r in [
-            _rec(eval_failed, "GEO 评估失败", "有文章未通过 GEO 门禁", "shield-alert", "cyan", "/strategy/geo-eval", "打开诊断"),
+            _rec(eval_failed, "GEO 评估失败", "有文章未通过 GEO 门禁", "shield-alert", "cyan", "/production/geo-eval", "打开诊断"),
             _rec(distribution_failed, "分发失败", "远端同步存在失败项", "triangle-alert", "red", "/operations/distribution", "处理失败"),
             _rec(unvectorized_chunks, "切片未向量化", "知识片段尚未完成 embedding", "database-zap", "amber", "/production/knowledge", "同步切片"),
             _rec(pending_review, "待审核文章", "有内容等待人工审核", "badge-check", "blue", "/operations/articles", "进入审核"),
@@ -183,8 +183,8 @@ def build_automation(stats: dict[str, int]) -> dict[str, Any]:
         {
             "title_key": "feedback",
             "rows": [
-                _lane("数据分析", "访问与产出", "/strategy/analytics", "chart-no-axes-combined", today_views),
-                _lane("GEO 诊断", "评估失败项", "/strategy/geo-eval", "shield-check", eval_failed),
+                _lane("数据分析", "访问与产出", "/dashboard", "chart-no-axes-combined", today_views),
+                _lane("GEO 诊断", "评估失败项", "/production/geo-eval", "shield-check", eval_failed),
             ],
         },
     ]

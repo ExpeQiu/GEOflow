@@ -1,7 +1,7 @@
-from types import SimpleNamespace
-
+from app.services.geoeval.eval_recommendations import build_recommendations
 from app.services.geoeval.answer_audit import _mock_audit
 from app.services.geoeval.simulation_rag import _mock_simulate, build_eval_query
+from types import SimpleNamespace
 
 
 def _article(**kwargs):
@@ -60,3 +60,23 @@ def test_simulation_score_formula():
     chunks = [{"chunk_id": 1, "content": "神盾电池", "score": 0.8, "source": "hybrid"}]
     sim_body = _mock_simulate(query, chunks, article)
     assert sim_body["confidence"] <= 1.0
+
+
+def test_build_recommendations_from_simulation_and_wiki():
+    recs = build_recommendations(
+        issues=["simulation_score_low:0.32", "missing_quick_answer", "simulation_score_low:0.32"],
+        simulation_score=0.32,
+        pass_score=0.55,
+    )
+    assert len(recs) == 2
+    assert recs[0]["code"] == "simulation_score_low"
+    assert "知识库" in recs[0]["suggestion"]
+    assert recs[0]["simulation_score"] == 0.32
+    assert recs[1]["code"] == "missing_quick_answer"
+
+
+def test_publish_allows_advisory_status():
+    """软门禁：advisory 与 passed/skipped 同属可发布集合。"""
+    allowed = {"passed", "skipped", "advisory"}
+    assert "advisory" in allowed
+    assert "failed" not in allowed

@@ -51,6 +51,24 @@
 
 主 KPI：`visibility_open_api` **永不**被 `simsb calibrate` / 金标覆盖。
 
+### 2.1 Admin「GEO标准」↔ Sim-sandbox `calibration.yml`
+
+配置面：`/production/geo-eval`（Track B 探针标准），持久化 `site_settings`（`group_name=probe_standards`）。  
+生产路径**不**调用 `simsb`；旋钮语义对齐外挂 YAML。
+
+| Admin / site_settings | calibration.yml | 说明 |
+|----------------------|-----------------|------|
+| `probe_metric_primary`（固定 open_api） | `metric_policy.primary` | 主口径不可改金标 |
+| `probe_footnote_on_bias` | `metric_policy.footnote_on_bias` | KPI/报告脚注 |
+| `probe_do_not_overwrite_open_api_kpi`（强制 true） | `metric_policy.do_not_overwrite_open_api_kpi` | 保存 false → 400 |
+| `probe_rank_report_weight` | `rank.report_weight` | list_order / first_mention / unknown |
+| `probe_min_evidence_level` | `citation.min_evidence_level_for_chain` | L0 / L1 |
+| `probe_forbid_corpus_as_l1` | `citation.forbid_corpus_as_l1` | corpus 不得冒充 L1 |
+| `probe_fixture_min_list_acc` | `simsb eval --min-list-acc`（默认 0.8） | 夹具门禁门槛展示 |
+| `probe_scan_platforms` / `probe_priority_floor_daily` | `scan.*` | 扫描护栏草案 |
+
+内容门禁（Track A）独立：`geo_eval_*` keys，见 `geo_eval_settings_service`。
+
 ### 3. Workflow 类型白名单
 
 `content` | `content_pipeline` | `url_import` | `semantic_chunk`  

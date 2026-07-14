@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { DashboardAutomation } from "@/components/admin/DashboardAutomation";
+import { QuickStartPanel } from "@/components/admin/DashboardSections";
 import { FlashAlert } from "@/components/admin/FlashAlert";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
@@ -14,6 +16,7 @@ import { TasksPanel } from "@/components/operations/TasksPanel";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { useTaskWebSocket } from "@/hooks/use-task-websocket";
 import { apiDelete, apiGet, apiPost, getToken } from "@/lib/api-client";
+import type { DashboardAutomationPayload } from "@/lib/dashboard-types";
 import { zh } from "@/lib/i18n/zh";
 import { OPERATIONS_NAV } from "@/lib/nav-config";
 import type {
@@ -30,6 +33,7 @@ export default function OperationsPage() {
   const { tab } = useParams<{ tab: string }>();
   const token = useAuthGuard();
   const [stats, setStats] = useState<OpsStats | null>(null);
+  const [automation, setAutomation] = useState<DashboardAutomationPayload | null>(null);
   const [tasks, setTasks] = useState<AdminTask[]>([]);
   const [articles, setArticles] = useState<AdminArticle[]>([]);
   const [articleStats, setArticleStats] = useState<ArticleStats>({ total: 0, published: 0, draft: 0, pending_review: 0 });
@@ -42,8 +46,12 @@ export default function OperationsPage() {
   const [loading, setLoading] = useState(true);
 
   const loadOverview = useCallback(async (t: string) => {
-    const data = await apiGet<{ stats: OpsStats }>("/api/admin/operations/overview", t);
-    setStats(data.stats);
+    const [ops, dash] = await Promise.all([
+      apiGet<{ stats: OpsStats }>("/api/admin/operations/overview", t),
+      apiGet<{ automation: DashboardAutomationPayload }>("/api/admin/dashboard", t),
+    ]);
+    setStats(ops.stats);
+    setAutomation(dash.automation);
   }, []);
 
   const loadTasks = useCallback(async (t: string) => {
@@ -192,19 +200,32 @@ export default function OperationsPage() {
 
       {flash && <FlashAlert variant={flash.variant === "success" ? "success" : "error"}>{flash.message}</FlashAlert>}
       {loading && !stats && tab === "overview" && <FlashAlert variant="info">{zh.common.loading}</FlashAlert>}
+      {loading && tab === "tasks" && tasks.length === 0 && <FlashAlert variant="info">{zh.common.loading}</FlashAlert>}
 
-      {tab === "overview" && stats && <OperationsOverview stats={stats} />}
+      {tab === "overview" && (
+        <div className="space-y-8">
+          <QuickStartPanel />
+          {automation && <DashboardAutomation automation={automation} />}
+        </div>
+      )}
 
       {tab === "tasks" && (
-        <TasksPanel
-          tasks={tasks}
-          busyId={busyId}
-          onStart={(id) => runTaskAction(id, "start")}
-          onStop={(id) => runTaskAction(id, "stop")}
-          onEnqueue={(id) => runTaskAction(id, "enqueue")}
-          onDelete={deleteTask}
-          onBatchStart={batchStartTasks}
-        />
+        <>
+          {stats && (
+            <div className="mb-6">
+              <OperationsOverview stats={stats} />
+            </div>
+          )}
+          <TasksPanel
+            tasks={tasks}
+            busyId={busyId}
+            onStart={(id) => runTaskAction(id, "start")}
+            onStop={(id) => runTaskAction(id, "stop")}
+            onEnqueue={(id) => runTaskAction(id, "enqueue")}
+            onDelete={deleteTask}
+            onBatchStart={batchStartTasks}
+          />
+        </>
       )}
 
       {tab === "articles" && (

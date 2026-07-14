@@ -89,6 +89,7 @@ export type SiteSettingsPayload = {
   version: string;
   geo_eval_enabled: boolean;
   geo_eval_wiki_gate_enabled: boolean;
+  geo_eval_hard_gate?: boolean;
   tech_brand_mode: boolean;
   public_site_enabled: boolean;
   ai_mock_mode: boolean;

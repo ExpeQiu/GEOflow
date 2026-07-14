@@ -11,7 +11,7 @@ export const TOP_NAV: { key: NavKey; href: string; label: string; group?: string
 
 export type HubTone = "emerald" | "blue" | "violet";
 
-export type HubNavItem = { key: string; label: string; href: string };
+export type HubNavItem = { key: string; label: string; href: string; matchPrefixes?: string[] };
 
 export function resolveActiveNav(pathname: string): NavKey {
   if (pathname.startsWith("/production")) return "production_hub";
@@ -21,14 +21,51 @@ export function resolveActiveNav(pathname: string): NavKey {
   return "dashboard";
 }
 
+export const KNOWLEDGE_HUB_PREFIXES = [
+  "/production/knowledge",
+  "/production/rag-sandbox",
+  "/production/knowledge-settings",
+  "/production/tech-assets",
+  "/production/url-import",
+] as const;
+
+export const KNOWLEDGE_SUB_NAV: HubNavItem[] = [
+  { key: "bases", label: zh.production.knowledgeSub.bases, href: "/production/knowledge" },
+  { key: "rag-sandbox", label: zh.production.knowledgeSub.ragSandbox, href: "/production/rag-sandbox" },
+  { key: "settings", label: zh.production.knowledgeSub.settings, href: "/production/knowledge-settings" },
+  { key: "tech-assets", label: zh.production.knowledgeSub.techAssets, href: "/production/tech-assets" },
+];
+
+export const AI_CONFIG_HUB_PREFIXES = [
+  "/production/ai_config",
+  "/production/ai-models",
+  "/production/ai-prompts",
+  "/production/ai-agents",
+] as const;
+
+export const AI_CONFIG_SUB_NAV: HubNavItem[] = [
+  { key: "orchestration", label: zh.production.aiConfigSub.orchestration, href: "/production/ai_config" },
+  { key: "models", label: zh.production.aiConfigSub.models, href: "/production/ai-models" },
+  { key: "prompts", label: zh.production.aiConfigSub.prompts, href: "/production/ai-prompts" },
+  { key: "agents", label: zh.production.aiConfigSub.agents, href: "/production/ai-agents" },
+];
+
 export const PRODUCTION_NAV: HubNavItem[] = [
   { key: "overview", label: zh.production.tabs.overview, href: "/production/overview" },
-  { key: "ai_config", label: zh.production.tabs.ai_config, href: "/production/ai_config" },
+  {
+    key: "ai_config",
+    label: zh.production.tabs.ai_config,
+    href: "/production/ai_config",
+    matchPrefixes: [...AI_CONFIG_HUB_PREFIXES],
+  },
   { key: "materials", label: zh.production.tabs.materials, href: "/production/materials" },
-  { key: "knowledge", label: zh.production.tabs.knowledge, href: "/production/knowledge" },
-  { key: "rag-sandbox", label: "RAG 沙箱", href: "/production/rag-sandbox" },
-  { key: "knowledge-settings", label: "知识设置", href: "/production/knowledge-settings" },
-  { key: "tech-assets", label: zh.nav.techAssets, href: "/production/tech-assets" },
+  {
+    key: "knowledge",
+    label: zh.production.tabs.knowledge,
+    href: "/production/knowledge",
+    matchPrefixes: [...KNOWLEDGE_HUB_PREFIXES],
+  },
+  { key: "geo-eval", label: zh.production.tabs["geo-eval"], href: "/production/geo-eval" },
 ];
 
 export const OPERATIONS_NAV: HubNavItem[] = [
@@ -49,8 +86,6 @@ export const STRATEGY_NAV: HubNavItem[] = [
   { key: "optimization", label: zh.strategy.tabs.optimization, href: "/strategy/optimization" },
   { key: "difficulty", label: zh.strategy.tabs.difficulty, href: "/strategy/difficulty" },
   { key: "reports", label: zh.strategy.tabs.reports, href: "/strategy/reports" },
-  { key: "geo-eval", label: zh.strategy.tabs["geo-eval"], href: "/strategy/geo-eval" },
-  { key: "analytics", label: zh.strategy.tabs.analytics, href: "/strategy/analytics" },
 ];
 
 export const HUB_TONE_CLASS: Record<HubTone, { active: string; inactive: string }> = {

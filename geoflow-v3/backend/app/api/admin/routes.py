@@ -124,6 +124,12 @@ from app.services.admin.upload_service import read_knowledge_upload, save_image_
 from app.services.admin.knowledge_crud_service import KnowledgeBaseBody, append_knowledge_file_content, create_knowledge_base, delete_knowledge_base, get_knowledge_base, list_knowledge_bases_detail, update_knowledge_base
 from app.services.geoflow.rag.knowledge_sync_queue import queue_knowledge_chunk_sync
 from app.services.admin.ai_config_crud_service import AiModelBody, PromptBody, create_ai_model, create_prompt, delete_ai_model, delete_prompt, list_ai_models, list_prompts, test_ai_model, update_ai_model, update_prompt
+from app.services.admin.agent_config_service import (
+    AgentUpdateBody,
+    get_agent as get_agent_config,
+    list_agents,
+    update_agent as update_agent_config,
+)
 from app.services.admin.monitor_detail_service import build_monitor_run_detail, list_monitor_runs
 from app.services.admin.monitor_aivis_service import (
     CompetitorBody,
@@ -142,6 +148,7 @@ from app.services.admin.monitor_aivis_service import (
     list_query_templates,
     list_visibility_reports,
 )
+from app.services.admin.geo_eval_settings_service import GeoEvalSettingsBody, save_geo_eval_settings
 from app.services.admin.monitor_settings_service import MonitorSettingsBody, get_monitor_settings, save_monitor_settings
 from app.services.admin.url_import_service import UrlImportBody, commit_url_import_job, get_url_import_job, list_url_import_history, run_url_import
 from app.services.admin.strategy_crud_service import (
@@ -987,6 +994,13 @@ async def strategy_geo_eval(request: Request, db: DbSession, jwt=Depends(get_adm
     return success(request, await build_geo_eval_panel(db))
 
 
+@router.put("/strategy/geo-eval/settings")
+async def strategy_geo_eval_settings_put(
+    body: GeoEvalSettingsBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)
+):
+    return success(request, await save_geo_eval_settings(db, body))
+
+
 @router.post("/strategy/geo-eval/reevaluate/{article_id}")
 async def strategy_reevaluate_article(article_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     from app.workers.celery_app import celery_app
@@ -1156,6 +1170,21 @@ async def prompts_update(prompt_id: int, body: PromptBody, request: Request, db:
 @router.delete("/prompts/{prompt_id}")
 async def prompts_delete(prompt_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     return success(request, await delete_prompt(db, prompt_id))
+
+
+@router.get("/agents")
+async def agents_list(request: Request, jwt=Depends(get_admin_jwt)):
+    return success(request, list_agents())
+
+
+@router.get("/agents/{agent_id}")
+async def agents_get(agent_id: str, request: Request, jwt=Depends(get_admin_jwt)):
+    return success(request, get_agent_config(agent_id))
+
+
+@router.patch("/agents/{agent_id}")
+async def agents_update(agent_id: str, body: AgentUpdateBody, request: Request, jwt=Depends(get_admin_jwt)):
+    return success(request, update_agent_config(agent_id, body))
 
 
 @router.get("/materials/title-libraries")

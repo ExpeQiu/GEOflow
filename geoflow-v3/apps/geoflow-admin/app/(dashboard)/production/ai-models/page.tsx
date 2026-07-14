@@ -1,12 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
 import { FlashAlert } from "@/components/admin/FlashAlert";
+import { AiConfigSubNav } from "@/components/production/AiConfigSubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiDelete, apiGet, apiPatch, apiPost, getToken } from "@/lib/api-client";
+import { zh } from "@/lib/i18n/zh";
 import { PRODUCTION_NAV } from "@/lib/nav-config";
 
 type ModelRow = {
@@ -83,9 +84,9 @@ export default function AiModelsPage() {
 
   return (
     <div>
-      <HubHeader title="AI 模型" subtitle="聊天与 embedding 模型配置" />
+      <HubHeader title={zh.production.tabs.ai_config} subtitle={zh.production.aiConfigSub.models} />
       <HubNav items={PRODUCTION_NAV} tone="emerald" />
-      <Link href="/production/ai_config" className="mb-4 inline-block text-sm text-emerald-700">← AI 配置 Hub</Link>
+      <AiConfigSubNav />
       {testMsg && <FlashAlert variant="success">{testMsg}</FlashAlert>}
       <form onSubmit={onSubmit} className="mb-6 space-y-2 rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
         <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">

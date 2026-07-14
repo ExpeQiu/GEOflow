@@ -4,14 +4,16 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, RefreshCw } from "lucide-react";
-import { DashboardAutomation, DashboardNavigationLanes } from "@/components/admin/DashboardAutomation";
-import { DashboardHealthCards, QuickStartPanel } from "@/components/admin/DashboardSections";
+import { DashboardNavigationLanes } from "@/components/admin/DashboardAutomation";
+import { DashboardHealthCards } from "@/components/admin/DashboardSections";
 import { FlashAlert } from "@/components/admin/FlashAlert";
 import { LayerCards } from "@/components/admin/LayerCards";
+import { AnalyticsPanel } from "@/components/strategy/AnalyticsPanel";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiGet, getToken } from "@/lib/api-client";
 import type { DashboardPayload } from "@/lib/dashboard-types";
 import { zh } from "@/lib/i18n/zh";
+import type { AnalyticsSnapshot, MonitorInsight, MonitorSnapshot, TrendPoint } from "@/lib/strategy-types";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -20,6 +22,13 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [welcomeDismissed, setWelcomeDismissed] = useState(true);
+  const [analyticsSnap, setAnalyticsSnap] = useState<AnalyticsSnapshot | null>(null);
+  const [publicationTrend, setPublicationTrend] = useState<TrendPoint[]>([]);
+  const [taskHealth, setTaskHealth] = useState({ running: 0, pending: 0, failed: 0 });
+  const [aiUsage, setAiUsage] = useState({ used_today: 0, total_used: 0, active_models: 0 });
+  const [topArticles, setTopArticles] = useState<{ id: number; title: string; view_count: number; status: string }[]>([]);
+  const [analyticsInsights, setAnalyticsInsights] = useState<MonitorInsight[]>([]);
+  const [visibilityTrends, setVisibilityTrends] = useState<MonitorSnapshot[]>([]);
 
   useEffect(() => {
     setWelcomeDismissed(localStorage.getItem("gf_welcome_dismissed") === "1");
@@ -31,8 +40,26 @@ export default function DashboardPage() {
     setLoading(true);
     setError("");
     try {
-      const payload = await apiGet<DashboardPayload>("/api/admin/dashboard", t);
+      const [payload, analytics] = await Promise.all([
+        apiGet<DashboardPayload>("/api/admin/dashboard", t),
+        apiGet<{
+          snapshot: AnalyticsSnapshot;
+          publication_trend: TrendPoint[];
+          task_health: { running: number; pending: number; failed: number };
+          ai_usage: { used_today: number; total_used: number; active_models: number };
+          top_articles: { id: number; title: string; view_count: number; status: string }[];
+          insights?: MonitorInsight[];
+          visibility_trends?: MonitorSnapshot[];
+        }>("/api/admin/strategy/analytics", t),
+      ]);
       setData(payload);
+      setAnalyticsSnap(analytics.snapshot);
+      setPublicationTrend(analytics.publication_trend);
+      setTaskHealth(analytics.task_health);
+      setAiUsage(analytics.ai_usage);
+      setTopArticles(analytics.top_articles);
+      setAnalyticsInsights(analytics.insights ?? []);
+      setVisibilityTrends(analytics.visibility_trends ?? []);
     } catch {
       setError("无法加载仪表盘数据");
       router.push("/login");
@@ -94,11 +121,23 @@ export default function DashboardPage() {
 
       <LayerCards />
 
+      {analyticsSnap && (
+        <div className="mb-8">
+          <AnalyticsPanel
+            snapshot={analyticsSnap}
+            publicationTrend={publicationTrend}
+            taskHealth={taskHealth}
+            aiUsage={aiUsage}
+            topArticles={topArticles}
+            insights={analyticsInsights}
+            visibilityTrends={visibilityTrends}
+          />
+        </div>
+      )}
+
       {data && (
         <>
           <DashboardHealthCards stats={data.stats} />
-          <QuickStartPanel />
-          <DashboardAutomation automation={data.automation} />
           <DashboardNavigationLanes lanes={data.automation.lanes} />
         </>
       )}

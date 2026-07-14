@@ -437,6 +437,30 @@ async def aggregate_probe_kpis(
     except Exception:
         logger.debug("engine_mix_query_failed", exc_info=True)
 
+    metric_meta: dict = {
+        "metric_kind": "open_api" if trusted_only else "mixed",
+        "footnote_on_bias": True,
+        "do_not_overwrite_open_api_kpi": True,
+    }
+    try:
+        from app.services.admin.geo_eval_settings_service import get_probe_standards
+
+        standards = await get_probe_standards(db)
+        metric_meta = {
+            "metric_kind": "open_api" if trusted_only else "mixed",
+            "footnote_on_bias": bool(standards.get("footnote_on_bias", True)),
+            "do_not_overwrite_open_api_kpi": True,
+            "rank_report_weight": standards.get("rank_report_weight"),
+            "min_evidence_level": standards.get("min_evidence_level"),
+        }
+        logger.debug(
+            "probe_kpi_standards_applied footnote=%s weight=%s",
+            metric_meta["footnote_on_bias"],
+            metric_meta.get("rank_report_weight"),
+        )
+    except Exception:
+        logger.debug("probe_standards_kpi_attach_failed", exc_info=True)
+
     return {
         "probe_count": total,
         "avg_brand_rank": round(float(avg_rank), 2) if avg_rank is not None else None,
@@ -451,6 +475,7 @@ async def aggregate_probe_kpis(
         "trusted_only": trusted_only,
         "scene_id": scene_id,
         "run_id": run_id,
+        "metric_meta": metric_meta,
     }
 
 

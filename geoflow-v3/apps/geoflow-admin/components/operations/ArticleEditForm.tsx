@@ -328,27 +328,123 @@ function Section({
   );
 }
 
+function formatScore(v: number | null | undefined): string {
+  return typeof v === "number" && Number.isFinite(v) ? v.toFixed(2) : "—";
+}
+
 function EvalBanner({ article }: { article: ArticleDetail }) {
   const tone =
     article.eval_status === "passed"
       ? "border-cyan-200 bg-cyan-50 text-cyan-900"
       : article.eval_status === "failed"
         ? "border-red-200 bg-red-50 text-red-900"
-        : article.eval_status === "pending_eval"
+        : article.eval_status === "advisory"
           ? "border-amber-200 bg-amber-50 text-amber-900"
-          : "border-slate-200 bg-slate-50 text-slate-800";
+          : article.eval_status === "pending_eval"
+            ? "border-amber-200 bg-amber-50 text-amber-900"
+            : "border-slate-200 bg-slate-50 text-slate-800";
+
+  const recs = article.eval_recommendations || [];
+  const soft = (article.eval_gate_mode || "soft") === "soft" || !article.geo_eval_hard_gate;
+  const hasScores =
+    typeof article.eval_simulation_score === "number" ||
+    typeof article.eval_audit_score === "number" ||
+    typeof article.eval_retrieval_score === "number";
 
   return (
     <div className={cn("mb-6 rounded-lg border px-4 py-3 text-sm", tone)}>
-      <p className="font-semibold">
-        {zh.articleEdit.eval.title}: {article.eval_status}
-      </p>
-      {article.eval_status === "failed" && article.eval_failure_reason && (
-        <p className="mt-1">{zh.articleEdit.eval.reason(article.eval_failure_reason)}</p>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="font-semibold">
+          {zh.articleEdit.eval.title}
+          <span className="ml-2 font-normal">
+            · {zh.articleEdit.eval.statusLabel} {article.eval_status}
+          </span>
+        </p>
+        {soft && <p className="text-xs opacity-80">{zh.articleEdit.eval.softMode}</p>}
+      </div>
+
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <div className="rounded-md border border-black/10 bg-white/50 px-3 py-2">
+          <p className="text-xs font-semibold uppercase tracking-wide opacity-70">
+            {zh.articleEdit.eval.resultSection}
+          </p>
+          {hasScores ? (
+            <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs sm:grid-cols-3">
+              <div>
+                <dt className="opacity-60">{zh.articleEdit.eval.simulationScore}</dt>
+                <dd className="text-base font-semibold tabular-nums">
+                  {formatScore(article.eval_simulation_score)}
+                </dd>
+              </div>
+              <div>
+                <dt className="opacity-60">{zh.articleEdit.eval.auditScore}</dt>
+                <dd className="text-base font-semibold tabular-nums">
+                  {formatScore(article.eval_audit_score)}
+                </dd>
+              </div>
+              <div>
+                <dt className="opacity-60">{zh.articleEdit.eval.retrievalScore}</dt>
+                <dd className="text-base font-semibold tabular-nums">
+                  {formatScore(article.eval_retrieval_score)}
+                </dd>
+              </div>
+            </dl>
+          ) : (
+            <p className="mt-2 text-xs opacity-70">{zh.articleEdit.eval.noScoreYet}</p>
+          )}
+          {typeof article.eval_audit_passed === "boolean" && (
+            <p className="mt-2 text-xs">
+              {article.eval_audit_passed ? zh.articleEdit.eval.auditPass : zh.articleEdit.eval.auditFail}
+            </p>
+          )}
+          {article.eval_query && (
+            <p className="mt-2 text-xs">
+              <span className="opacity-60">{zh.articleEdit.eval.query}：</span>
+              {article.eval_query}
+            </p>
+          )}
+          {article.eval_simulated_answer && (
+            <p className="mt-1 line-clamp-3 text-xs opacity-80">
+              <span className="opacity-60">{zh.articleEdit.eval.simulatedAnswer}：</span>
+              {article.eval_simulated_answer}
+            </p>
+          )}
+          {article.eval_status === "failed" && article.eval_failure_reason && (
+            <p className="mt-2 text-xs">{zh.articleEdit.eval.reason(article.eval_failure_reason)}</p>
+          )}
+          {article.eval_status === "advisory" && article.eval_failure_reason && (
+            <p className="mt-2 text-xs">{zh.articleEdit.eval.advisoryReason(article.eval_failure_reason)}</p>
+          )}
+        </div>
+
+          <div className="rounded-md border border-black/10 bg-white/50 px-3 py-2">
+          <p className="text-xs font-semibold uppercase tracking-wide opacity-70">
+            {zh.articleEdit.eval.adviceSection}
+          </p>
+          {recs.length > 0 ? (
+            <ul className="mt-2 list-inside list-disc space-y-1.5 text-xs leading-5">
+              {recs.map((r) => (
+                <li key={r.code}>
+                  <span className="font-medium">{r.suggestion}</span>
+                  {r.detail && r.detail !== r.code && (
+                    <span className="ml-1 opacity-60">（{r.detail}）</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-2 text-xs opacity-70">{zh.articleEdit.eval.noAdvice}</p>
+          )}
+        </div>
+      </div>
+
+      {!article.geo_eval_gate_enabled && (
+        <p className="mt-2 text-xs opacity-80">{zh.articleEdit.eval.gateOff}</p>
       )}
-      {!article.geo_eval_gate_enabled && <p className="mt-1 text-xs opacity-80">{zh.articleEdit.eval.gateOff}</p>}
-      {article.publish_scope === "distribution_only" && <p className="mt-2 text-xs">{zh.articleEdit.eval.distributionOnly}</p>}
-      <Link href="/strategy/geo-eval" className="mt-3 inline-block font-medium underline">
+      {article.publish_scope === "distribution_only" && (
+        <p className="mt-1 text-xs">{zh.articleEdit.eval.distributionOnly}</p>
+      )}
+      <Link href="/production/geo-eval" className="mt-3 inline-block text-xs font-medium underline">
         {zh.articleEdit.eval.openDiagnostics}
       </Link>
     </div>

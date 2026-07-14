@@ -54,7 +54,7 @@ export function StrategyOverview({
           label="GEO 通过率"
           value={`${passRate}%`}
           meta={`通过 ${geoEval.passed} · 失败 ${geoEval.failed}`}
-          href="/strategy/geo-eval"
+          href="/production/geo-eval"
           tone="cyan"
         />
       </div>

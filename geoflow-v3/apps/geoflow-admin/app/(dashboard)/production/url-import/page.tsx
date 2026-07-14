@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
 import { FlashAlert } from "@/components/admin/FlashAlert";
+import { KnowledgeSubNav } from "@/components/production/KnowledgeSubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiGet, apiPost, getToken } from "@/lib/api-client";
 import { PRODUCTION_NAV } from "@/lib/nav-config";
@@ -61,7 +62,7 @@ export default function UrlImportPage() {
     <div>
       <HubHeader title="URL 导入" subtitle="从网页导入知识库、标题库或关键词库" />
       <HubNav items={PRODUCTION_NAV} tone="emerald" />
-      <Link href="/production/materials" className="mb-4 inline-block text-sm text-emerald-700">← 素材 Hub</Link>
+      <KnowledgeSubNav />
       {error && <FlashAlert variant="error">{error}</FlashAlert>}
       <form onSubmit={onSubmit} className="mb-6 space-y-3 rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
         <input

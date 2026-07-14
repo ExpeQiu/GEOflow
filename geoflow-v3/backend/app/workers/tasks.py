@@ -45,9 +45,22 @@ def evaluate_article(article_id: int, task_run_id: int | None = None) -> dict:
             svc = ArticleEvaluationService(db)
             ev = await svc.evaluate(article_id, task_run_id)
             await db.commit()
-            if ev.status == "passed":
+            from app.services.admin.geo_eval_settings_service import get_geo_eval_gate_config
+
+            gate = await get_geo_eval_gate_config(db)
+            hard = bool(gate["hard_gate"])
+            # soft：passed/advisory 均可自动发布；hard：仅 passed
+            can_auto = ev.status == "passed" or (ev.status == "advisory" and not hard)
+            if can_auto:
                 celery_app.send_task("app.workers.tasks.try_publish_after_eval", args=[article_id])
-        return {"article_id": article_id, "status": "evaluated"}
+            logger.info(
+                "evaluate_article_done article_id=%s eval_status=%s hard_gate=%s auto_publish=%s",
+                article_id,
+                ev.status,
+                hard,
+                can_auto,
+            )
+        return {"article_id": article_id, "status": "evaluated", "eval_status": ev.status}
 
     return _run_async(_inner())
 
@@ -62,7 +75,7 @@ def try_publish_after_eval(article_id: int) -> dict:
 
         async with async_session_factory() as db:
             article = await db.get(Article, article_id)
-            if article and article.eval_status == "passed" and article.review_status in (
+            if article and article.eval_status in ("passed", "advisory") and article.review_status in (
                 "approved",
                 "auto_approved",
                 "pending",
@@ -71,6 +84,11 @@ def try_publish_after_eval(article_id: int) -> dict:
                     article.review_status = "auto_approved"
                 svc = ArticlePublishService(db)
                 await svc.publish(article_id)
+                logger.info(
+                    "try_publish_after_eval article_id=%s eval_status=%s",
+                    article_id,
+                    article.eval_status,
+                )
             await db.commit()
         return {"article_id": article_id}
 

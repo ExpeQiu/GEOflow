@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     geoflow_public_site_enabled: bool = True
     geo_eval_enabled: bool = True
     geo_eval_wiki_gate_enabled: bool = True
+    # False=只打分/建议不拦发布；True=未过阈值时 eval_status=failed 并拦截 publish
+    geo_eval_hard_gate: bool = False
     geo_eval_simulation_pass_score: float = 0.55
     geo_eval_audit_pass_score: float = 0.60
     ai_mock_mode: bool = True

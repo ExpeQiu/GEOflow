@@ -5,11 +5,9 @@ import { useParams } from "next/navigation";
 import { FlashAlert } from "@/components/admin/FlashAlert";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
-import { AnalyticsPanel } from "@/components/strategy/AnalyticsPanel";
 import { BrandVisibilityPanel } from "@/components/strategy/BrandVisibilityPanel";
 import { CollectionPanel } from "@/components/strategy/CollectionPanel";
 import { DiagnosisOverview } from "@/components/strategy/DiagnosisOverview";
-import { GeoEvalPanel } from "@/components/strategy/GeoEvalPanel";
 import { DifficultyPanelView, OptimizationPanelView } from "@/components/strategy/OptimizationDifficultyPanels";
 import { ProductVisibilityPanel } from "@/components/strategy/ProductVisibilityPanel";
 import { ReportsPanel } from "@/components/strategy/ReportsPanel";
@@ -21,7 +19,6 @@ import { apiDelete, apiGet, apiPatch, apiPost, getToken } from "@/lib/api-client
 import { zh } from "@/lib/i18n/zh";
 import { STRATEGY_NAV } from "@/lib/nav-config";
 import type {
-  AnalyticsSnapshot,
   BrandPanel,
   CollectionPanel as CollectionPanelData,
   CompetitorBrand,
@@ -38,11 +35,9 @@ import type {
   MonitorProbe,
   MonitorScene,
   MonitorSnapshot,
-  GeoAlert,
   OptimizationPanel,
   ProductPanel,
   QueryTemplate,
-  TrendPoint,
   VisibilityReport,
 } from "@/lib/strategy-types";
 
@@ -78,12 +73,6 @@ export default function StrategyPage() {
   const [gate, setGate] = useState<GateConfig | null>(null);
   const [failureTopN, setFailureTopN] = useState<FailureTopN[]>([]);
   const [recentFailures, setRecentFailures] = useState<EvalFailureRow[]>([]);
-  const [geoAlerts, setGeoAlerts] = useState<GeoAlert[]>([]);
-  const [analyticsSnap, setAnalyticsSnap] = useState<AnalyticsSnapshot | null>(null);
-  const [publicationTrend, setPublicationTrend] = useState<TrendPoint[]>([]);
-  const [taskHealth, setTaskHealth] = useState({ running: 0, pending: 0, failed: 0 });
-  const [aiUsage, setAiUsage] = useState({ used_today: 0, total_used: 0, active_models: 0 });
-  const [topArticles, setTopArticles] = useState<{ id: number; title: string; view_count: number; status: string }[]>([]);
 
   const reload = useCallback(async () => {
     const t = getToken();
@@ -112,36 +101,17 @@ export default function StrategyPage() {
         setOptimization(await apiGet<OptimizationPanel>("/api/admin/strategy/optimization", t));
       } else if (tab === "difficulty") {
         setDifficulty(await apiGet<DifficultyPanel>("/api/admin/strategy/difficulty", t));
-      } else if (tab === "geo-eval" || tab === "simulator") {
+      } else if (tab === "simulator") {
         const data = await apiGet<{
           gate: GateConfig;
           summary: GeoEvalSummary;
           failure_top_n: FailureTopN[];
           recent_failures: EvalFailureRow[];
-          recent_alerts: GeoAlert[];
         }>("/api/admin/strategy/geo-eval", t);
         setGate(data.gate);
         setGeoEval(data.summary);
         setFailureTopN(data.failure_top_n);
         setRecentFailures(data.recent_failures);
-        setGeoAlerts(data.recent_alerts ?? []);
-      } else if (tab === "analytics") {
-        const data = await apiGet<{
-          snapshot: AnalyticsSnapshot;
-          publication_trend: TrendPoint[];
-          task_health: { running: number; pending: number; failed: number };
-          ai_usage: { used_today: number; total_used: number; active_models: number };
-          top_articles: { id: number; title: string; view_count: number; status: string }[];
-          insights?: MonitorInsight[];
-          visibility_trends?: MonitorSnapshot[];
-        }>("/api/admin/strategy/analytics", t);
-        setAnalyticsSnap(data.snapshot);
-        setPublicationTrend(data.publication_trend);
-        setTaskHealth(data.task_health);
-        setAiUsage(data.ai_usage);
-        setTopArticles(data.top_articles);
-        setMonitorInsights(data.insights ?? []);
-        setMonitorSnapshots(data.visibility_trends ?? []);
       }
     } catch {
       setFlash({ variant: "error", message: "加载失败" });
@@ -264,7 +234,7 @@ export default function StrategyPage() {
     setFlash({ variant: "success", message: `已入队 ${res.queued} 篇` });
   }
 
-  const effectiveTab = tab === "overview" ? "diagnosis" : tab === "monitor" ? "collection" : tab === "settings" ? "analytics" : tab;
+  const effectiveTab = tab === "overview" ? "diagnosis" : tab === "monitor" ? "collection" : tab;
 
   return (
     <div>
@@ -332,30 +302,6 @@ export default function StrategyPage() {
           onUpdate={updateMonitorQuestion}
           onDelete={deleteMonitorQuestion}
           onRefresh={reload}
-        />
-      )}
-
-      {effectiveTab === "analytics" && analyticsSnap && (
-        <AnalyticsPanel
-          snapshot={analyticsSnap}
-          publicationTrend={publicationTrend}
-          taskHealth={taskHealth}
-          aiUsage={aiUsage}
-          topArticles={topArticles}
-          insights={monitorInsights}
-          visibilityTrends={monitorSnapshots}
-        />
-      )}
-
-      {effectiveTab === "geo-eval" && gate && geoEval && (
-        <GeoEvalPanel
-          gate={gate}
-          summary={geoEval}
-          failureTopN={failureTopN}
-          recentFailures={recentFailures}
-          recentAlerts={geoAlerts}
-          onReevaluate={reevaluate}
-          busyId={busyId}
         />
       )}
 

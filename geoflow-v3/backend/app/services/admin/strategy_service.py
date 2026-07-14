@@ -121,8 +121,11 @@ async def build_monitor_panel(db: AsyncSession) -> dict:
 
 
 async def build_geo_eval_panel(db: AsyncSession) -> dict:
+    from app.services.admin.geo_eval_settings_service import get_geo_eval_gate_config, get_probe_standards
+
     return {
-        "gate": _gate_config(),
+        "gate": await get_geo_eval_gate_config(db),
+        "probe_standards": await get_probe_standards(db),
         "summary": await _geo_eval_summary(db),
         "failure_top_n": await _failure_top_n(db),
         "recent_failures": await _recent_eval_failures(db),
@@ -188,7 +191,7 @@ async def build_insight_templates(db: AsyncSession) -> dict:
 
 
 async def _geo_eval_summary(db: AsyncSession) -> dict:
-    defaults = {"pending_eval": 0, "passed": 0, "failed": 0, "skipped": 0}
+    defaults = {"pending_eval": 0, "passed": 0, "failed": 0, "skipped": 0, "advisory": 0}
     try:
         rows = (
             await db.execute(
@@ -213,7 +216,10 @@ async def _failure_top_n(db: AsyncSession, limit: int = 8) -> list[dict]:
         rows = (
             await db.execute(
                 select(ArticleEvaluation.failure_reason, func.count())
-                .where(ArticleEvaluation.status == "failed", ArticleEvaluation.failure_reason.is_not(None))
+                .where(
+                    ArticleEvaluation.status.in_(["failed", "advisory"]),
+                    ArticleEvaluation.failure_reason.is_not(None),
+                )
                 .group_by(ArticleEvaluation.failure_reason)
                 .order_by(func.count().desc())
                 .limit(limit)
@@ -230,7 +236,7 @@ async def _recent_eval_failures(db: AsyncSession, limit: int = 10) -> list[dict]
         rows = (
             await db.execute(
                 select(ArticleEvaluation)
-                .where(ArticleEvaluation.status == "failed")
+                .where(ArticleEvaluation.status.in_(["failed", "advisory"]))
                 .order_by(ArticleEvaluation.id.desc())
                 .limit(limit)
             )
@@ -238,12 +244,24 @@ async def _recent_eval_failures(db: AsyncSession, limit: int = 10) -> list[dict]
         items = []
         for ev in rows:
             metrics = ev.metrics if isinstance(ev.metrics, dict) else {}
+            sim_score = metrics.get("simulation_score")
+            audit_score = metrics.get("audit_score")
+            try:
+                sim_score_f = float(sim_score) if sim_score is not None else None
+            except (TypeError, ValueError):
+                sim_score_f = None
+            try:
+                audit_score_f = float(audit_score) if audit_score is not None else None
+            except (TypeError, ValueError):
+                audit_score_f = None
             items.append(
                 {
                     "article_id": ev.article_id,
                     "failure_reason": ev.failure_reason or "unknown",
-                    "rank": int(metrics.get("rank", 0) or 0),
-                    "found": bool(metrics.get("found", False)),
+                    "status": ev.status,
+                    "simulation_score": sim_score_f,
+                    "audit_score": audit_score_f,
+                    "gate_mode": metrics.get("gate_mode"),
                     "updated_at": ev.updated_at.isoformat() if ev.updated_at else None,
                 }
             )
@@ -312,7 +330,7 @@ async def _tech_brand_metrics(db: AsyncSession) -> dict:
                 .where(
                     Article.content_format == "wiki_mdx",
                     Article.deleted_at.is_(None),
-                    Article.eval_status.in_(["passed", "skipped"]),
+                    Article.eval_status.in_(["passed", "skipped", "advisory"]),
                 )
             )
             or 0
@@ -462,10 +480,16 @@ async def _top_articles(db: AsyncSession, limit: int = 5) -> list[dict]:
 
 
 def _gate_config() -> dict:
+    """Env-only fallback（无 DB 时）；panel 请用 get_geo_eval_gate_config。"""
     return {
         "enabled": settings.geo_eval_enabled,
-        "gate_enabled": settings.geo_eval_wiki_gate_enabled,
+        "gate_enabled": settings.geo_eval_hard_gate,
+        "hard_gate": settings.geo_eval_hard_gate,
+        "wiki_checks_enabled": settings.geo_eval_wiki_gate_enabled,
+        "mode": "hard" if settings.geo_eval_hard_gate else "soft",
         "rollout_percent": 100,
+        "simulation_pass_score": settings.geo_eval_simulation_pass_score,
+        "audit_pass_score": settings.geo_eval_audit_pass_score,
     }
 
 

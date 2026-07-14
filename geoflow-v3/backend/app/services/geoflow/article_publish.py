@@ -15,7 +15,8 @@ class ArticlePublishService:
         article = await self.db.get(Article, article_id)
         if article is None:
             raise ValueError("article_not_found")
-        if article.eval_status not in ("passed", "skipped"):
+        # soft 模式 advisory 仅供参考，不拦发布；hard 模式 failed 才拦截
+        if article.eval_status not in ("passed", "skipped", "advisory"):
             raise ValueError(f"eval_gate_blocked:{article.eval_status}")
         if article.review_status not in ("approved", "auto_approved"):
             article.review_status = "auto_approved"

@@ -53,6 +53,7 @@ export function SimulatorPanel({
         failureTopN={failureTopN}
         recentFailures={recentFailures}
         onReevaluate={onReevaluate}
+        onBatchReevaluate={onBatchReevaluate}
         busyId={busyId}
         extraActions={(row) => (
           <button

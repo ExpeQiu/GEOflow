@@ -93,6 +93,9 @@ class WorkerExecutionService:
             category_id = ctx.category_id or 1
             author_id = ctx.author_id or 1
 
+            from app.services.admin.geo_eval_settings_service import get_geo_eval_gate_config
+
+            gate = await get_geo_eval_gate_config(self.db)
             article = Article(
                 title=article_title,
                 slug=f"{slug}-{run.id}",
@@ -106,7 +109,7 @@ class WorkerExecutionService:
                 keywords=article_fields["keywords"],
                 original_keyword=article_fields["original_keyword"],
                 meta_description=article_fields["meta_description"],
-                eval_status="pending_eval" if settings.geo_eval_enabled else "skipped",
+                eval_status="pending_eval" if gate["enabled"] else "skipped",
             )
             if task.is_wiki_mdx():
                 wiki_meta = result.get("wiki_meta") if isinstance(result.get("wiki_meta"), dict) else {}

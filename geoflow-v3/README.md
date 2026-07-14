@@ -6,11 +6,22 @@ Laravel v2 保留在仓库 `v2-lts` 分支（`legacy/laravel/`）；主开发线
 
 ## 快速开始
 
+本地推荐（复用本机 Redis + `postgres:16-alpine`，不拉镜像、守护进程防 IDE 杀软）：
+
 ```bash
 cd geoflow-v3
 cp .env.example .env
-./scripts/start.sh    # Docker: postgres + redis + api + worker + admin
-./scripts/verify.sh   # health + 登录验收
+./scripts/start-all.sh   # Postgres + API + Admin
+./scripts/status.sh      # 端口 / 数据指纹 / 日志路径
+./scripts/stop.sh        # 停进程；默认 docker stop（不删卷）
+```
+
+全量 Docker Compose（默认 `--pull never`，缺镜像会明确失败）：
+
+```bash
+./scripts/start.sh
+./scripts/verify.sh
+# 允许拉取: GEOFLOW_PULL=missing ./scripts/start.sh
 ```
 
 | 服务 | 地址 |

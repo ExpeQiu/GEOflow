@@ -1,11 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
+import { AiConfigSubNav } from "@/components/production/AiConfigSubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiDelete, apiGet, apiPatch, apiPost, getToken } from "@/lib/api-client";
+import { zh } from "@/lib/i18n/zh";
 import { PRODUCTION_NAV } from "@/lib/nav-config";
 
 type PromptRow = { id: number; name: string; type: string; content_preview: string };
@@ -62,9 +63,9 @@ export default function AiPromptsPage() {
 
   return (
     <div>
-      <HubHeader title="AI 提示词" subtitle="内容生成与编排提示词" />
+      <HubHeader title={zh.production.tabs.ai_config} subtitle={zh.production.aiConfigSub.prompts} />
       <HubNav items={PRODUCTION_NAV} tone="emerald" />
-      <Link href="/production/ai_config" className="mb-4 inline-block text-sm text-emerald-700">← AI 配置 Hub</Link>
+      <AiConfigSubNav />
       <form onSubmit={onSubmit} className="mb-6 space-y-2 rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
         <div className="grid gap-2 md:grid-cols-2">
           <input className="rounded-md border px-3 py-2 text-sm" placeholder="名称" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />

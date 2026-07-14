@@ -1,11 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { Activity, Cpu, MessageSquare, Workflow } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { zh } from "@/lib/i18n/zh";
-import type { AiModelRow, AiStats, OrchestrationStats, PromptRow, WorkflowCatalog } from "@/lib/production-types";
+import type { AiStats, OrchestrationStats, WorkflowCatalog } from "@/lib/production-types";
 
 const WORKFLOW_LABELS: Record<string, string> = {
   content: "正文生成",
@@ -18,14 +17,10 @@ export function AiConfigPanel({
   aiStats,
   orchestration,
   workflowCatalog,
-  models,
-  prompts,
 }: {
   aiStats: AiStats;
   orchestration: OrchestrationStats;
   workflowCatalog: WorkflowCatalog;
-  models: AiModelRow[];
-  prompts: PromptRow[];
 }) {
   const workflows = workflowCatalog.workflows;
   const workflowKeys = Object.keys(workflows);
@@ -45,12 +40,12 @@ export function AiConfigPanel({
         </div>
       </section>
 
-      <OrchestrationPanel orchestration={orchestration} workflowCatalog={workflowCatalog} activeWorkflow={activeWorkflow} onSelectWorkflow={setActiveWorkflow} />
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <ModelsTable models={models} />
-        <PromptsTable prompts={prompts} />
-      </div>
+      <OrchestrationPanel
+        orchestration={orchestration}
+        workflowCatalog={workflowCatalog}
+        activeWorkflow={activeWorkflow}
+        onSelectWorkflow={setActiveWorkflow}
+      />
     </div>
   );
 }
@@ -187,70 +182,6 @@ function MiniCard({ icon: Icon, title, value, sub }: { icon: typeof Cpu; title: 
           <p className="text-xs text-gray-500">{sub}</p>
         </div>
       </div>
-    </div>
-  );
-}
-
-function ModelsTable({ models }: { models: AiModelRow[] }) {
-  return (
-    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b px-4 py-3">
-        <span className="text-sm font-semibold text-gray-900">{zh.production.ai.modelsTitle}</span>
-        <Link href="/production/ai-models" className="text-xs text-violet-600 hover:underline">管理全部 →</Link>
-      </div>
-      {models.length === 0 ? (
-        <div className="px-4 py-8 text-center text-sm text-gray-500">暂无模型</div>
-      ) : (
-        <table className="min-w-full divide-y divide-gray-200 text-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              {["名称", "类型", "状态", "今日"].map((h) => (
-                <th key={h} className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {models.map((m) => (
-              <tr key={m.id}>
-                <td className="px-4 py-2 font-medium text-gray-900">{m.name}</td>
-                <td className="px-4 py-2 text-gray-600">{m.model_type}</td>
-                <td className="px-4 py-2">
-                  <span className={m.status === "active" ? "text-green-700" : "text-gray-500"}>{m.status}</span>
-                </td>
-                <td className="px-4 py-2 text-gray-600">{m.used_today}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
-  );
-}
-
-function PromptsTable({ prompts }: { prompts: PromptRow[] }) {
-  return (
-    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b px-4 py-3">
-        <span className="text-sm font-semibold text-gray-900">{zh.production.ai.promptsTitle}</span>
-        <Link href="/production/ai-prompts" className="text-xs text-violet-600 hover:underline">管理全部 →</Link>
-      </div>
-      {prompts.length === 0 ? (
-        <div className="px-4 py-8 text-center text-sm text-gray-500">暂无提示词</div>
-      ) : (
-        <ul className="divide-y divide-gray-100">
-          {prompts.map((p) => (
-            <li key={p.id} className="px-4 py-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium text-gray-900">{p.name}</span>
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{p.type}</span>
-              </div>
-              <p className="mt-1 line-clamp-2 text-xs text-gray-500">{p.preview}</p>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }

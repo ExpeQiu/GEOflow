@@ -1,15 +1,21 @@
 #!/usr/bin/env bash
-# 一键启动 API + Admin 前端
+# 一键启动：PostgreSQL + Redis 检查 + API + Admin（均可后台守护）
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=scripts/_common.sh
+source "${ROOT}/scripts/_common.sh"
+
+log "===== start-all 开始 ====="
 
 "${ROOT}/scripts/start-local.sh"
 
-if ! curl -sf "http://127.0.0.1:${ADMIN_PORT:-13001}/login" >/dev/null 2>&1; then
-  GEOFLOW_ADMIN_DAEMON=1 "${ROOT}/scripts/start-admin.sh"
-  sleep 6
+log "启动 Admin (daemon)..."
+GEOFLOW_ADMIN_DAEMON=1 "${ROOT}/scripts/start-admin.sh" --daemon
+
+if ! "${ROOT}/scripts/verify-services.sh"; then
+  err "验收未通过，请查看 ${GEOFLOW_START_LOG} / ${GEOFLOW_API_LOG} / ${GEOFLOW_ADMIN_LOG}"
+  exit 1
 fi
 
-"${ROOT}/scripts/verify-services.sh"
-log() { echo "[$(date '+%H:%M:%S')] $*"; }
-log "访问 Admin: http://127.0.0.1:${ADMIN_PORT:-13001}/login  (admin / password)"
+print_endpoints
+log "===== start-all 完成 ====="

@@ -3,12 +3,36 @@ export type GeoEvalSummary = {
   passed: number;
   failed: number;
   skipped: number;
+  advisory?: number;
 };
 
 export type GateConfig = {
   enabled: boolean;
   gate_enabled: boolean;
+  hard_gate?: boolean;
+  wiki_checks_enabled?: boolean;
+  mode?: "soft" | "hard" | string;
   rollout_percent: number;
+  simulation_pass_score?: number;
+  audit_pass_score?: number;
+};
+
+export type ProbeStandardsConfig = {
+  metric_primary: string;
+  footnote_on_bias: boolean;
+  do_not_overwrite_open_api_kpi: boolean;
+  rank_report_weight: {
+    list_order: number;
+    first_mention: number;
+    unknown: number;
+  };
+  min_evidence_level: "L0" | "L1" | string;
+  forbid_corpus_as_l1: boolean;
+  fixture_min_list_acc: number;
+  scan_platforms: string;
+  priority_floor_daily: number;
+  contract_fields?: Array<{ field: string; values: string }>;
+  effect_note?: string;
 };
 
 export type TechBrandMetrics = {
@@ -244,8 +268,12 @@ export type GeoAlert = {
 export type EvalFailureRow = {
   article_id: number;
   failure_reason: string;
-  rank: number;
-  found: boolean;
+  status?: string;
+  simulation_score?: number | null;
+  audit_score?: number | null;
+  gate_mode?: string | null;
+  rank?: number;
+  found?: boolean;
   updated_at: string | null;
 };
 

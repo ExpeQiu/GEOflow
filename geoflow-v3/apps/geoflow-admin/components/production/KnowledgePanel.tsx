@@ -64,12 +64,6 @@ export function KnowledgePanel({
             <Link href="/production/url-import" className="inline-flex items-center rounded-md border border-orange-200 px-3 py-1.5 text-xs font-medium text-orange-700 hover:bg-orange-50">
               URL 导入
             </Link>
-            <Link href="/production/rag-sandbox" className="inline-flex items-center rounded-md border border-orange-200 px-3 py-1.5 text-xs font-medium text-orange-700 hover:bg-orange-50">
-              RAG 沙箱
-            </Link>
-            <Link href="/production/knowledge-settings" className="inline-flex items-center rounded-md border border-orange-200 px-3 py-1.5 text-xs font-medium text-orange-700 hover:bg-orange-50">
-              知识设置
-            </Link>
           </div>
         </div>
       </div>

@@ -1,12 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
 import { FlashAlert } from "@/components/admin/FlashAlert";
+import { KnowledgeSubNav } from "@/components/production/KnowledgeSubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
-import { apiGet, apiPatch, apiPost, getToken } from "@/lib/api-client";
+import { apiGet, apiPatch, getToken } from "@/lib/api-client";
+import { zh } from "@/lib/i18n/zh";
 import { PRODUCTION_NAV } from "@/lib/nav-config";
 
 export default function KnowledgeSettingsPage() {
@@ -42,9 +43,9 @@ export default function KnowledgeSettingsPage() {
 
   return (
     <div>
-      <HubHeader title="知识库设置" subtitle="切片与检索参数" />
+      <HubHeader title={zh.production.tabs.knowledge} subtitle="切片与检索参数" />
       <HubNav items={PRODUCTION_NAV} tone="emerald" />
-      <Link href="/production/knowledge" className="mb-4 inline-block text-sm text-emerald-700">← 知识库</Link>
+      <KnowledgeSubNav />
       {flash && <FlashAlert variant="success">{flash}</FlashAlert>}
       <form onSubmit={onSubmit} className="max-w-lg space-y-4 rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-200">
         <label className="block text-sm">

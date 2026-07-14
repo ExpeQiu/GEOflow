@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
 import { FlashAlert } from "@/components/admin/FlashAlert";
+import { KnowledgeSubNav } from "@/components/production/KnowledgeSubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiDelete, apiGet, apiPatch, apiPost, apiUpload, getToken } from "@/lib/api-client";
 import { PRODUCTION_NAV } from "@/lib/nav-config";
@@ -57,6 +58,7 @@ export default function KnowledgeEditPage() {
     <div>
       <HubHeader title={isNew ? "新建知识库" : "编辑知识库"} subtitle="" />
       <HubNav items={PRODUCTION_NAV} tone="emerald" />
+      <KnowledgeSubNav />
       <Link href="/production/knowledge" className="mb-4 inline-block text-sm text-emerald-700">← 返回</Link>
       {saveMsg && <FlashAlert variant="success">{saveMsg}</FlashAlert>}
       <form onSubmit={onSubmit} className="space-y-4 rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-200">

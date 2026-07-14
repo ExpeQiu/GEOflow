@@ -135,6 +135,21 @@ async def probe_platform(
             competitor_brands=competitor_brands,
         )
 
+    # 探针标准：corpus 不得冒充 L1 citation
+    if getattr(outcome, "engine", None) == "corpus" and getattr(outcome, "evidence_level", "L0") == "L1":
+        try:
+            from app.services.admin.geo_eval_settings_service import get_probe_standards
+
+            standards = await get_probe_standards(db)
+            if standards.get("forbid_corpus_as_l1", True):
+                outcome.evidence_level = "L0"
+                logger.info(
+                    "probe_corpus_evidence_demoted platform=%s forbid_corpus_as_l1=true",
+                    platform,
+                )
+        except Exception:
+            outcome.evidence_level = "L0"
+
     logger.debug(
         "probe_platform platform=%s engine=%s mentioned=%s rank=%s "
         "rank_method=%s evidence_level=%s parser_version=%s strict=%s",

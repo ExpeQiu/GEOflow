@@ -239,6 +239,7 @@ Docker 启用 external 见 [content-agent-deploy.md](./content-agent-deploy.md)�
 - 任务表单：内容编排模式
 - 观测：`/geo_admin/production` 编排面板含 `content_pipeline` 统计
 - 修改编排：`services/content-agent/config/workflows.yml` + `agents.yml`，重启 `content-agent`
+- **Agent 人设 UI**：`/production/ai-agents`（读/写 `geoflow-v3/backend/app/ai/config/agents.yml`，保存后热清缓存）
 
 ---
 

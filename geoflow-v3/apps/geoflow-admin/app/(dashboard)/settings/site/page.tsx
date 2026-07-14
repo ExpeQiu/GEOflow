@@ -153,6 +153,12 @@ export default function SettingsPage() {
                     <BoolBadge enabled={data.geo_eval_wiki_gate_enabled} onLabel={zh.settings.enabled} offLabel={zh.settings.disabled} />
                   </dd>
                 </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-gray-500">{zh.settings.fields.hardGate}</dt>
+                  <dd>
+                    <BoolBadge enabled={Boolean(data.geo_eval_hard_gate)} onLabel={zh.settings.enabled} offLabel={zh.settings.disabled} />
+                  </dd>
+                </div>
               </dl>
             </section>
 

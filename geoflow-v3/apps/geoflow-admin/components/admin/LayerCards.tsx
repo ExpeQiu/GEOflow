@@ -6,12 +6,12 @@ const LAYER_LINKS = {
     { href: "/strategy/monitor", label: zh.strategy.tabs.monitor },
     { href: "/strategy/web-intel", label: zh.strategy.tabs["web-intel"] },
     { href: "/strategy/simulator", label: zh.strategy.tabs.simulator },
-    { href: "/strategy/analytics", label: zh.strategy.tabs.analytics },
   ],
   l2: [
     { href: "/production/ai_config", label: zh.production.tabs.ai_config },
     { href: "/production/materials", label: zh.production.tabs.materials },
     { href: "/production/knowledge", label: zh.production.tabs.knowledge },
+    { href: "/production/geo-eval", label: zh.production.tabs["geo-eval"] },
   ],
   l3: [
     { href: "/operations/tasks", label: zh.operations.tabs.tasks },

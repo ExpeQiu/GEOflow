@@ -36,6 +36,16 @@ def load_workflows_config() -> dict[str, Any]:
     return data
 
 
+def invalidate_agents_config_cache() -> None:
+    load_agents_config.cache_clear()
+    logger.info("agents_config_cache_cleared")
+
+
+def invalidate_workflows_config_cache() -> None:
+    load_workflows_config.cache_clear()
+    logger.info("workflows_config_cache_cleared")
+
+
 def get_agent(agent_id: str) -> dict[str, Any]:
     agents = load_agents_config().get("agents", {})
     if agent_id not in agents:
