@@ -590,9 +590,12 @@ export const zh = {
     },
     gweb: {
       title: "GWeb 同步",
-      desc: "Wiki MDX 内容将通过 Bearer Token 推送到 GWeb",
+      desc: "Wiki MDX 推送到 GWeb，并写入 geo_flow_task 溯源字段",
       syncSecret: "Sync Secret",
       timeout: "超时（秒）",
+      routePrefix: "路由前缀（可选）",
+      routePrefixPlaceholder: "concepts / compare / guides …",
+      routePrefixHint: "留空则按 wiki_page_type 自动推断",
     },
     wordpress: {
       title: "WordPress 配置",

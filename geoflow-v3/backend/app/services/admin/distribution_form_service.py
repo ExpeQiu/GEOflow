@@ -46,6 +46,7 @@ class AdminDistributionCreateBody(BaseModel):
     generic_payload_wrapper: str = Field(default="none", pattern="^(none|data)$")
     gweb_sync_secret: str = ""
     gweb_timeout_seconds: int = Field(default=30, ge=5, le=120)
+    gweb_route_prefix: str = ""
 
 
 def build_distribution_form_options() -> dict[str, Any]:
@@ -125,11 +126,15 @@ def _validate_type_specific(body: AdminDistributionCreateBody) -> None:
 
 def _build_type_config(body: AdminDistributionCreateBody, endpoint_url: str) -> dict[str, Any]:
     if body.channel_type == "gweb_wiki":
-        return {
+        cfg: dict[str, Any] = {
             "gweb_base_url": endpoint_url.rstrip("/"),
             "gweb_sync_secret": body.gweb_sync_secret.strip(),
             "gweb_timeout_seconds": body.gweb_timeout_seconds,
         }
+        prefix = body.gweb_route_prefix.strip()
+        if prefix:
+            cfg["route_prefix"] = prefix
+        return cfg
     if body.channel_type == "wordpress_rest":
         return {
             "wordpress_username": body.wordpress_username.strip(),

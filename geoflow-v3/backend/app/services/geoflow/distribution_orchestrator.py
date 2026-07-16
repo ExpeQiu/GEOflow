@@ -65,10 +65,10 @@ class DistributionOrchestrator:
 
             try:
                 if channel.channel_type == "gweb_wiki" and article.content_format == "wiki_mdx":
-                    result = await self.gweb.publish(article)
+                    result = await self.gweb.publish(article, channel=channel)
                     dist.status = "published"
                     dist.remote_url = result.get("url")
-                    dist.remote_id = result.get("slug")
+                    dist.remote_id = result.get("slug") or result.get("remote_id")
                 elif channel.channel_type == "geoflow_agent":
                     result = await publish_geoflow_agent(channel, article)
                     dist.status = "published"

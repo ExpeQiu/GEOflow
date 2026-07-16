@@ -208,6 +208,16 @@ export function DistributionChannelCreateForm() {
                   className={inputClass}
                 />
               </div>
+              <div className="md:col-span-2">
+                <label className={labelClass}>{zh.distributionCreate.gweb.routePrefix}</label>
+                <input
+                  value={form.gweb_route_prefix}
+                  onChange={(e) => patch("gweb_route_prefix", e.target.value)}
+                  className={inputClass}
+                  placeholder={zh.distributionCreate.gweb.routePrefixPlaceholder}
+                />
+                <p className="mt-1 text-xs text-gray-500">{zh.distributionCreate.gweb.routePrefixHint}</p>
+              </div>
             </div>
           </div>
         )}

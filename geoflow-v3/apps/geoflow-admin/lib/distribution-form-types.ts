@@ -35,6 +35,7 @@ export type DistributionCreatePayload = {
   generic_payload_wrapper: "none" | "data";
   gweb_sync_secret: string;
   gweb_timeout_seconds: number;
+  gweb_route_prefix: string;
 };
 
 export const DEFAULT_DISTRIBUTION_FORM: DistributionCreatePayload = {
@@ -66,4 +67,5 @@ export const DEFAULT_DISTRIBUTION_FORM: DistributionCreatePayload = {
   generic_payload_wrapper: "none",
   gweb_sync_secret: "",
   gweb_timeout_seconds: 30,
+  gweb_route_prefix: "",
 };
