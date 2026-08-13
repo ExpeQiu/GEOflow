@@ -25,22 +25,45 @@ class MonitorScanOrchestrator:
         limit = await load_scan_limit(self.db)
         has_extended = await _table_exists(self.db, "geo_monitor_scenes")
 
+        # PROBE-TRUTH M1：daily 默认 priority≥80；market ≥50（可用 probe_standards 覆盖 daily）
+        priority_floor = 0
+        try:
+            from app.services.admin.geo_eval_settings_service import get_probe_standards
+
+            standards = await get_probe_standards(self.db)
+            if scan_type == "daily":
+                priority_floor = int(standards.get("priority_floor_daily") or 80)
+            elif scan_type == "market":
+                priority_floor = int(standards.get("priority_floor_market") or 50)
+        except Exception:
+            priority_floor = 80 if scan_type == "daily" else (50 if scan_type == "market" else 0)
+
         if scene_id is not None and has_extended:
             sql = """
                 SELECT id, question_text, priority, competitor_brands
                 FROM geo_monitor_questions
-                WHERE status = 'active' AND scene_id = :sid
+                WHERE status = 'active' AND scene_id = :sid AND priority >= :floor
                 ORDER BY priority DESC, id ASC
                 LIMIT :lim
             """
-            rows = (await self.db.execute(text(sql), {"lim": limit, "sid": scene_id})).all()
+            rows = (
+                await self.db.execute(text(sql), {"lim": limit, "sid": scene_id, "floor": priority_floor})
+            ).all()
+            logger.info(
+                "monitor_questions_loaded scan_type=%s scene_id=%s floor=%s count=%s limit=%s",
+                scan_type,
+                scene_id,
+                priority_floor,
+                len(rows),
+                limit,
+            )
             return rows
 
         if has_extended:
             sql = """
                 SELECT id, question_text, priority, competitor_brands
                 FROM geo_monitor_questions
-                WHERE status = 'active'
+                WHERE status = 'active' AND priority >= :floor
                 ORDER BY priority DESC, id ASC
                 LIMIT :lim
             """
@@ -48,14 +71,19 @@ class MonitorScanOrchestrator:
             sql = """
                 SELECT id, question_text, priority, NULL as competitor_brands
                 FROM geo_monitor_questions
-                WHERE status = 'active'
+                WHERE status = 'active' AND priority >= :floor
                 ORDER BY priority DESC, id ASC
                 LIMIT :lim
             """
 
-        rows = (await self.db.execute(text(sql), {"lim": limit})).all()
-        if scan_type == "market":
-            return rows
+        rows = (await self.db.execute(text(sql), {"lim": limit, "floor": priority_floor})).all()
+        logger.info(
+            "monitor_questions_loaded scan_type=%s floor=%s count=%s limit=%s",
+            scan_type,
+            priority_floor,
+            len(rows),
+            limit,
+        )
         return rows[:limit]
 
     async def run_scan(self, scan_type: str = "daily", scene_id: int | None = None) -> dict:

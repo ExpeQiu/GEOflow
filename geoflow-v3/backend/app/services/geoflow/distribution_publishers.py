@@ -1,11 +1,11 @@
-"""WordPress / Generic HTTP / GeoFlow Agent / Gweb Wiki 分发发布器。"""
+"""WordPress / Generic HTTP / GeoFlow Agent / GEOweb 分发发布器。"""
 
 import httpx
 
 from app.core.logging import get_logger
 from app.models.article import Article
 from app.models.distribution import DistributionChannel
-from app.services.geoflow.gweb_wiki_publisher import GwebWikiPublisher
+from app.services.geoflow.geoweb_publisher import GeowebPublisher
 
 logger = get_logger("geoflow.distribution.publishers")
 
@@ -14,9 +14,9 @@ def _cfg(channel: DistributionChannel) -> dict:
     return channel.config_json if isinstance(channel.config_json, dict) else {}
 
 
-async def publish_gweb_wiki(channel: DistributionChannel, article: Article) -> dict:
-    """注册入口：委托 GwebWikiPublisher，注入溯源字段。"""
-    return await GwebWikiPublisher().publish(article, channel=channel)
+async def publish_geoweb(channel: DistributionChannel, article: Article) -> dict:
+    """主路径：委托 GeowebPublisher → GEOweb /api/geoflow/sync。"""
+    return await GeowebPublisher().publish(article, channel=channel)
 
 
 async def publish_geoflow_agent(channel: DistributionChannel, article: Article) -> dict:

@@ -23,6 +23,7 @@ class EmbeddingService:
 
             digest = hashlib.sha256(text.encode()).digest()
             mock = [((b / 255.0) * 2 - 1) for b in digest] * 12
+            logger.info("embedding_mock_mode length=%s", len(text))
             return pad_embedding_vector(mock)
 
         row = (
@@ -34,7 +35,7 @@ class EmbeddingService:
             )
         ).scalar_one_or_none()
         if row is None:
-            logger.warning("embedding_model_missing")
+            logger.warning("embedding_model_missing ai_mock_mode=false — 上传后无法向量化，请配置 embedding 模型")
             return None
 
         import httpx
@@ -51,7 +52,28 @@ class EmbeddingService:
                 return None
             data = resp.json()
             vector = data["data"][0]["embedding"]
+            logger.info("embedding_ok model_id=%s dims=%s", row.model_id, len(vector) if vector else 0)
             return pad_embedding_vector(vector)
         except Exception:
             logger.exception("embedding_request_failed model_id=%s", row.model_id)
             return None
+
+    async def ensure_production_ready(self) -> dict:
+        """Wave 9 验收：非 Mock 时必须有可用 embedding 模型。"""
+        if settings.ai_mock_mode:
+            return {"ready": True, "mode": "mock", "warning": "AI_MOCK_MODE=true"}
+        row = (
+            await self.db.execute(
+                select(AiModel)
+                .where(AiModel.model_type == "embedding", AiModel.status == "active")
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        ready = row is not None
+        logger.info("embedding_production_ready=%s", ready)
+        return {
+            "ready": ready,
+            "mode": "api",
+            "model_id": row.model_id if row else None,
+            "warning": None if ready else "missing_active_embedding_model",
+        }

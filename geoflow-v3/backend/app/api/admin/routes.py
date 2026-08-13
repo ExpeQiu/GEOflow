@@ -4,7 +4,7 @@ import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.api.deps import DbSession, get_admin_jwt
@@ -825,11 +825,19 @@ async def strategy_monitor_remediation_rescan(remediation_id: int, request: Requ
     return success(request, await complete_remediation_rescan(db, remediation_id))
 
 
-@router.get("/strategy/monitor/gweb-alignment")
-async def strategy_monitor_gweb_alignment(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
-    from app.services.geoeval.gweb_alignment_service import compute_gweb_alignment
+@router.get("/strategy/monitor/geoweb-alignment")
+async def strategy_monitor_geoweb_alignment(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.geoweb_alignment_service import compute_geoweb_alignment
 
-    return success(request, await compute_gweb_alignment(db))
+    return success(request, await compute_geoweb_alignment(db))
+
+
+@router.get("/strategy/monitor/gweb-alignment")
+async def strategy_monitor_gweb_alignment_compat(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    """兼容旧路径 → GEOweb 对齐。"""
+    from app.services.geoeval.geoweb_alignment_service import compute_geoweb_alignment
+
+    return success(request, await compute_geoweb_alignment(db))
 
 
 @router.get("/strategy/monitor/scenes/{scene_id}/citation-chain")
@@ -992,6 +1000,96 @@ async def strategy_monitor_run_detail(
 @router.get("/strategy/geo-eval")
 async def strategy_geo_eval(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     return success(request, await build_geo_eval_panel(db))
+
+
+@router.get("/strategy/geo-eval/articles/{article_id}")
+async def strategy_geo_eval_article_detail(
+    article_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)
+):
+    """GeoEval 单篇评估明细（Wave E drill-down）。"""
+    from app.models.geoeval import ArticleEvaluation
+
+    article = await db.get(Article, article_id)
+    if article is None or article.deleted_at:
+        raise HTTPException(status_code=404, detail="article_not_found")
+    rows = (
+        await db.execute(
+            select(ArticleEvaluation)
+            .where(ArticleEvaluation.article_id == article_id)
+            .order_by(ArticleEvaluation.id.desc())
+            .limit(10)
+        )
+    ).scalars().all()
+    evals = [
+        {
+            "id": int(e.id),
+            "status": e.status,
+            "eval_type": e.eval_type,
+            "metrics": e.metrics or {},
+            "simulation_score": (e.metrics or {}).get("simulation_score") if isinstance(e.metrics, dict) else None,
+            "audit_score": (e.metrics or {}).get("audit_score") if isinstance(e.metrics, dict) else None,
+            "failure_reason": e.failure_reason,
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+        }
+        for e in rows
+    ]
+    logger = logging.getLogger(__name__)
+    logger.info("geo_eval_article_detail article_id=%s evals=%s", article_id, len(evals))
+    return success(
+        request,
+        {
+            "article": {
+                "id": article.id,
+                "title": article.title,
+                "status": article.status,
+                "eval_meta": article.eval_meta or {},
+            },
+            "evaluations": evals,
+        },
+    )
+
+
+class SalesCopyBody(BaseModel):
+    title: str
+    body: str
+    copy_type: str = "talking_point"
+    scene_id: int | None = None
+    tech_ip_asset_id: int | None = None
+    meta: dict | None = None
+    id: int | None = None
+
+
+@router.get("/strategy/sales-copy")
+async def strategy_sales_copy_list(
+    request: Request,
+    db: DbSession,
+    jwt=Depends(get_admin_jwt),
+    scene_id: int | None = None,
+    copy_type: str | None = None,
+):
+    from app.services.geoeval.sales_copy_service import list_sales_copy
+
+    return success(request, await list_sales_copy(db, scene_id=scene_id, copy_type=copy_type))
+
+
+@router.post("/strategy/sales-copy")
+async def strategy_sales_copy_upsert(body: SalesCopyBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.sales_copy_service import upsert_sales_copy
+
+    return success(
+        request,
+        await upsert_sales_copy(
+            db,
+            title=body.title,
+            body=body.body,
+            copy_type=body.copy_type,
+            scene_id=body.scene_id,
+            tech_ip_asset_id=body.tech_ip_asset_id,
+            meta=body.meta,
+            asset_id=body.id,
+        ),
+        status=201,
+    )
 
 
 @router.put("/strategy/geo-eval/settings")
@@ -1435,6 +1533,55 @@ async def simulator_batch_reevaluate(body: BatchReevalBody, request: Request, db
 @router.post("/strategy/simulator/apply-recommendations/{article_id}")
 async def simulator_apply_recommendations(article_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     return success(request, await apply_recommendations(db, article_id))
+
+
+class GoldLabelBody(BaseModel):
+    question_id: int | None = None
+    platform: str
+    source: str = "manual"
+    mentioned: bool = False
+    brand_rank: int | None = None
+    snippet: str = ""
+    cited_urls: list[str] | None = None
+    open_api_probe_id: int | None = None
+    notes: str = ""
+    captured_at: str | None = None
+
+
+class GoldJsonlBody(BaseModel):
+    content: str = Field(min_length=1, description="JSONL 文本，每行一条金标")
+
+
+@router.get("/strategy/gold-labels")
+async def strategy_gold_labels_list(request: Request, db: DbSession, jwt=Depends(get_admin_jwt), limit: int = Query(100, ge=1, le=500)):
+    from app.services.geoeval.gold_bias_service import list_gold_labels
+
+    return success(request, await list_gold_labels(db, limit=limit))
+
+
+@router.post("/strategy/gold-labels")
+async def strategy_gold_labels_create(body: GoldLabelBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.gold_bias_service import upsert_gold_label
+
+    try:
+        return success(request, await upsert_gold_label(db, body.model_dump()), status=201)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/strategy/gold-labels/import-jsonl")
+async def strategy_gold_labels_import(body: GoldJsonlBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.gold_bias_service import import_gold_jsonl
+
+    lines = body.content.splitlines()
+    return success(request, await import_gold_jsonl(db, lines), status=201)
+
+
+@router.get("/strategy/gold-labels/bias")
+async def strategy_gold_bias(request: Request, db: DbSession, jwt=Depends(get_admin_jwt), days: int = Query(30, ge=1, le=365)):
+    from app.services.geoeval.gold_bias_service import compute_gold_bias
+
+    return success(request, await compute_gold_bias(db, days=days))
 
 
 @router.patch("/tech-assets/{asset_id}")

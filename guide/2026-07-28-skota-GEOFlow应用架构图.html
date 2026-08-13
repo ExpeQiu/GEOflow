@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>GEOFlow v3 · 应用架构图</title>
+<style>
+:root{
+  --ink:#1f2937;
+  --muted:#64748b;
+  --red:#dc2626;
+  --title:#2563eb;
+  --ad:#c5d4e8;
+  --ad-border:#7b91b0;
+  --app:#dfe3e8;
+  --app-border:#8b95a5;
+  --af:#fff;
+  --af-border:#94a3b8;
+  --fn:#f8fafc;
+  --fn-border:#cbd5e1;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e8edf2;color:var(--ink);font:13.5px/1.55 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+.page{max-width:1200px;margin:20px auto;background:#fff;border:1px solid #d1d5db;padding-bottom:28px}
+
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:12px 26px;background:#eef1f4;border-bottom:1px solid #d1d5db}
+.brand{font:800 20px/1.1 Georgia,"Times New Roman",serif;letter-spacing:.04em}
+.brand small{display:block;font:600 10px/1.2 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;letter-spacing:.12em;color:var(--muted);margin-top:3px}
+.top-title{font-size:18px;font-weight:700;color:var(--title)}
+
+.main{padding:16px 26px 0;position:relative}
+.hint{color:var(--red);font-size:13px;font-weight:600;margin:0 0 14px}
+
+/* 应用域 */
+.domain{
+  background:var(--ad);border:2px solid var(--ad-border);border-radius:2px;
+  padding:28px 16px 16px;position:relative;margin-bottom:18px;
+}
+.domain-title{
+  position:absolute;top:8px;left:14px;font-size:13px;font-weight:800;color:#1e293b;
+}
+
+.grid{
+  display:grid;
+  grid-template-columns:1.35fr 1fr 1fr;
+  gap:12px;
+  margin-top:8px;
+}
+@media(max-width:980px){.grid{grid-template-columns:1fr}}
+
+/* 应用 */
+.app{
+  background:var(--app);border:1.5px solid var(--app-border);border-radius:2px;
+  padding:8px;display:flex;flex-direction:column;gap:8px;min-height:100%;
+}
+.app-head{font-size:12.5px;font-weight:800;text-align:center;padding:4px 6px 6px;color:#0f172a}
+.app.featured{grid-row:span 2}
+
+/* 应用功能 */
+.af{
+  background:var(--af);border:1.5px solid var(--af-border);border-radius:2px;padding:8px;
+}
+.af-head{font-size:12px;font-weight:700;margin-bottom:6px;color:#0f172a;text-align:center}
+.fns{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.fns.cols-3{grid-template-columns:1fr 1fr 1fr}
+.fns.cols-1{grid-template-columns:1fr}
+.fn{
+  background:var(--fn);border:1px dashed var(--fn-border);border-radius:2px;
+  padding:6px 8px;font-size:11.5px;font-weight:600;color:#334155;text-align:center;
+  min-height:30px;display:flex;align-items:center;justify-content:center;
+}
+.fn.solid{border-style:solid;background:#fff;color:#0f172a}
+
+/* 右侧应用堆叠 */
+.stack{display:flex;flex-direction:column;gap:12px}
+.stack .app{min-height:0}
+
+/* 外部系统条 */
+.ext{
+  margin-top:12px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;
+}
+@media(max-width:800px){.ext{grid-template-columns:1fr 1fr}}
+.ext-item{
+  border:1.5px dashed #64748b;background:#f8fafc;padding:8px 10px;text-align:center;font-size:12px;
+}
+.ext-item b{display:block;font-size:12.5px;margin-bottom:2px}
+.ext-item span{color:var(--muted);font-size:11px}
+
+/* 图例 */
+.legend-row{
+  display:flex;justify-content:flex-end;align-items:center;gap:18px;
+  margin-top:12px;padding-top:8px;flex-wrap:wrap;
+}
+.leg{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600}
+.sw{width:52px;height:22px;border:1.5px solid;display:inline-block}
+.sw.ad{background:var(--ad);border-color:var(--ad-border)}
+.sw.a{background:var(--app);border-color:var(--app-border)}
+.sw.af{background:var(--af);border-color:var(--af-border)}
+
+/* 注意 */
+.notes{margin-top:18px;padding:0 2px}
+.notes h3{margin:0 0 8px;font-size:13px;color:var(--red);font-weight:700}
+.notes ol{margin:0;padding-left:1.3em;color:var(--red);font-size:12.5px;line-height:1.7}
+.notes li{margin:2px 0}
+
+footer{margin:18px 26px 0;padding-top:12px;border-top:1px solid #e5e7eb;font-size:11.5px;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+footer a{color:#2563eb;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topbar">
+    <div class="brand">GEOFlow<small>v3 · APPLICATION ARCHITECTURE</small></div>
+    <div class="top-title">应用架构图</div>
+  </div>
+
+  <div class="main">
+    <p class="hint">本页需阐明系统的应用架构设计（可剪裁）</p>
+
+    <div class="domain">
+      <div class="domain-title">AD0001 GEO 智能内容工程应用域</div>
+
+      <div class="grid">
+        <!-- 主应用：内容生产（功能展开，对齐附图左侧大卡） -->
+        <div class="app featured">
+          <div class="app-head">A0002 内容生产应用</div>
+
+          <div class="af">
+            <div class="af-head">AF0002.0001 AI 配置</div>
+            <div class="fns">
+              <div class="fn solid">模型管理</div>
+              <div class="fn solid">Prompt 管理</div>
+              <div class="fn solid">Agent 编排</div>
+              <div class="fn solid">工作流 YAML</div>
+            </div>
+          </div>
+
+          <div class="af">
+            <div class="af-head">AF0002.0002 素材库</div>
+            <div class="fns">
+              <div class="fn solid">标题 / 关键词</div>
+              <div class="fn solid">图片 / 作者</div>
+            </div>
+          </div>
+
+          <div class="af">
+            <div class="af-head">AF0002.0003 知识库 RAG</div>
+            <div class="fns cols-3">
+              <div class="fn solid">切片同步</div>
+              <div class="fn solid">向量召回</div>
+              <div class="fn solid">URL 导入</div>
+            </div>
+          </div>
+
+          <div class="af">
+            <div class="af-head">AF0002.0004 技术 IP · GEO 标准</div>
+            <div class="fns">
+              <div class="fn solid">Wiki 资产卡</div>
+              <div class="fn solid">门禁标准配置</div>
+            </div>
+          </div>
+
+          <div class="af">
+            <div class="af-head">AF0002.0005 生成执行</div>
+            <div class="fns">
+              <div class="fn solid">LangGraph 生成</div>
+              <div class="fn solid">文章 / Wiki MDX</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 中列应用 -->
+        <div class="stack">
+          <div class="app">
+            <div class="app-head">A0001 策略分析应用</div>
+            <div class="af">
+              <div class="af-head">AF0001.*</div>
+              <div class="fns">
+                <div class="fn solid">AIVIS 诊断</div>
+                <div class="fn solid">场景图 / 问题库</div>
+                <div class="fn solid">探针扫描</div>
+                <div class="fn solid">缺口分析</div>
+                <div class="fn solid">补缺实验</div>
+                <div class="fn solid">可见性报告</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="app">
+            <div class="app-head">A0003 任务运营应用</div>
+            <div class="af">
+              <div class="af-head">AF0003.*</div>
+              <div class="fns">
+                <div class="fn solid">任务调度</div>
+                <div class="fn solid">文章审核</div>
+                <div class="fn solid">GEO 评估</div>
+                <div class="fn solid">发布门禁</div>
+                <div class="fn solid">进度查询</div>
+                <div class="fn solid">回收站</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右列应用 -->
+        <div class="stack">
+          <div class="app">
+            <div class="app-head">A0004 多渠分发应用</div>
+            <div class="af">
+              <div class="af-head">AF0004.*</div>
+              <div class="fns">
+                <div class="fn solid">渠道配置</div>
+                <div class="fn solid">分发队列</div>
+                <div class="fn solid">Gweb Sync</div>
+                <div class="fn solid">WP / HTTP</div>
+                <div class="fn solid">引用索引</div>
+                <div class="fn solid">密钥轮换</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="app">
+            <div class="app-head">A0005 系统治理应用</div>
+            <div class="af">
+              <div class="af-head">AF0005.*</div>
+              <div class="fns">
+                <div class="fn solid">管理员账号</div>
+                <div class="fn solid">API Token</div>
+                <div class="fn solid">敏感词</div>
+                <div class="fn solid">站点配置</div>
+                <div class="fn solid">操作审计</div>
+                <div class="fn solid">Dashboard</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="app">
+            <div class="app-head">A0006 异步作业应用</div>
+            <div class="af">
+              <div class="af-head">AF0006.* · Celery</div>
+              <div class="fns">
+                <div class="fn solid">process_geoflow_task</div>
+                <div class="fn solid">evaluate_article</div>
+                <div class="fn solid">distribution</div>
+                <div class="fn solid">monitor_scan</div>
+                <div class="fn solid">remediation</div>
+                <div class="fn solid">chunk_sync</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 可独立部署单元提示行 -->
+      <div class="ext" style="margin-top:14px">
+        <div class="ext-item"><b>部署单元 · Admin</b><span>geoflow-admin · :13001</span></div>
+        <div class="ext-item"><b>部署单元 · API</b><span>FastAPI · :18081</span></div>
+        <div class="ext-item"><b>部署单元 · Worker</b><span>Celery · Flower :15555</span></div>
+        <div class="ext-item"><b>数据底座</b><span>PostgreSQL + pgvector · Redis</span></div>
+      </div>
+
+      <div class="ext">
+        <div class="ext-item"><b>外部 · Gweb</b><span>wiki/sync · 公网 Wiki</span></div>
+        <div class="ext-item"><b>外部 · LLM</b><span>OpenAI 兼容 Provider</span></div>
+        <div class="ext-item"><b>外部 · 探针平台</b><span>豆包 / DeepSeek 等</span></div>
+        <div class="ext-item"><b>外部 · CMS</b><span>WordPress / HTTP / Agent</span></div>
+      </div>
+
+      <div class="legend-row">
+        <div class="leg"><span class="sw ad"></span>应用域（如 AD0001）</div>
+        <div class="leg"><span class="sw a"></span>应用（如 A0001）</div>
+        <div class="leg"><span class="sw af"></span>应用功能（如 AF0001.0001）</div>
+        <div class="leg" style="color:var(--muted);font-weight:600">图例</div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>注意：本页应清楚描述</h3>
+      <ol>
+        <li>应用架构实现业务架构，影响技术架构的选型，决定系统如何部署；</li>
+        <li>应体现内部应用的划分和关系、与外部系统的关系；</li>
+        <li>应用是可独立部署的服务单元，系统边界清晰；</li>
+        <li>跨云、跨区域的交互，交互对象必须清晰；</li>
+        <li>本页可按实际情况剪裁。</li>
+      </ol>
+    </div>
+  </div>
+
+  <footer>
+    <span>2026-07-28 · GEOFlow v3 应用架构图 · 版式参考吉利「应用架构图」附图 · 配对业务架构 / 数据安全</span>
+    <a class="source" href="./2026-07-28-skota-GEOFlow业务架构.html">← 业务架构图</a>
+  </footer>
+</div>
+</body>
+</html>

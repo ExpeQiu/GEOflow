@@ -95,9 +95,25 @@ export function ProbeSettingsForm({ onSaved }: { onSaved?: () => void }) {
       <h3 className="text-sm font-semibold">探针设置（国内 6 平台）</h3>
       {settings.ai_mock_mode && (
         <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          当前 AI_MOCK_MODE=true：RAG 缺口可能失真，生产闭环请关闭 Mock 并配置 Embedding / 探针 API Key。
+          当前 AI_MOCK_MODE=true：RAG/LLM 走 Mock。非 mock E2E：`.env` 设 AI_MOCK_MODE=false，探针模式选「真实
+          API」，打开 strict_api，并配置 DEEPSEEK_API_KEY / DOUBAO_API_KEY。
         </p>
       )}
+      {!settings.ai_mock_mode && form.probe_mode === "api" && (
+        <p className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+          非 Mock + API 模式：超限写 engine=skipped（认 ai_models.daily_limit）；daily 扫描仅 priority≥探针标准
+          floor（默认 80）。金标对照见「金标对照」Tab。
+        </p>
+      )}
+      <div className="rounded-md border border-violet-100 bg-violet-50/40 px-3 py-2 text-xs text-violet-900">
+        <p className="font-medium">非 mock 验收清单</p>
+        <ul className="mt-1 list-disc pl-4 space-y-0.5">
+          <li>AI_MOCK_MODE=false（当前 {settings.ai_mock_mode ? "未关闭" : "已关闭"}）</li>
+          <li>探针模式=api + strict_api（防 corpus 填洞）</li>
+          <li>平台建议 doubao,deepseek；题量受 monitor_scan_limit 与 priority floor 双重约束</li>
+          <li>在「AI 模型」为平台配置 daily_limit，打满后 KPI 可见 skipped</li>
+        </ul>
+      </div>
       <div className="grid gap-3 md:grid-cols-4">
         <input
           className={surfaceInputClass}

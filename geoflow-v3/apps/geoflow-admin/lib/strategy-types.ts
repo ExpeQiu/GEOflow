@@ -42,10 +42,24 @@ export type TechBrandMetrics = {
   p0_coverage_pct: number;
   wiki_articles: number;
   wiki_compliance_pct: number;
-  gweb_sync_total: number;
-  gweb_sync_success: number;
-  gweb_sync_rate_pct: number;
+  geoweb_sync_total: number;
+  geoweb_sync_success: number;
+  geoweb_sync_rate_pct: number;
+  /** @deprecated 兼容旧字段 */
+  gweb_sync_total?: number;
+  gweb_sync_success?: number;
+  gweb_sync_rate_pct?: number;
   needs_update_assets: number;
+};
+
+export type StrategyOverviewData = {
+  geo_eval: GeoEvalSummary;
+  tech_brand: TechBrandMetrics;
+  monitor: MonitorKpis;
+  analytics: AnalyticsSnapshot;
+  geoweb_alignment?: GeowebAlignment | null;
+  gweb_alignment?: GeowebAlignment | null;
+  remediations?: GapRemediation[];
 };
 
 export type PlatformSummary = {
@@ -55,6 +69,7 @@ export type PlatformSummary = {
   avg_rank: number | null;
   visibility_pct?: number;
   weighted_rank_score?: number | null;
+  top3_pct?: number | null;
 };
 
 export type MonitorKpis = {
@@ -62,25 +77,57 @@ export type MonitorKpis = {
   probe_count: number;
   avg_brand_rank: number | null;
   mention_rate: number;
+  mention_rate_pct?: number;
   visibility_pct?: number;
+  visibility_open_api?: number | null;
   weighted_rank_score?: number | null;
   sentiment_score?: number | null;
+  sentiment_negative_pct?: number | null;
+  top1_pct?: number | null;
+  top3_pct?: number | null;
+  top5_pct?: number | null;
+  valid_sample_n?: number;
+  gap_vs_leader_top3_pp?: number | null;
+  self_top3_pct?: number | null;
+  leader_top3_pct?: number | null;
+  kpi_track?: string;
   platform_summary: PlatformSummary[];
   platform_matrix?: PlatformSummary[];
   engine_mix?: Array<{ engine: string; label: string; count: number }>;
   api_probe_ratio_pct?: number;
+  win_rate_pct?: number | null;
+  win_rate_samples?: number;
+  quality?: {
+    param_consistency_pct?: number | null;
+    attribution_accuracy_pct?: number | null;
+    gate_pass?: boolean | null;
+    status?: string;
+    threshold?: number;
+  };
+  source?: {
+    official_share_pct?: number | null;
+    third_party_share_pct?: number | null;
+    target_domain_hits?: number;
+    citation_count?: number;
+  };
 };
 
-export type GwebAlignment = {
+export type GeowebAlignment = {
   status: string;
   alignment_pct: number;
-  gweb_page_count: number;
+  geoweb_page_count: number;
   matched_count: number;
-  only_gweb_count: number;
+  only_geoweb_count: number;
   only_local_count: number;
   source_url?: string;
   fetch_reason?: string;
+  /** @deprecated */
+  gweb_page_count?: number;
+  only_gweb_count?: number;
 };
+
+/** @deprecated 使用 GeowebAlignment */
+export type GwebAlignment = GeowebAlignment;
 
 export type GapRemediation = {
   id: number;
@@ -91,6 +138,9 @@ export type GapRemediation = {
   baseline_visibility_pct: number | null;
   post_visibility_pct: number | null;
   delta_visibility_pct: number | null;
+  baseline_top3_pct?: number | null;
+  post_top3_pct?: number | null;
+  delta_top3_pp?: number | null;
   published_at: string | null;
   rescan_after: string | null;
   created_at: string | null;
@@ -308,8 +358,15 @@ export type InsightTemplate = {
 
 export type AivisMetrics = {
   visibility_pct: number;
+  visibility_open_api?: number | null;
   weighted_rank_score: number | null;
   sentiment_score: number | null;
+  sentiment_negative_pct?: number | null;
+  top3_pct?: number | null;
+  top5_pct?: number | null;
+  mention_rate_pct?: number | null;
+  gap_vs_leader_top3_pp?: number | null;
+  kpi_track?: string;
   probe_count: number;
 };
 

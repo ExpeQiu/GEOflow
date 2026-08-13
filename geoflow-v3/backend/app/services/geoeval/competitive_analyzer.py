@@ -25,6 +25,28 @@ def _recalc_matrix_stats(matrix: list[dict], fallback_self_visibility: float = 0
     return self_visibility, round(leader_visibility - self_visibility, 1)
 
 
+def _recalc_top3_stats(matrix: list[dict], fallback_self_top3: float | None = None) -> tuple[float | None, float | None, float | None]:
+    from app.services.geoeval.north_star_kpi import gap_vs_leader_pp
+
+    top3_vals = [
+        float(b["top3_pct"])
+        for row in matrix
+        for b in row.get("brands") or []
+        if b.get("top3_pct") is not None
+    ]
+    leader_top3 = max(top3_vals) if top3_vals else None
+    self_top3 = next(
+        (
+            float(b["top3_pct"])
+            for row in matrix
+            for b in row.get("brands") or []
+            if b.get("is_self") and b.get("top3_pct") is not None
+        ),
+        fallback_self_top3,
+    )
+    return self_top3, leader_top3, gap_vs_leader_pp(self_top3, leader_top3)
+
+
 async def load_tjg_layer_snapshot(db: AsyncSession, layer: str = "brand") -> dict | None:
     """读取最新 TJG 导入报告中的层级快照（矩阵 + KPI）。"""
     if not await _table_exists(db, "geo_visibility_reports"):
@@ -141,9 +163,11 @@ async def _aggregate_competitor_visibility(
     db: AsyncSession,
     competitors: list[dict],
     query_type: str | None = None,
+    *,
+    north_star: bool = False,
 ) -> dict[str, dict[str, dict]]:
     """
-    Returns: { platform: { brand_name: { visibility_pct, weighted_rank_score, mentions, total } } }
+    Returns: { platform: { brand_name: { visibility_pct, top3_pct, weighted_rank_score, mentions, total } } }
     """
     if not await _table_exists(db, "geo_monitor_probe_results"):
         return {}
@@ -154,10 +178,28 @@ async def _aggregate_competitor_visibility(
     qfilter = ""
     params: dict = {}
     join_sql = ""
-    if query_type and await _table_exists(db, "geo_monitor_questions"):
+    if (query_type or north_star) and await _table_exists(db, "geo_monitor_questions"):
         join_sql = "JOIN geo_monitor_questions mq ON mq.id = pr.question_id"
-        qfilter = "AND COALESCE(mq.query_type, 'brand') = :qt"
-        params["qt"] = query_type
+        if query_type:
+            qfilter += " AND COALESCE(mq.query_type, 'brand') = :qt"
+            params["qt"] = query_type
+        if north_star:
+            try:
+                col = (
+                    await db.execute(
+                        text(
+                            """
+                            SELECT column_name FROM information_schema.columns
+                            WHERE table_name = 'geo_monitor_questions' AND column_name = 'intent_type'
+                            """
+                        )
+                    )
+                ).first()
+                if col:
+                    qfilter += " AND COALESCE(mq.intent_type, 'cognition') IN ('compare', 'decision')"
+            except Exception:
+                pass
+            qfilter += " AND COALESCE(pr.engine, 'corpus') = 'api'"
 
     rows = (
         await db.execute(
@@ -179,7 +221,9 @@ async def _aggregate_competitor_visibility(
     for platform, mentioned, brand_rank, ranking_score, comp_mentions_raw, snippet in rows:
         plat = str(platform)
         if plat not in plat_stats:
-            plat_stats[plat] = {name: {"mentions": 0, "total": 0, "rank_scores": []} for name in name_tokens}
+            plat_stats[plat] = {
+                name: {"mentions": 0, "total": 0, "rank_scores": [], "ranks": []} for name in name_tokens
+            }
 
         for name in name_tokens:
             plat_stats[plat][name]["total"] += 1
@@ -203,16 +247,18 @@ async def _aggregate_competitor_visibility(
                 hit = True
                 if brand_rank and ranking_score:
                     plat_stats[plat][brand_name]["rank_scores"].append(float(ranking_score))
+                if brand_rank:
+                    plat_stats[plat][brand_name]["ranks"].append(int(brand_rank))
             elif not is_self:
                 if any(t in snippet_lower for t in tokens):
                     hit = True
-                elif any(
-                    any(t in str(c).lower() for t in tokens)
-                    for c in comp_list
-                ):
+                elif any(any(t in str(c).lower() for t in tokens) for c in comp_list):
                     hit = True
+                # 竞品无稳定 rank 时：命中记为「进入答案」但不计入 Top3 分母外的假 rank
             if hit:
                 plat_stats[plat][brand_name]["mentions"] += 1
+
+    from app.services.geoeval.north_star_kpi import topn_pct
 
     result: dict[str, dict[str, dict]] = {}
     for plat, brands in plat_stats.items():
@@ -220,25 +266,36 @@ async def _aggregate_competitor_visibility(
         for name, stat in brands.items():
             total = stat["total"] or 1
             ranks = stat["rank_scores"]
+            brand_ranks = stat["ranks"]
             result[plat][name] = {
                 "mentions": stat["mentions"],
                 "total": stat["total"],
                 "visibility_pct": round(stat["mentions"] / total * 100, 1),
                 "weighted_rank_score": round(sum(ranks) / len(ranks), 2) if ranks else None,
+                "top3_pct": topn_pct(brand_ranks, 3) if brand_ranks else (
+                    round(stat["mentions"] / total * 100, 1) if not self_names or name not in self_names else None
+                ),
             }
     return result
 
 
-async def build_competitor_matrix(db: AsyncSession, query_type: str | None = None) -> dict:
+async def build_competitor_matrix(
+    db: AsyncSession,
+    query_type: str | None = None,
+    *,
+    north_star: bool = False,
+) -> dict:
     competitors = await load_competitor_brands(db, entity_type="brand")
-    kpis = await aggregate_probe_kpis(db, query_type=query_type)
+    kpis = await aggregate_probe_kpis(db, query_type=query_type, north_star=north_star)
     self_brands = await load_brand_keywords(db)
     self_name = self_brands[0] if self_brands else "自有品牌"
 
     if not competitors:
         competitors = [{"brand_name": self_name, "aliases": self_brands[1:], "is_self": True}]
 
-    vis_by_plat = await _aggregate_competitor_visibility(db, competitors, query_type=query_type)
+    vis_by_plat = await _aggregate_competitor_visibility(
+        db, competitors, query_type=query_type, north_star=north_star
+    )
     platform_matrix = kpis.get("platform_matrix") or []
 
     if not platform_matrix and vis_by_plat:
@@ -251,13 +308,14 @@ async def build_competitor_matrix(db: AsyncSession, query_type: str | None = Non
         brands_row = []
         for comp in competitors:
             name = comp["brand_name"]
-            stat = plat_vis.get(name, {"visibility_pct": 0.0, "weighted_rank_score": None})
+            stat = plat_vis.get(name, {"visibility_pct": 0.0, "weighted_rank_score": None, "top3_pct": None})
             brands_row.append(
                 {
                     "name": name,
                     "is_self": comp.get("is_self", False),
                     "visibility_pct": stat.get("visibility_pct", 0.0),
                     "weighted_rank_score": stat.get("weighted_rank_score"),
+                    "top3_pct": stat.get("top3_pct"),
                 }
             )
         matrix.append({"platform": plat_key, "brands": brands_row})
@@ -278,24 +336,37 @@ async def build_competitor_matrix(db: AsyncSession, query_type: str | None = Non
                 "matrix": tjg["matrix"],
                 "self_visibility_pct": tjg["self_visibility_pct"],
                 "gap_vs_leader": tjg["gap_vs_leader"],
+                "self_top3_pct": kpis.get("top3_pct"),
+                "leader_top3_pct": None,
+                "gap_vs_leader_top3_pp": None,
                 "competitors": tjg["competitors"],
                 "source": tjg.get("source"),
             }
 
     matrix = filter_matrix_by_entity(matrix, "brand")
     self_visibility, gap_vs_leader = _recalc_matrix_stats(matrix, float(kpis.get("visibility_pct") or 0))
+    self_top3, leader_top3, gap_top3 = _recalc_top3_stats(matrix, kpis.get("top3_pct"))
+    # 自有 Top3 优先用探针聚合（更稳），矩阵 gap 用竞品估算
+    if kpis.get("top3_pct") is not None:
+        self_top3 = kpis.get("top3_pct")
+        from app.services.geoeval.north_star_kpi import gap_vs_leader_pp
+
+        gap_top3 = gap_vs_leader_pp(self_top3, leader_top3)
 
     logger.info(
-        "competitor_matrix_built query_type=%s platforms=%s self_visibility=%s gap=%s",
+        "competitor_matrix_built query_type=%s platforms=%s self_top3=%s gap_top3=%s",
         query_type,
         len(matrix),
-        self_visibility,
-        gap_vs_leader,
+        self_top3,
+        gap_top3,
     )
     return {
         "matrix": matrix,
         "self_visibility_pct": self_visibility,
         "gap_vs_leader": gap_vs_leader,
+        "self_top3_pct": self_top3,
+        "leader_top3_pct": leader_top3,
+        "gap_vs_leader_top3_pp": gap_top3,
         "competitors": [c["brand_name"] for c in competitors],
     }
 

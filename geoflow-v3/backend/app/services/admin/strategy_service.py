@@ -20,7 +20,7 @@ settings = get_settings()
 
 
 async def build_strategy_overview(db: AsyncSession) -> dict:
-    from app.services.geoeval.gweb_alignment_service import compute_gweb_alignment
+    from app.services.geoeval.geoweb_alignment_service import compute_geoweb_alignment
     from app.services.geoeval.remediation_service import list_remediations
 
     rem = await list_remediations(db, limit=8)
@@ -29,7 +29,8 @@ async def build_strategy_overview(db: AsyncSession) -> dict:
         "tech_brand": await _tech_brand_metrics(db),
         "monitor": await _monitor_kpis(db),
         "analytics": await _analytics_snapshot(db),
-        "gweb_alignment": await compute_gweb_alignment(db),
+        "gweb_alignment": await compute_geoweb_alignment(db),
+        "geoweb_alignment": await compute_geoweb_alignment(db),
         "remediations": rem.get("items", []),
     }
 
@@ -293,9 +294,9 @@ async def _tech_brand_metrics(db: AsyncSession) -> dict:
         "p0_coverage_pct": 0.0,
         "wiki_articles": 0,
         "wiki_compliance_pct": 0.0,
-        "gweb_sync_total": 0,
-        "gweb_sync_success": 0,
-        "gweb_sync_rate_pct": 0.0,
+        "geoweb_sync_total": 0,
+        "geoweb_sync_success": 0,
+        "geoweb_sync_rate_pct": 0.0,
         "needs_update_assets": 0,
     }
     try:
@@ -336,25 +337,26 @@ async def _tech_brand_metrics(db: AsyncSession) -> dict:
             or 0
         )
 
-        gweb_total = 0
-        gweb_success = 0
+        sync_total = 0
+        sync_success = 0
         try:
-            gweb_total = int(
+            channel_filter = DistributionChannel.channel_type == "geoweb"
+            sync_total = int(
                 await db.scalar(
                     select(func.count())
                     .select_from(ArticleDistribution)
                     .join(DistributionChannel, ArticleDistribution.channel_id == DistributionChannel.id)
-                    .where(DistributionChannel.channel_type == "gweb_wiki")
+                    .where(channel_filter)
                 )
                 or 0
             )
-            gweb_success = int(
+            sync_success = int(
                 await db.scalar(
                     select(func.count())
                     .select_from(ArticleDistribution)
                     .join(DistributionChannel, ArticleDistribution.channel_id == DistributionChannel.id)
                     .where(
-                        DistributionChannel.channel_type == "gweb_wiki",
+                        channel_filter,
                         ArticleDistribution.status.in_(["synced", "published", "success"]),
                     )
                 )
@@ -371,9 +373,13 @@ async def _tech_brand_metrics(db: AsyncSession) -> dict:
                 "p0_coverage_pct": round(p0_ready / p0_total * 100, 1) if p0_total else 0.0,
                 "wiki_articles": wiki_articles,
                 "wiki_compliance_pct": round(wiki_compliant / wiki_articles * 100, 1) if wiki_articles else 0.0,
-                "gweb_sync_total": gweb_total,
-                "gweb_sync_success": gweb_success,
-                "gweb_sync_rate_pct": round(gweb_success / gweb_total * 100, 1) if gweb_total else 0.0,
+                "geoweb_sync_total": sync_total,
+                "geoweb_sync_success": sync_success,
+                "geoweb_sync_rate_pct": round(sync_success / sync_total * 100, 1) if sync_total else 0.0,
+                # 旧字段别名，过渡期前端可读
+                "gweb_sync_total": sync_total,
+                "gweb_sync_success": sync_success,
+                "gweb_sync_rate_pct": round(sync_success / sync_total * 100, 1) if sync_total else 0.0,
                 "needs_update_assets": needs_update,
             }
         )
@@ -383,15 +389,46 @@ async def _tech_brand_metrics(db: AsyncSession) -> dict:
 
 
 async def _monitor_kpis(db: AsyncSession) -> dict:
+    from app.services.geoeval.competitive_analyzer import build_competitor_matrix
     from app.services.geoeval.monitor_probe import aggregate_probe_kpis
+    from app.services.geoeval.quality_metrics_service import compute_quality_gates
+    from app.services.geoeval.source_metrics_service import compute_source_shares
 
-    kpis = await aggregate_probe_kpis(db)
+    kpis = await aggregate_probe_kpis(db, north_star=True)
     kpis["question_count"] = await _safe_count(db, "geo_monitor_questions")
     if kpis["probe_count"] == 0:
         kpis["probe_count"] = await _safe_count(db, "geo_monitor_runs")
     api_count = next((e["count"] for e in kpis.get("engine_mix") or [] if e.get("engine") == "api"), 0)
     total_engines = sum(int(e.get("count") or 0) for e in kpis.get("engine_mix") or [])
     kpis["api_probe_ratio_pct"] = round(api_count / total_engines * 100, 1) if total_engines else 0.0
+    try:
+        matrix = await build_competitor_matrix(db, north_star=True)
+        kpis["gap_vs_leader_top3_pp"] = matrix.get("gap_vs_leader_top3_pp")
+        kpis["self_top3_pct"] = matrix.get("self_top3_pct", kpis.get("top3_pct"))
+        kpis["leader_top3_pct"] = matrix.get("leader_top3_pct")
+        kpis["competitor_matrix"] = matrix
+    except Exception:
+        logger.exception("monitor_kpis_matrix_failed")
+        kpis.setdefault("gap_vs_leader_top3_pp", None)
+    try:
+        kpis["quality"] = await compute_quality_gates(db)
+    except Exception:
+        logger.exception("monitor_kpis_quality_failed")
+        kpis["quality"] = {"param_consistency_pct": None, "gate_pass": None, "status": "pending"}
+    try:
+        kpis["source"] = await compute_source_shares(db)
+    except Exception:
+        logger.exception("monitor_kpis_source_failed")
+        kpis["source"] = {}
+    try:
+        from app.services.geoeval.sales_copy_service import compute_win_rate
+
+        wr = await compute_win_rate(db)
+        kpis["win_rate_pct"] = wr.get("win_rate_pct")
+        kpis["win_rate_samples"] = wr.get("compare_samples")
+    except Exception:
+        logger.exception("monitor_kpis_win_rate_failed")
+        kpis["win_rate_pct"] = None
     return kpis
 
 

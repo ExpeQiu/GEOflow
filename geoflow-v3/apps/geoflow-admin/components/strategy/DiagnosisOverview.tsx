@@ -40,9 +40,9 @@ export function DiagnosisOverview({
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <LayerSection title="品牌分析层 (Brand Visibility)">
           <div className="grid grid-cols-3 gap-3">
-            <AivisKpiCard label="可见性" value={`${brand.visibility_pct}%`} />
-            <AivisKpiCard label="加权排名" value={String(brand.weighted_rank_score ?? "—")} tone="cyan" />
-            <AivisKpiCard label="好感度" value={brand.sentiment_score != null ? `${brand.sentiment_score}%` : "—"} tone="amber" />
+            <AivisKpiCard label="Top3" value={brand.top3_pct != null ? `${brand.top3_pct}%` : `${brand.visibility_pct}%`} />
+            <AivisKpiCard label="提及率" value={brand.mention_rate_pct != null ? `${brand.mention_rate_pct}%` : `${brand.visibility_pct}%`} tone="cyan" />
+            <AivisKpiCard label="负向率" value={brand.sentiment_negative_pct != null ? `${brand.sentiment_negative_pct}%` : brand.sentiment_score != null ? `${brand.sentiment_score}%` : "—"} tone="amber" />
           </div>
           <Link href="/strategy/brand" className="mt-3 inline-block text-sm text-violet-700 hover:underline">
             品牌竞品矩阵 →
@@ -51,9 +51,9 @@ export function DiagnosisOverview({
 
         <LayerSection title="产品分析层 (Product Visibility)">
           <div className="grid grid-cols-3 gap-3">
-            <AivisKpiCard label="可见性" value={`${product.visibility_pct}%`} />
-            <AivisKpiCard label="加权排名" value={String(product.weighted_rank_score ?? "—")} tone="cyan" />
-            <AivisKpiCard label="好感度" value={product.sentiment_score != null ? `${product.sentiment_score}%` : "—"} tone="amber" />
+            <AivisKpiCard label="Top3" value={product.top3_pct != null ? `${product.top3_pct}%` : `${product.visibility_pct}%`} />
+            <AivisKpiCard label="提及率" value={product.mention_rate_pct != null ? `${product.mention_rate_pct}%` : `${product.visibility_pct}%`} tone="cyan" />
+            <AivisKpiCard label="负向率" value={product.sentiment_negative_pct != null ? `${product.sentiment_negative_pct}%` : product.sentiment_score != null ? `${product.sentiment_score}%` : "—"} tone="amber" />
           </div>
           <Link href="/strategy/product" className="mt-3 inline-block text-sm text-violet-700 hover:underline">
             场景图谱 →

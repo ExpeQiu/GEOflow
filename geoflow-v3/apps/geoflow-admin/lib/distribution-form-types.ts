@@ -1,9 +1,14 @@
-export type DistributionChannelType = "geoflow_agent" | "gweb_wiki" | "wordpress_rest" | "generic_http_api";
+export type DistributionChannelType =
+  | "geoflow_agent"
+  | "geoweb"
+  | "wordpress_rest"
+  | "generic_http_api";
 
 export type DistributionFormOptions = {
   default_channel_type: DistributionChannelType;
   channel_types: DistributionChannelType[];
   tech_brand_mode: boolean;
+  default_geoweb_base_url?: string;
 };
 
 export type DistributionCreatePayload = {
@@ -33,16 +38,16 @@ export type DistributionCreatePayload = {
   generic_remote_id_path: string;
   generic_remote_url_path: string;
   generic_payload_wrapper: "none" | "data";
-  gweb_sync_secret: string;
-  gweb_timeout_seconds: number;
-  gweb_route_prefix: string;
+  geoweb_sync_token: string;
+  geoweb_timeout_seconds: number;
+  geoweb_default_page_type: string;
 };
 
 export const DEFAULT_DISTRIBUTION_FORM: DistributionCreatePayload = {
   name: "",
   domain: "",
   endpoint_url: "",
-  channel_type: "geoflow_agent",
+  channel_type: "geoweb",
   front_mode: "static",
   template_key: "",
   status: "active",
@@ -65,7 +70,7 @@ export const DEFAULT_DISTRIBUTION_FORM: DistributionCreatePayload = {
   generic_remote_id_path: "id",
   generic_remote_url_path: "url",
   generic_payload_wrapper: "none",
-  gweb_sync_secret: "",
-  gweb_timeout_seconds: 30,
-  gweb_route_prefix: "",
+  geoweb_sync_token: "",
+  geoweb_timeout_seconds: 30,
+  geoweb_default_page_type: "article",
 };

@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>GEOFlow v3 · 数据安全</title>
+<style>
+:root{
+  --ink:#1f2937;
+  --muted:#64748b;
+  --bg:#fff;
+  --bg-page:#f1f5f9;
+  --up:#dbeafe;
+  --down:#dcfce7;
+  --red:#dc2626;
+  --chevron:#f59e0b;
+  --chevron2:#ea580c;
+  --border:#334155;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg-page);color:var(--ink);font:14px/1.65 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+.page{max-width:1180px;margin:24px auto;background:var(--bg);border:1px solid #e2e8f0;padding-bottom:36px}
+
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:14px 28px;background:#eef1f4;border-bottom:1px solid #d1d5db}
+.brand{font-size:20px;font-weight:800;letter-spacing:.04em;font-family:Georgia,"Times New Roman",serif}
+.brand small{display:block;font-size:10px;font-weight:600;letter-spacing:.12em;color:var(--muted);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;margin-top:2px}
+.top-title{font-size:18px;font-weight:700}
+
+.main{padding:20px 28px 0}
+.purpose{border:1.5px solid var(--red);padding:10px 14px;font-size:13px;margin-bottom:22px;background:#fff}
+.purpose b{color:var(--red)}
+
+/* ===== 流转主图：左系统 | 获取 | 中枢 | 提供 | 右系统 ===== */
+.flow{
+  display:grid;
+  grid-template-columns:minmax(200px,1.15fr) 88px minmax(220px,1.2fr) 88px minmax(200px,1.15fr);
+  gap:0 10px;
+  align-items:stretch;
+  margin-bottom:24px;
+}
+@media(max-width:960px){
+  .flow{grid-template-columns:1fr;gap:14px}
+  .rail{display:none!important}
+}
+
+.lane{border:1.5px solid var(--border);position:relative;padding:22px 12px 14px;min-height:100%}
+.lane-up{background:var(--up)}
+.lane-mid{background:#fff;display:flex;flex-direction:column;gap:12px}
+.lane-down{background:var(--down)}
+.lane-title{
+  position:absolute;top:-12px;left:50%;transform:translateX(-50%);
+  padding:1px 12px;font-size:13px;font-weight:700;border:1.5px solid var(--border);
+  white-space:nowrap;line-height:1.5;background:#fff;
+}
+.lane-up .lane-title{background:var(--up)}
+.lane-down .lane-title{background:var(--down)}
+
+.rows{display:flex;flex-direction:column;gap:12px;height:100%}
+.sys{
+  background:#fff;border:1.5px solid var(--border);border-radius:3px;
+  padding:10px 12px;flex:1;display:flex;flex-direction:column;justify-content:center;gap:6px;
+}
+.sys .name{font-size:13px;font-weight:700;text-align:center}
+.sys .scope{font-size:11px;color:#475569;text-align:center;font-weight:600}
+.sys .fields{
+  margin-top:2px;padding-top:6px;border-top:1px dashed #cbd5e1;
+  font-size:11.5px;color:#0f172a;font-weight:600;text-align:center;line-height:1.45;
+}
+
+/* 中间箭头轨 */
+.rail{
+  display:flex;flex-direction:column;justify-content:space-around;
+  align-items:center;padding:28px 0 8px;min-height:100%;
+}
+.rail-item{text-align:center}
+.rail-item .lbl{font-size:11px;font-weight:700;color:#0f172a;margin-bottom:2px}
+.rail-item .arr{font-size:16px;font-weight:700;color:#111;letter-spacing:-1px;line-height:1}
+
+.app-box{
+  border:2px solid #0f172a;background:#fff;padding:20px 14px;text-align:center;
+  font-weight:800;font-size:16px;display:flex;flex-direction:column;gap:4px;justify-content:center;
+  min-height:88px;margin-top:4px;
+}
+.app-box small{font-size:11.5px;font-weight:600;color:#64748b}
+
+.sensitive{
+  border:1px dashed #f87171;background:#fef2f2;padding:10px 12px;font-size:12px;color:#7f1d1d;
+}
+.sensitive .h{font-weight:800;color:var(--red);margin-bottom:6px;font-size:12.5px}
+.sensitive ul{margin:0;padding-left:18px}
+.sensitive li{margin:3px 0;line-height:1.45}
+.sensitive .neg{color:#9f1239;font-weight:700}
+
+/* 生命周期 */
+.lifecycle{display:flex;width:100%;margin:0 0 22px;height:40px}
+.lc{
+  flex:1;background:var(--chevron);color:#fff;display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;margin-right:2px;
+  clip-path:polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%, 14px 50%);
+  padding:0 16px 0 20px;
+}
+.lc:first-child{clip-path:polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%);padding-left:10px}
+.lc:last-child{margin-right:0;clip-path:polygon(0 0, 100% 0, 100% 100%, 0 100%, 14px 50%);padding-right:10px}
+.lc.alt{background:var(--chevron2)}
+@media(max-width:800px){
+  .lifecycle{flex-wrap:wrap;height:auto}
+  .lc{flex:1 1 33%;clip-path:none!important;margin:2px;padding:10px;min-height:36px;border-radius:4px}
+}
+
+/* 六问 */
+.reqs{padding:0 2px}
+.req{display:flex;gap:10px;margin-bottom:14px;font-size:13px;line-height:1.7}
+.req .n{flex-shrink:0;font-weight:800;width:1.4em}
+.req .q{font-weight:700}
+.req .a{color:#334155;margin-top:2px}
+.req .a b{color:#0f172a}
+.req .gap{color:var(--red);font-weight:600}
+.req code{font-size:11.5px;background:#f1f5f9;padding:1px 5px;border-radius:3px}
+
+.legend{margin-top:6px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-size:12px;color:#475569}
+.legend code{font-size:11px;background:#e2e8f0;padding:1px 5px;border-radius:3px}
+
+footer{margin:22px 28px 0;padding-top:14px;border-top:1px solid #e5e7eb;font-size:11.5px;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+footer a{color:#2563eb;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topbar">
+    <div class="brand">GEOFlow<small>v3 · DATA SECURITY</small></div>
+    <div class="top-title">数据安全</div>
+  </div>
+
+  <div class="main">
+    <div class="purpose">
+      本页需阐明系统涉及到的<b>敏感数据</b>、<b>敏感数据量级</b>，敏感数据在上下游系统的流转以及相应的保护情况。
+    </div>
+
+    <div class="flow">
+      <!-- 上游 -->
+      <div class="lane lane-up">
+        <div class="lane-title">上游系统</div>
+        <div class="rows">
+          <div class="sys">
+            <div class="name">运营 / 知识录入</div>
+            <div class="scope">（组织内）</div>
+            <div class="fields">技术 IP · 素材 · 知识库原文 · 作者名</div>
+          </div>
+          <div class="sys">
+            <div class="name">LLM Provider</div>
+            <div class="scope">（外部 SaaS）</div>
+            <div class="fields">API Key · 模型响应 · Embedding</div>
+          </div>
+          <div class="sys">
+            <div class="name">探针平台 / URL 信源</div>
+            <div class="scope">（外部）</div>
+            <div class="fields">平台 Key · AI 回答原文 · 网页正文</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 获取箭头 -->
+      <div class="rail" aria-hidden="true">
+        <div class="rail-item"><div class="lbl">数据获取</div><div class="arr">→→→</div></div>
+        <div class="rail-item"><div class="lbl">数据获取</div><div class="arr">→→→</div></div>
+        <div class="rail-item"><div class="lbl">数据获取</div><div class="arr">→→→</div></div>
+      </div>
+
+      <!-- 本应用 -->
+      <div class="lane lane-mid">
+        <div class="lane-title">本应用系统</div>
+        <div class="app-box">
+          GEOFlow v3
+          <small>Admin · FastAPI · Celery · PG</small>
+        </div>
+        <div class="sensitive">
+          <div class="h">核心敏感类</div>
+          <ul>
+            <li><b>凭证</b>：密码 / Token / 渠道密钥 / LLM·探针 Key</li>
+            <li><b>业务内容</b>：知识库 · 文章 · Wiki MDX · 探针报告</li>
+            <li><b>审计</b>：admin_activity_logs · 请求日志</li>
+            <li class="neg">不以身份证 / 手机号等个人身份信息为主数据对象</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 提供箭头 -->
+      <div class="rail" aria-hidden="true">
+        <div class="rail-item"><div class="lbl">数据提供</div><div class="arr">→→→</div></div>
+        <div class="rail-item"><div class="lbl">数据提供</div><div class="arr">→→→</div></div>
+        <div class="rail-item"><div class="lbl">数据提供</div><div class="arr">→→→</div></div>
+      </div>
+
+      <!-- 下游 -->
+      <div class="lane lane-down">
+        <div class="lane-title">下游系统</div>
+        <div class="rows">
+          <div class="sys">
+            <div class="name">Gweb Wiki</div>
+            <div class="scope">（组织内 / 关联仓）</div>
+            <div class="fields">Wiki MDX · 溯源字段 · content_hash</div>
+          </div>
+          <div class="sys">
+            <div class="name">WordPress / HTTP / Agent</div>
+            <div class="scope">（跨系统分发）</div>
+            <div class="fields">文章 HTML · 媒体 URL · Bearer Secret</div>
+          </div>
+          <div class="sys">
+            <div class="name">LLM / 探针平台</div>
+            <div class="scope">（外部出站）</div>
+            <div class="fields">Prompt · RAG 片段 · 探测问题文本</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="lifecycle" aria-label="数据生命周期">
+      <div class="lc">数据采集</div>
+      <div class="lc alt">数据传输</div>
+      <div class="lc">数据存储</div>
+      <div class="lc alt">数据处理</div>
+      <div class="lc">数据交换</div>
+      <div class="lc alt">数据销毁</div>
+    </div>
+
+    <div class="reqs">
+      <div class="req">
+        <div class="n">1.</div>
+        <div class="body">
+          <div class="q">包含哪些敏感数据，敏感数据量级（如 10 万条），上下游系统？</div>
+          <div class="a">
+            <b>凭证</b>：admins.password（bcrypt）· api_access_tokens.token_hash · distribution_channel_secrets · ai_models.api_key（支持 enc:v1）· .env 中 GWEB_* / DOUBAO_* / DEEPSEEK_* 等。<br>
+            <b>业务内容</b>：knowledge_chunks 原文、articles / Wiki MDX、tech_ip_assets、geo_monitor_probe_results、可见性报告。<br>
+            <b>量级</b>：随租户而定；探针题库约数百～数千题/品牌；知识切片与文章常见万级以内（按部署实测填数）。<br>
+            <b>上下游</b>：见上图。
+          </div>
+        </div>
+      </div>
+
+      <div class="req">
+        <div class="n">2.</div>
+        <div class="body">
+          <div class="q">前端是否脱敏，后端是否加密？</div>
+          <div class="a">
+            <b>已做</b>：Admin 密码 bcrypt；API Token 仅存 hash + prefix；渠道密钥 rotate + secret_hash；JWT；AI Key 支持 <code>enc:v1</code> AES-GCM。<br>
+            <b>部分</b>：渠道密钥录入为密码框；Token/密钥列表不回显全文。<br>
+            <span class="gap">缺口</span>：业务正文库内默认明文；无系统级字段脱敏组件。
+          </div>
+        </div>
+      </div>
+
+      <div class="req">
+        <div class="n">3.</div>
+        <div class="body">
+          <div class="q">数据采集、传输、存储、处理、交换、销毁各环节的安全保护措施？</div>
+          <div class="a">
+            <b>采集</b>：JWT / API Token scope；敏感词表。<br>
+            <b>传输</b>：生产应强制 HTTPS；出站 Bearer；X-Request-Id。<br>
+            <b>存储</b>：凭证哈希/可选 enc；本地 <code>upload_path</code>（非默认公有 OSS）。<br>
+            <b>处理</b>：Celery · LangGraph · GEO 门禁 / Wiki 合规。<br>
+            <b>交换</b>：wiki/sync + 溯源；渠道密钥隔离；idempotency。<br>
+            <b>销毁</b>：Token revoke；secret rotate；文章 trash。<br>
+            <span class="gap">缺口</span>：保留期与硬删除 Runbook 未成文；LLM Key UI 轮换未全覆盖。
+          </div>
+        </div>
+      </div>
+
+      <div class="req">
+        <div class="n">4.</div>
+        <div class="body">
+          <div class="q">后台是否有数据导入导出编辑功能，是否有细粒度权限控制、完整的操作日志？</div>
+          <div class="a">
+            <b>有</b>：知识/素材/URL 导入、文章编辑、分发配置、TJG 导入、批量操作。<br>
+            <b>权限</b>：admin / super_admin + Token scopes；尚无字段级 RBAC。<br>
+            <b>日志</b>：admin_activity_logs（部分写操作）· request_id。<br>
+            <span class="gap">缺口</span>：导出审计与全量操作落库未强约束。
+          </div>
+        </div>
+      </div>
+
+      <div class="req">
+        <div class="n">5.</div>
+        <div class="body">
+          <div class="q">是否有数据跨境流动场景？请描述业务场景及具体字段。</div>
+          <div class="a">
+            <b>可能有</b>（取决于 Provider 机房）：出站 Prompt / RAG 片段 / 草稿 → LLM；问题文本 / 品牌名 → 探针 API；入站回答原文写回 geo_monitor_probe_*。境外 Provider 即构成跨境。
+          </div>
+        </div>
+      </div>
+
+      <div class="req">
+        <div class="n">6.</div>
+        <div class="body">
+          <div class="q">如果使用了对象存储 OSS，是否包含敏感信息？（补充：后续会要求开数据库只读账号做分类分级）</div>
+          <div class="a">
+            <b>默认不用公有 OSS</b>：上传写入 <code>UPLOAD_PATH</code>（默认 <code>./storage/uploads</code>）。若改为 S3/MinIO，对象可能含配图与知识附件（业务敏感）。分类分级只读账号应覆盖 tasks / articles / knowledge_chunks / geo_monitor_probe_results；凭证明文列禁止暴露。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      证据：<code>core/security.py</code> · <code>api_key_crypto.py</code> · <code>settings_crud_service.py</code> ·
+      <code>distribution_channel_secrets</code> · <code>gweb-integration.md</code> · <code>upload_path</code>
+    </div>
+  </div>
+
+  <footer>
+    <span>2026-07-28 · GEOFlow v3 数据安全 · 版面优化（取消侧向绝对定位标签）</span>
+    <a class="source" href="./2026-07-28-skota-GEOFlow应用架构.html">← 应用架构图</a>
+  </footer>
+</div>
+</body>
+</html>

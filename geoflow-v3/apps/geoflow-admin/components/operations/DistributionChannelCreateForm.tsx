@@ -20,7 +20,7 @@ const labelClass = "block text-sm font-medium text-gray-700";
 
 const CHANNEL_LABELS: Record<DistributionChannelType, { title: string; desc: string }> = {
   geoflow_agent: { title: zh.distributionCreate.types.geoflowAgent, desc: zh.distributionCreate.types.geoflowAgentDesc },
-  gweb_wiki: { title: zh.distributionCreate.types.gwebWiki, desc: zh.distributionCreate.types.gwebWikiDesc },
+  geoweb: { title: zh.distributionCreate.types.geoweb, desc: zh.distributionCreate.types.geowebDesc },
   wordpress_rest: { title: zh.distributionCreate.types.wordpress, desc: zh.distributionCreate.types.wordpressDesc },
   generic_http_api: { title: zh.distributionCreate.types.generic, desc: zh.distributionCreate.types.genericDesc },
 };
@@ -39,7 +39,11 @@ export function DistributionChannelCreateForm() {
     apiGet<DistributionFormOptions>("/api/admin/distribution/form-options", token)
       .then((opts) => {
         setOptions(opts);
-        setForm((prev) => ({ ...prev, channel_type: opts.default_channel_type }));
+        setForm((prev) => ({
+          ...prev,
+          channel_type: opts.default_channel_type,
+          endpoint_url: prev.endpoint_url || opts.default_geoweb_base_url || "",
+        }));
       })
       .catch(() => setError(zh.distributionCreate.loadError))
       .finally(() => setLoading(false));
@@ -103,7 +107,7 @@ export function DistributionChannelCreateForm() {
         <fieldset className="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
           <legend className="text-sm font-medium text-gray-900">{zh.distributionCreate.fields.channelType}</legend>
           <p className="mt-1 text-sm text-gray-600">{zh.distributionCreate.hints.channelType}</p>
-          <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
             {(options?.channel_types ?? Object.keys(CHANNEL_LABELS)).map((type) => {
               const key = type as DistributionChannelType;
               const meta = CHANNEL_LABELS[key];
@@ -182,41 +186,49 @@ export function DistributionChannelCreateForm() {
           </div>
         )}
 
-        {channelType === "gweb_wiki" && (
-          <div className="mt-6 rounded-lg border border-teal-100 bg-teal-50 p-5">
-            <h2 className="text-lg font-medium text-gray-900">{zh.distributionCreate.gweb.title}</h2>
-            <p className="mt-1 text-sm text-gray-600">{zh.distributionCreate.gweb.desc}</p>
+        {channelType === "geoweb" && (
+          <div className="mt-6 rounded-lg border border-sky-100 bg-sky-50 p-5">
+            <h2 className="text-lg font-medium text-gray-900">{zh.distributionCreate.geoweb.title}</h2>
+            <p className="mt-1 text-sm text-gray-600">{zh.distributionCreate.geoweb.desc}</p>
             <div className="mt-4 grid grid-cols-1 gap-6 md:grid-cols-2">
               <div>
-                <label className={labelClass}>{zh.distributionCreate.gweb.syncSecret} *</label>
+                <label className={labelClass}>{zh.distributionCreate.geoweb.syncToken} *</label>
                 <input
                   type="password"
-                  value={form.gweb_sync_secret}
-                  onChange={(e) => patch("gweb_sync_secret", e.target.value)}
+                  value={form.geoweb_sync_token}
+                  onChange={(e) => patch("geoweb_sync_token", e.target.value)}
                   className={inputClass}
                   autoComplete="new-password"
                 />
               </div>
               <div>
-                <label className={labelClass}>{zh.distributionCreate.gweb.timeout}</label>
+                <label className={labelClass}>{zh.distributionCreate.geoweb.timeout}</label>
                 <input
                   type="number"
                   min={5}
                   max={120}
-                  value={form.gweb_timeout_seconds}
-                  onChange={(e) => patch("gweb_timeout_seconds", Number(e.target.value))}
+                  value={form.geoweb_timeout_seconds}
+                  onChange={(e) => patch("geoweb_timeout_seconds", Number(e.target.value))}
                   className={inputClass}
                 />
               </div>
               <div className="md:col-span-2">
-                <label className={labelClass}>{zh.distributionCreate.gweb.routePrefix}</label>
-                <input
-                  value={form.gweb_route_prefix}
-                  onChange={(e) => patch("gweb_route_prefix", e.target.value)}
+                <label className={labelClass}>{zh.distributionCreate.geoweb.defaultPageType}</label>
+                <select
+                  value={form.geoweb_default_page_type}
+                  onChange={(e) => patch("geoweb_default_page_type", e.target.value)}
                   className={inputClass}
-                  placeholder={zh.distributionCreate.gweb.routePrefixPlaceholder}
-                />
-                <p className="mt-1 text-xs text-gray-500">{zh.distributionCreate.gweb.routePrefixHint}</p>
+                >
+                  <option value="article">article → /articles</option>
+                  <option value="concept">concept → /concepts</option>
+                  <option value="compare">compare → /compare</option>
+                  <option value="guide">guide → /guides</option>
+                  <option value="glossary">glossary → /glossary</option>
+                  <option value="data">data → /data</option>
+                  <option value="thread">thread → /threads</option>
+                  <option value="topic">topic → /topics</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-500">{zh.distributionCreate.geoweb.defaultPageTypeHint}</p>
               </div>
             </div>
           </div>

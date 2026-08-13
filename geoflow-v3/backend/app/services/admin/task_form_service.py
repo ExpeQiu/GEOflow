@@ -19,7 +19,16 @@ from app.services.geoflow.task_lifecycle import TaskLifecycleService
 
 logger = logging.getLogger(__name__)
 
-WIKI_PAGE_TYPES = ["concept", "compare", "guide", "glossary", "data", "thread", "topic"]
+WIKI_PAGE_TYPES = [
+    "concept",
+    "compare",
+    "guide",
+    "glossary",
+    "data",
+    "thread",
+    "topic",
+    "article",
+]
 
 
 class AdminTaskCreateBody(BaseModel):

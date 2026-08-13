@@ -52,17 +52,41 @@ async def load_platforms(db: AsyncSession) -> tuple[str, ...]:
 
     from app.services.admin.production_service import _table_exists
 
-    if not await _table_exists(db, "site_settings"):
-        return PLATFORMS_CN
-    row = (
-        await db.execute(
-            text("SELECT setting_value FROM site_settings WHERE setting_key = 'monitor_platforms' LIMIT 1")
-        )
-    ).scalar_one_or_none()
-    if not row:
-        return PLATFORMS_CN
-    platforms = tuple(p.strip() for p in str(row).split(",") if p.strip())
-    return platforms or PLATFORMS_CN
+    if await _table_exists(db, "site_settings"):
+        row = (
+            await db.execute(
+                text("SELECT setting_value FROM site_settings WHERE setting_key = 'monitor_platforms' LIMIT 1")
+            )
+        ).scalar_one_or_none()
+        if row and str(row).strip():
+            platforms = tuple(p.strip() for p in str(row).split(",") if p.strip())
+            if platforms:
+                return platforms
+
+        # 未配置 monitor_platforms 时，用探针标准 scan_platforms（默认豆包+DeepSeek）
+        row2 = (
+            await db.execute(
+                text("SELECT setting_value FROM site_settings WHERE setting_key = 'probe_scan_platforms' LIMIT 1")
+            )
+        ).scalar_one_or_none()
+        if row2 and str(row2).strip():
+            plats = tuple(p.strip() for p in str(row2).split(",") if p.strip())
+            if plats:
+                return plats
+
+    try:
+        from app.services.admin.geo_eval_settings_service import get_probe_standards
+
+        standards = await get_probe_standards(db)
+        raw = str(standards.get("scan_platforms") or "").strip()
+        if raw:
+            plats = tuple(p.strip() for p in raw.split(",") if p.strip())
+            if plats:
+                return plats
+    except Exception:
+        pass
+
+    return PLATFORMS_CN
 
 
 def _skipped_outcome(platform: str, reason: str) -> ProbeOutcome:
@@ -95,6 +119,24 @@ async def probe_platform(
     if strict_api is None:
         strict_api = await load_strict_api(db)
 
+    from app.services.geoeval.probe_quota import check_probe_quota, commit_probe_usage
+
+    # M1：走 api/llm 前检查 daily_limit；超限直接 skipped，禁止 corpus 填洞
+    needs_quota = probe_mode in ("api", "llm")
+    model_id: int | None = None
+    if needs_quota:
+        allowed, skip_reason, model_id = await check_probe_quota(
+            db, platform=platform, engine_hint="api" if probe_mode == "api" else "llm"
+        )
+        if not allowed:
+            logger.warning(
+                "probe_skipped_daily_limit platform=%s mode=%s reason=%s",
+                platform,
+                probe_mode,
+                skip_reason,
+            )
+            return _skipped_outcome(platform, skip_reason or "daily_limit")
+
     if probe_mode == "api":
         outcome = await _api.probe(
             question_text=question_text,
@@ -126,6 +168,10 @@ async def probe_platform(
     if outcome is None:
         if probe_mode == "api" and strict_api:
             return _skipped_outcome(platform, "no_api_result_strict")
+        # 超限后禁止 corpus；strict 同理。普通 corpus 模式仍可用。
+        if needs_quota and model_id is not None:
+            # 已过配额检查但 api/llm 失败：strict 已返回；非 strict 可 corpus，不计配额
+            pass
         outcome = await _corpus.probe(
             question_text=question_text,
             priority=priority,
@@ -134,6 +180,10 @@ async def probe_platform(
             brand_list=brand_list,
             competitor_brands=competitor_brands,
         )
+
+    # 成功 api/llm 才 bump 用量
+    if outcome is not None and getattr(outcome, "engine", None) in ("api", "llm"):
+        await commit_probe_usage(db, model_id)
 
     # 探针标准：corpus 不得冒充 L1 citation
     if getattr(outcome, "engine", None) == "corpus" and getattr(outcome, "evidence_level", "L0") == "L1":

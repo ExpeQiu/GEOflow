@@ -68,38 +68,68 @@ async def create_remediation_for_gap(
         "trusted_only": trusted_only,
         "baseline_probe_count": baseline.get("probe_count", 0),
         "baseline_engine_mix": baseline.get("engine_mix", []),
+        "baseline_top3_pct": baseline.get("top3_pct"),
     }
-    row = (
-        await db.execute(
-            text(
-                """
-                INSERT INTO geo_gap_remediation_runs
-                    (scene_id, task_id, status, gap_rate_at_create,
-                     baseline_visibility_pct, baseline_run_id, meta)
-                VALUES
-                    (:scene_id, :task_id, :status, :gap_rate,
-                     :baseline_vis, :baseline_run, CAST(:meta AS JSON))
-                RETURNING id
-                """
-            ),
-            {
-                "scene_id": scene_id,
-                "task_id": task_id,
-                "status": STATUS_PENDING,
-                "gap_rate": gap_rate,
-                "baseline_vis": baseline.get("visibility_pct"),
-                "baseline_run": baseline.get("latest_run_id"),
-                "meta": json.dumps(meta, ensure_ascii=False),
-            },
-        )
-    ).first()
+    try:
+        row = (
+            await db.execute(
+                text(
+                    """
+                    INSERT INTO geo_gap_remediation_runs
+                        (scene_id, task_id, status, gap_rate_at_create,
+                         baseline_visibility_pct, baseline_top3_pct, baseline_run_id, meta)
+                    VALUES
+                        (:scene_id, :task_id, :status, :gap_rate,
+                         :baseline_vis, :baseline_top3, :baseline_run, CAST(:meta AS JSON))
+                    RETURNING id
+                    """
+                ),
+                {
+                    "scene_id": scene_id,
+                    "task_id": task_id,
+                    "status": STATUS_PENDING,
+                    "gap_rate": gap_rate,
+                    "baseline_vis": baseline.get("visibility_pct"),
+                    "baseline_top3": baseline.get("top3_pct"),
+                    "baseline_run": baseline.get("latest_run_id"),
+                    "meta": json.dumps(meta, ensure_ascii=False),
+                },
+            )
+        ).first()
+    except Exception:
+        logger.warning("remediation_insert_top3_fallback", exc_info=True)
+        row = (
+            await db.execute(
+                text(
+                    """
+                    INSERT INTO geo_gap_remediation_runs
+                        (scene_id, task_id, status, gap_rate_at_create,
+                         baseline_visibility_pct, baseline_run_id, meta)
+                    VALUES
+                        (:scene_id, :task_id, :status, :gap_rate,
+                         :baseline_vis, :baseline_run, CAST(:meta AS JSON))
+                    RETURNING id
+                    """
+                ),
+                {
+                    "scene_id": scene_id,
+                    "task_id": task_id,
+                    "status": STATUS_PENDING,
+                    "gap_rate": gap_rate,
+                    "baseline_vis": baseline.get("visibility_pct"),
+                    "baseline_run": baseline.get("latest_run_id"),
+                    "meta": json.dumps(meta, ensure_ascii=False),
+                },
+            )
+        ).first()
     remediation_id = int(row[0]) if row else None
     logger.info(
-        "remediation_created id=%s scene_id=%s task_id=%s baseline_vis=%s trusted_only=%s",
+        "remediation_created id=%s scene_id=%s task_id=%s baseline_vis=%s baseline_top3=%s trusted_only=%s",
         remediation_id,
         scene_id,
         task_id,
         baseline.get("visibility_pct"),
+        baseline.get("top3_pct"),
         trusted_only,
     )
     return {
@@ -108,6 +138,7 @@ async def create_remediation_for_gap(
         "task_id": task_id,
         "status": STATUS_PENDING,
         "baseline_visibility_pct": baseline.get("visibility_pct"),
+        "baseline_top3_pct": baseline.get("top3_pct"),
         "gap_rate_at_create": gap_rate,
     }
 
@@ -189,19 +220,39 @@ async def complete_remediation_rescan(db: AsyncSession, remediation_id: int) -> 
     if not await _table_exists(db, "geo_gap_remediation_runs"):
         return {"status": "skipped", "reason": "remediation_table_missing"}
 
-    row = (
-        await db.execute(
-            text(
-                """
-                SELECT id, scene_id, task_id, baseline_visibility_pct, status, meta
-                FROM geo_gap_remediation_runs WHERE id = :id
-                """
-            ),
-            {"id": remediation_id},
-        )
-    ).first()
+    baseline_top3 = None
+    try:
+        row = (
+            await db.execute(
+                text(
+                    """
+                    SELECT id, scene_id, task_id, baseline_visibility_pct, status, meta,
+                           baseline_top3_pct
+                    FROM geo_gap_remediation_runs WHERE id = :id
+                    """
+                ),
+                {"id": remediation_id},
+            )
+        ).first()
+        if row and row[6] is not None:
+            baseline_top3 = float(row[6])
+    except Exception:
+        row = None
     if not row:
-        return {"status": "not_found", "remediation_id": remediation_id}
+        row = (
+            await db.execute(
+                text(
+                    """
+                    SELECT id, scene_id, task_id, baseline_visibility_pct, status, meta
+                    FROM geo_gap_remediation_runs WHERE id = :id
+                    """
+                ),
+                {"id": remediation_id},
+            )
+        ).first()
+        if not row:
+            return {"status": "not_found", "remediation_id": remediation_id}
+
     if str(row[4]) == STATUS_COMPLETED:
         return {"status": "already_completed", "remediation_id": remediation_id}
 
@@ -212,6 +263,11 @@ async def complete_remediation_rescan(db: AsyncSession, remediation_id: int) -> 
             meta = json.loads(row[5])
         except json.JSONDecodeError:
             meta = {}
+    if baseline_top3 is None and meta.get("baseline_top3_pct") is not None:
+        try:
+            baseline_top3 = float(meta["baseline_top3_pct"])
+        except (TypeError, ValueError):
+            baseline_top3 = None
     trusted_only = bool(meta.get("trusted_only")) or await _load_strict_api(db)
 
     scan = await MonitorScanOrchestrator(db).run_scan("remediation", scene_id=scene_id)
@@ -227,33 +283,66 @@ async def complete_remediation_rescan(db: AsyncSession, remediation_id: int) -> 
     if baseline is not None and post_vis is not None:
         delta = round(float(post_vis) - float(baseline), 2)
 
-    await db.execute(
-        text(
-            """
-            UPDATE geo_gap_remediation_runs
-            SET status = :st,
-                post_visibility_pct = :post_vis,
-                post_run_id = :post_run,
-                delta_visibility_pct = :delta,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = :id
-            """
-        ),
-        {
-            "st": STATUS_COMPLETED,
-            "post_vis": post_vis,
-            "post_run": scan.get("run_id"),
-            "delta": delta,
-            "id": remediation_id,
-        },
-    )
+    post_top3 = post.get("top3_pct")
+    delta_top3 = None
+    if baseline_top3 is not None and post_top3 is not None:
+        delta_top3 = round(float(post_top3) - float(baseline_top3), 2)
+
+    try:
+        await db.execute(
+            text(
+                """
+                UPDATE geo_gap_remediation_runs
+                SET status = :st,
+                    post_visibility_pct = :post_vis,
+                    post_run_id = :post_run,
+                    delta_visibility_pct = :delta,
+                    post_top3_pct = :post_top3,
+                    delta_top3_pp = :delta_top3,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :id
+                """
+            ),
+            {
+                "st": STATUS_COMPLETED,
+                "post_vis": post_vis,
+                "post_run": scan.get("run_id"),
+                "delta": delta,
+                "post_top3": post_top3,
+                "delta_top3": delta_top3,
+                "id": remediation_id,
+            },
+        )
+    except Exception:
+        logger.warning("remediation_update_top3_fallback", exc_info=True)
+        await db.execute(
+            text(
+                """
+                UPDATE geo_gap_remediation_runs
+                SET status = :st,
+                    post_visibility_pct = :post_vis,
+                    post_run_id = :post_run,
+                    delta_visibility_pct = :delta,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :id
+                """
+            ),
+            {
+                "st": STATUS_COMPLETED,
+                "post_vis": post_vis,
+                "post_run": scan.get("run_id"),
+                "delta": delta,
+                "id": remediation_id,
+            },
+        )
     logger.info(
-        "remediation_completed id=%s scene_id=%s baseline=%s post=%s delta=%s run_id=%s",
+        "remediation_completed id=%s scene_id=%s baseline=%s post=%s delta=%s delta_top3=%s run_id=%s",
         remediation_id,
         scene_id,
         baseline,
         post_vis,
         delta,
+        delta_top3,
         scan.get("run_id"),
     )
     return {
@@ -263,6 +352,9 @@ async def complete_remediation_rescan(db: AsyncSession, remediation_id: int) -> 
         "baseline_visibility_pct": baseline,
         "post_visibility_pct": post_vis,
         "delta_visibility_pct": delta,
+        "baseline_top3_pct": baseline_top3,
+        "post_top3_pct": post_top3,
+        "delta_top3_pp": delta_top3,
         "scan": scan,
     }
 
@@ -300,23 +392,45 @@ async def process_due_remediations(db: AsyncSession, limit: int = 20) -> dict:
 async def list_remediations(db: AsyncSession, limit: int = 30) -> dict:
     if not await _table_exists(db, "geo_gap_remediation_runs"):
         return {"items": [], "status": "table_missing"}
-    rows = (
-        await db.execute(
-            text(
-                """
-                SELECT r.id, r.scene_id, r.task_id, r.status, r.gap_rate_at_create,
-                       r.baseline_visibility_pct, r.post_visibility_pct, r.delta_visibility_pct,
-                       r.published_at, r.rescan_after, r.created_at,
-                       s.scene_name
-                FROM geo_gap_remediation_runs r
-                LEFT JOIN geo_monitor_scenes s ON s.id = r.scene_id
-                ORDER BY r.id DESC
-                LIMIT :lim
-                """
-            ),
-            {"lim": limit},
-        )
-    ).all()
+    try:
+        rows = (
+            await db.execute(
+                text(
+                    """
+                    SELECT r.id, r.scene_id, r.task_id, r.status, r.gap_rate_at_create,
+                           r.baseline_visibility_pct, r.post_visibility_pct, r.delta_visibility_pct,
+                           r.published_at, r.rescan_after, r.created_at,
+                           s.scene_name,
+                           r.baseline_top3_pct, r.post_top3_pct, r.delta_top3_pp
+                    FROM geo_gap_remediation_runs r
+                    LEFT JOIN geo_monitor_scenes s ON s.id = r.scene_id
+                    ORDER BY r.id DESC
+                    LIMIT :lim
+                    """
+                ),
+                {"lim": limit},
+            )
+        ).all()
+        has_top3 = True
+    except Exception:
+        rows = (
+            await db.execute(
+                text(
+                    """
+                    SELECT r.id, r.scene_id, r.task_id, r.status, r.gap_rate_at_create,
+                           r.baseline_visibility_pct, r.post_visibility_pct, r.delta_visibility_pct,
+                           r.published_at, r.rescan_after, r.created_at,
+                           s.scene_name
+                    FROM geo_gap_remediation_runs r
+                    LEFT JOIN geo_monitor_scenes s ON s.id = r.scene_id
+                    ORDER BY r.id DESC
+                    LIMIT :lim
+                    """
+                ),
+                {"lim": limit},
+            )
+        ).all()
+        has_top3 = False
     items = []
     for row in rows:
         items.append(
@@ -333,6 +447,9 @@ async def list_remediations(db: AsyncSession, limit: int = 30) -> dict:
                 "rescan_after": row[9].isoformat() if row[9] else None,
                 "created_at": row[10].isoformat() if row[10] else None,
                 "scene_name": str(row[11] or ""),
+                "baseline_top3_pct": float(row[12]) if has_top3 and row[12] is not None else None,
+                "post_top3_pct": float(row[13]) if has_top3 and row[13] is not None else None,
+                "delta_top3_pp": float(row[14]) if has_top3 and row[14] is not None else None,
             }
         )
     return {"items": items}

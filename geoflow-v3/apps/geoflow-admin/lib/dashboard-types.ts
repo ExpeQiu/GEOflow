@@ -93,5 +93,7 @@ export type SiteSettingsPayload = {
   tech_brand_mode: boolean;
   public_site_enabled: boolean;
   ai_mock_mode: boolean;
-  gweb_sync_enabled: boolean;
+  gweb_sync_enabled?: boolean;
+  geoweb_sync_enabled: boolean;
+  geoweb_base_url?: string;
 };

@@ -196,11 +196,11 @@ async def assess_difficulty(db: AsyncSession) -> dict:
     if competitor_count >= 8:
         market_score = min(5, market_score + 1)
 
-    # 实体基础：Wiki/Gweb/资产覆盖越高 → 难度越低（分越低越容易）
+    # 实体基础：Wiki/GEOweb/资产覆盖越高 → 难度越低（分越低越容易）
     wiki = float(tech.get("wiki_compliance_pct") or 0)
-    gweb = float(tech.get("gweb_sync_rate_pct") or 0)
+    geoweb = float(tech.get("geoweb_sync_rate_pct") or tech.get("gweb_sync_rate_pct") or 0)
     p0 = float(tech.get("p0_coverage_pct") or 0)
-    entity_avg = (wiki + gweb + p0) / 3
+    entity_avg = (wiki + geoweb + p0) / 3
     if entity_avg >= 80:
         entity_score = 1
     elif entity_avg >= 60:
@@ -235,7 +235,7 @@ async def assess_difficulty(db: AsyncSession) -> dict:
     return {
         "regulatory_compliance": {"score": regulatory_score, "label": _score_label(regulatory_score), "description": "监管与合规要求"},
         "market_competition": {"score": market_score, "label": _score_label(market_score), "description": f"竞品 {competitor_count} 个，差距 {gap}pp"},
-        "entity_foundation": {"score": entity_score, "label": _score_label(entity_score), "description": f"Wiki {wiki}% · Gweb {gweb}% · P0 {p0}%"},
+        "entity_foundation": {"score": entity_score, "label": _score_label(entity_score), "description": f"Wiki {wiki}% · Gweb {geoweb}% · P0 {p0}%"},
         "overall_score": overall,
         "overall_label": _score_label(round(overall)),
         "lift_needed_pct": opt.get("lift_needed"),

@@ -267,14 +267,33 @@ async def aggregate_probe_kpis(
     scene_id: int | None = None,
     run_id: int | None = None,
     trusted_only: bool = False,
+    intent_subset: list[str] | None = None,
+    north_star: bool = False,
 ) -> dict:
+    from app.services.geoeval.north_star_kpi import (
+        NORTH_STAR_INTENTS,
+        mention_rate_pct,
+        sentiment_negative_pct,
+        topn_pct,
+    )
+
+    if north_star and intent_subset is None:
+        intent_subset = sorted(NORTH_STAR_INTENTS)
+
     empty = {
         "probe_count": 0,
         "avg_brand_rank": None,
         "mention_rate": 0.0,
+        "mention_rate_pct": 0.0,
         "visibility_pct": 0.0,
+        "visibility_open_api": 0.0,
         "weighted_rank_score": None,
         "sentiment_score": None,
+        "sentiment_negative_pct": None,
+        "top1_pct": None,
+        "top3_pct": None,
+        "top5_pct": None,
+        "valid_sample_n": 0,
         "platform_summary": [],
         "platform_matrix": [],
         "query_type": query_type,
@@ -282,6 +301,8 @@ async def aggregate_probe_kpis(
         "trusted_only": trusted_only,
         "scene_id": scene_id,
         "run_id": run_id,
+        "intent_subset": intent_subset,
+        "kpi_track": "open_api" if trusted_only or north_star else "mixed",
     }
     if not await _table_exists(db, "geo_monitor_probe_results"):
         return empty
@@ -289,7 +310,8 @@ async def aggregate_probe_kpis(
     join_sql = ""
     where_extra = ""
     params: dict = {}
-    need_questions = bool(query_type or scene_id)
+    need_questions = bool(query_type or scene_id or intent_subset)
+    has_intent_col = False
     if need_questions and await _table_exists(db, "geo_monitor_questions"):
         join_sql = "JOIN geo_monitor_questions mq ON mq.id = pr.question_id"
         if query_type:
@@ -298,10 +320,34 @@ async def aggregate_probe_kpis(
         if scene_id is not None:
             where_extra += " AND mq.scene_id = :sid"
             params["sid"] = scene_id
+        if intent_subset:
+            try:
+                col = (
+                    await db.execute(
+                        text(
+                            """
+                            SELECT column_name FROM information_schema.columns
+                            WHERE table_name = 'geo_monitor_questions' AND column_name = 'intent_type'
+                            """
+                        )
+                    )
+                ).first()
+                has_intent_col = bool(col)
+            except Exception:
+                has_intent_col = False
+            if has_intent_col:
+                placeholders = []
+                for i, intent in enumerate(intent_subset):
+                    key = f"intent_{i}"
+                    placeholders.append(f":{key}")
+                    params[key] = intent
+                where_extra += f" AND COALESCE(mq.intent_type, 'cognition') IN ({', '.join(placeholders)})"
+            else:
+                logger.debug("intent_type_column_missing skip_subset_filter")
     if run_id is not None:
         where_extra += " AND pr.run_id = :rid"
         params["rid"] = run_id
-    if trusted_only:
+    if trusted_only or north_star:
         where_extra += " AND COALESCE(pr.engine, 'corpus') = 'api'"
     else:
         where_extra += " AND COALESCE(pr.engine, 'corpus') <> 'skipped'"
@@ -344,7 +390,26 @@ async def aggregate_probe_kpis(
         params,
     )
 
+    rank_rows = (
+        await db.execute(
+            text(
+                f"""
+                SELECT pr.brand_rank FROM geo_monitor_probe_results pr
+                {join_sql}
+                WHERE pr.brand_rank IS NOT NULL {where_extra}
+                """
+            ),
+            params,
+        )
+    ).all()
+    ranks = [int(r[0]) for r in rank_rows if r[0] is not None]
+    t1 = topn_pct(ranks, 1)
+    t3 = topn_pct(ranks, 3)
+    t5 = topn_pct(ranks, 5)
+    valid_sample_n = len(ranks)
+
     sentiment_score = None
+    sent_neg = None
     try:
         pos = int(
             await db.scalar(
@@ -353,6 +418,20 @@ async def aggregate_probe_kpis(
                     SELECT COUNT(*) FROM geo_monitor_probe_results pr {join_sql}
                     WHERE pr.sentiment IS NOT NULL
                       AND pr.sentiment->>'polarity' = 'positive'
+                      {where_extra}
+                    """
+                ),
+                params,
+            )
+            or 0
+        )
+        neu = int(
+            await db.scalar(
+                text(
+                    f"""
+                    SELECT COUNT(*) FROM geo_monitor_probe_results pr {join_sql}
+                    WHERE pr.sentiment IS NOT NULL
+                      AND pr.sentiment->>'polarity' = 'neutral'
                       {where_extra}
                     """
                 ),
@@ -376,6 +455,7 @@ async def aggregate_probe_kpis(
         )
         if pos + neg > 0:
             sentiment_score = round(pos / (pos + neg) * 100, 1)
+        sent_neg = sentiment_negative_pct(pos, neu, neg)
     except Exception:
         pass
 
@@ -387,7 +467,9 @@ async def aggregate_probe_kpis(
                        COUNT(*) AS total,
                        SUM(CASE WHEN pr.mentioned THEN 1 ELSE 0 END) AS mentions,
                        AVG(pr.brand_rank) AS avg_rank,
-                       AVG(NULLIF(pr.ranking_score, 0)) AS avg_weighted
+                       AVG(NULLIF(pr.ranking_score, 0)) AS avg_weighted,
+                       SUM(CASE WHEN pr.brand_rank IS NOT NULL AND pr.brand_rank <= 3 THEN 1 ELSE 0 END) AS top3_hits,
+                       SUM(CASE WHEN pr.brand_rank IS NOT NULL THEN 1 ELSE 0 END) AS ranked_n
                 FROM geo_monitor_probe_results pr
                 {join_sql}
                 WHERE 1=1 {where_extra}
@@ -400,6 +482,7 @@ async def aggregate_probe_kpis(
     ).all()
 
     visibility = round(mentioned / total * 100, 1) if total else 0.0
+    mr_pct = mention_rate_pct(mentioned, total)
     platform_summary = [
         {
             "platform": str(r[0]),
@@ -408,6 +491,7 @@ async def aggregate_probe_kpis(
             "avg_rank": round(float(r[3]), 2) if r[3] is not None else None,
             "visibility_pct": round(int(r[2] or 0) / int(r[1]) * 100, 1) if r[1] else 0.0,
             "weighted_rank_score": round(float(r[4]), 2) if r[4] is not None else None,
+            "top3_pct": round(int(r[5] or 0) / int(r[6]) * 100, 1) if r[6] else None,
         }
         for r in platform_rows
     ]
@@ -438,43 +522,64 @@ async def aggregate_probe_kpis(
         logger.debug("engine_mix_query_failed", exc_info=True)
 
     metric_meta: dict = {
-        "metric_kind": "open_api" if trusted_only else "mixed",
+        "metric_kind": "open_api" if (trusted_only or north_star) else "mixed",
         "footnote_on_bias": True,
         "do_not_overwrite_open_api_kpi": True,
+        "subset": "compare+decision" if intent_subset else "all",
     }
     try:
         from app.services.admin.geo_eval_settings_service import get_probe_standards
 
         standards = await get_probe_standards(db)
         metric_meta = {
-            "metric_kind": "open_api" if trusted_only else "mixed",
+            "metric_kind": "open_api" if (trusted_only or north_star) else "mixed",
             "footnote_on_bias": bool(standards.get("footnote_on_bias", True)),
             "do_not_overwrite_open_api_kpi": True,
             "rank_report_weight": standards.get("rank_report_weight"),
             "min_evidence_level": standards.get("min_evidence_level"),
+            "subset": "compare+decision" if intent_subset else "all",
         }
         logger.debug(
-            "probe_kpi_standards_applied footnote=%s weight=%s",
+            "probe_kpi_standards_applied footnote=%s weight=%s top3=%s",
             metric_meta["footnote_on_bias"],
             metric_meta.get("rank_report_weight"),
+            t3,
         )
     except Exception:
         logger.debug("probe_standards_kpi_attach_failed", exc_info=True)
 
+    kpi_track = "open_api" if (trusted_only or north_star) else "mixed"
+    logger.info(
+        "probe_kpis_aggregated probes=%s top3=%s mention_pct=%s track=%s subset=%s",
+        total,
+        t3,
+        mr_pct,
+        kpi_track,
+        intent_subset,
+    )
     return {
         "probe_count": total,
         "avg_brand_rank": round(float(avg_rank), 2) if avg_rank is not None else None,
         "mention_rate": round(mentioned / total, 3) if total else 0.0,
+        "mention_rate_pct": mr_pct,
         "visibility_pct": visibility,
+        "visibility_open_api": visibility if kpi_track == "open_api" else None,
         "weighted_rank_score": round(float(avg_weighted), 2) if avg_weighted is not None else None,
         "sentiment_score": sentiment_score,
+        "sentiment_negative_pct": sent_neg,
+        "top1_pct": t1,
+        "top3_pct": t3,
+        "top5_pct": t5,
+        "valid_sample_n": valid_sample_n,
         "platform_summary": platform_summary,
         "platform_matrix": platform_summary,
         "query_type": query_type,
         "engine_mix": engine_mix,
-        "trusted_only": trusted_only,
+        "trusted_only": trusted_only or north_star,
         "scene_id": scene_id,
         "run_id": run_id,
+        "intent_subset": intent_subset,
+        "kpi_track": kpi_track,
         "metric_meta": metric_meta,
     }
 
@@ -486,13 +591,15 @@ async def aggregate_scene_visibility(
     run_id: int | None = None,
     trusted_only: bool = False,
 ) -> dict:
-    """按场景聚合可见性，供补缺实验 baseline/post 对比。"""
+    """按场景聚合可见性与 Top3，供补缺实验 baseline/post 对比。"""
     kpis = await aggregate_probe_kpis(
         db,
         scene_id=scene_id,
         run_id=run_id,
         trusted_only=trusted_only,
+        north_star=False,
     )
+    # 场景闭环优先 Top3；无 rank 时退回 visibility
     latest_run_id = run_id
     if latest_run_id is None and await _table_exists(db, "geo_monitor_probe_results"):
         latest_run_id = await db.scalar(
@@ -509,9 +616,10 @@ async def aggregate_scene_visibility(
         )
     kpis["latest_run_id"] = int(latest_run_id) if latest_run_id else None
     logger.info(
-        "scene_visibility_aggregated scene_id=%s visibility=%s probes=%s trusted_only=%s",
+        "scene_visibility_aggregated scene_id=%s visibility=%s top3=%s probes=%s trusted_only=%s",
         scene_id,
         kpis.get("visibility_pct"),
+        kpis.get("top3_pct"),
         kpis.get("probe_count"),
         trusted_only,
     )
@@ -519,39 +627,105 @@ async def aggregate_scene_visibility(
 
 
 async def aggregate_monitor_snapshot(db: AsyncSession) -> dict:
-    """日快照写入 geo_monitor_snapshots。"""
+    """日快照写入 geo_monitor_snapshots（含北极星 TopN）。"""
     from datetime import date
+    import json
+
+    from app.services.geoeval.competitive_analyzer import build_competitor_matrix
 
     if not await _table_exists(db, "geo_monitor_snapshots"):
         return {"status": "skipped", "reason": "snapshots_table_missing"}
 
-    kpis = await aggregate_probe_kpis(db)
+    kpis = await aggregate_probe_kpis(db, north_star=True)
+    matrix = await build_competitor_matrix(db, north_star=True)
+    gap_top3 = matrix.get("gap_vs_leader_top3_pp")
     today = date.today()
-    import json
+    meta = {
+        "kpi_track": kpis.get("kpi_track"),
+        "valid_sample_n": kpis.get("valid_sample_n"),
+        "intent_subset": kpis.get("intent_subset"),
+        "top5_pct": kpis.get("top5_pct"),
+        "self_top3_pct": matrix.get("self_top3_pct"),
+        "leader_top3_pct": matrix.get("leader_top3_pct"),
+    }
 
-    await db.execute(
-        text(
-            """
-            INSERT INTO geo_monitor_snapshots
-                (snapshot_date, mention_rate, visibility_pct, weighted_rank_score,
-                 sentiment_score, platform_matrix)
-            VALUES (:d, :mr, :vp, :wr, :ss, CAST(:pm AS JSON))
-            ON CONFLICT (snapshot_date) DO UPDATE SET
-                mention_rate = EXCLUDED.mention_rate,
-                visibility_pct = EXCLUDED.visibility_pct,
-                weighted_rank_score = EXCLUDED.weighted_rank_score,
-                sentiment_score = EXCLUDED.sentiment_score,
-                platform_matrix = EXCLUDED.platform_matrix
-            """
-        ),
-        {
-            "d": today,
-            "mr": kpis.get("mention_rate", 0),
-            "vp": kpis.get("visibility_pct", 0),
-            "wr": kpis.get("weighted_rank_score") or 0,
-            "ss": kpis.get("sentiment_score"),
-            "pm": json.dumps(kpis.get("platform_matrix", [])),
-        },
+    # 兼容旧库：优先写扩展列，失败则回退基础列
+    try:
+        await db.execute(
+            text(
+                """
+                INSERT INTO geo_monitor_snapshots
+                    (snapshot_date, mention_rate, visibility_pct, weighted_rank_score,
+                     sentiment_score, platform_matrix,
+                     top1_pct, top3_pct, top5_pct, gap_vs_leader_top3_pp,
+                     mention_rate_pct, sentiment_negative_pct, kpi_track, north_star_meta)
+                VALUES (:d, :mr, :vp, :wr, :ss, CAST(:pm AS JSON),
+                        :t1, :t3, :t5, :gap, :mrp, :snp, :track, CAST(:meta AS JSON))
+                ON CONFLICT (snapshot_date) DO UPDATE SET
+                    mention_rate = EXCLUDED.mention_rate,
+                    visibility_pct = EXCLUDED.visibility_pct,
+                    weighted_rank_score = EXCLUDED.weighted_rank_score,
+                    sentiment_score = EXCLUDED.sentiment_score,
+                    platform_matrix = EXCLUDED.platform_matrix,
+                    top1_pct = EXCLUDED.top1_pct,
+                    top3_pct = EXCLUDED.top3_pct,
+                    top5_pct = EXCLUDED.top5_pct,
+                    gap_vs_leader_top3_pp = EXCLUDED.gap_vs_leader_top3_pp,
+                    mention_rate_pct = EXCLUDED.mention_rate_pct,
+                    sentiment_negative_pct = EXCLUDED.sentiment_negative_pct,
+                    kpi_track = EXCLUDED.kpi_track,
+                    north_star_meta = EXCLUDED.north_star_meta
+                """
+            ),
+            {
+                "d": today,
+                "mr": kpis.get("mention_rate", 0),
+                "vp": kpis.get("visibility_pct", 0),
+                "wr": kpis.get("weighted_rank_score") or 0,
+                "ss": kpis.get("sentiment_score"),
+                "pm": json.dumps(kpis.get("platform_matrix", [])),
+                "t1": kpis.get("top1_pct"),
+                "t3": kpis.get("top3_pct"),
+                "t5": kpis.get("top5_pct"),
+                "gap": gap_top3,
+                "mrp": kpis.get("mention_rate_pct"),
+                "snp": kpis.get("sentiment_negative_pct"),
+                "track": kpis.get("kpi_track", "open_api"),
+                "meta": json.dumps(meta, ensure_ascii=False),
+            },
+        )
+    except Exception:
+        logger.warning("snapshot_north_star_columns_missing falling_back", exc_info=True)
+        await db.execute(
+            text(
+                """
+                INSERT INTO geo_monitor_snapshots
+                    (snapshot_date, mention_rate, visibility_pct, weighted_rank_score,
+                     sentiment_score, platform_matrix)
+                VALUES (:d, :mr, :vp, :wr, :ss, CAST(:pm AS JSON))
+                ON CONFLICT (snapshot_date) DO UPDATE SET
+                    mention_rate = EXCLUDED.mention_rate,
+                    visibility_pct = EXCLUDED.visibility_pct,
+                    weighted_rank_score = EXCLUDED.weighted_rank_score,
+                    sentiment_score = EXCLUDED.sentiment_score,
+                    platform_matrix = EXCLUDED.platform_matrix
+                """
+            ),
+            {
+                "d": today,
+                "mr": kpis.get("mention_rate", 0),
+                "vp": kpis.get("visibility_pct", 0),
+                "wr": kpis.get("weighted_rank_score") or 0,
+                "ss": kpis.get("sentiment_score"),
+                "pm": json.dumps(kpis.get("platform_matrix", [])),
+            },
+        )
+    kpis["gap_vs_leader_top3_pp"] = gap_top3
+    logger.info(
+        "monitor_snapshot_aggregated date=%s top3=%s gap_top3=%s track=%s",
+        today,
+        kpis.get("top3_pct"),
+        gap_top3,
+        kpis.get("kpi_track"),
     )
-    logger.info("monitor_snapshot_aggregated date=%s visibility=%s", today, kpis.get("visibility_pct"))
     return {"status": "ok", "snapshot_date": str(today), **kpis}

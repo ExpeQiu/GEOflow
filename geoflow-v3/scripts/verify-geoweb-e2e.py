@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""端到端验证：GEOFlow GwebWikiPublisher → Gweb /api/wiki/sync → 公网页面可访问。"""
+"""端到端验证：GEOFlow GeowebPublisher → GEOweb /api/geoflow/sync → /articles 可访问。"""
 
 from __future__ import annotations
 
@@ -20,13 +20,12 @@ from app.models.distribution import ArticleDistribution, DistributionChannel
 from app.models.material import Author, Category
 from app.services.geoflow.distribution_orchestrator import DistributionOrchestrator
 
-SLUG = "geoflow-e2e-probe"
-ROUTE_PREFIX = "glossary"
-PROBE_TITLE = "GEOFlow 通路探针"
+SLUG = "geoflow-geoweb-e2e-probe"
+PROBE_TITLE = "GEOFlow → GEOweb 通路探针"
 
 
 def log(msg: str) -> None:
-    print(f"[gweb-e2e] {msg}", flush=True)
+    print(f"[geoweb-e2e] {msg}", flush=True)
 
 
 def http_get(url: str) -> tuple[int, str]:
@@ -35,13 +34,15 @@ def http_get(url: str) -> tuple[int, str]:
             return resp.status, resp.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as exc:
         return exc.code, exc.read().decode("utf-8", errors="replace")
+    except Exception as exc:  # noqa: BLE001
+        return 0, str(exc)
 
 
-async def ensure_gweb_wiki_channel(db) -> DistributionChannel:
+async def ensure_geoweb_channel(db) -> DistributionChannel:
     channel = (
         await db.execute(
             select(DistributionChannel).where(
-                DistributionChannel.channel_type == "gweb_wiki",
+                DistributionChannel.channel_type == "geoweb",
                 DistributionChannel.status == "active",
             )
         )
@@ -49,24 +50,26 @@ async def ensure_gweb_wiki_channel(db) -> DistributionChannel:
 
     settings = get_settings()
     if channel:
-        log(f"复用 gweb_wiki 渠道 id={channel.id}")
+        log(f"复用 geoweb 渠道 id={channel.id}")
         return channel
 
+    base = (settings.geoweb_base_url or "").rstrip("/")
     channel = DistributionChannel(
-        name="Gweb Wiki 本地",
-        channel_type="gweb_wiki",
+        name="GEOweb 本地",
+        channel_type="geoweb",
         status="active",
         config_json={
-            "domain": "localhost",
-            "endpoint_url": settings.gweb_base_url.rstrip("/"),
-            "gweb_base_url": settings.gweb_base_url.rstrip("/"),
-            "gweb_sync_secret": settings.gweb_revalidate_secret,
-            "gweb_timeout_seconds": 30,
+            "domain": "127.0.0.1",
+            "endpoint_url": base,
+            "geoweb_base_url": base,
+            "geoweb_sync_token": settings.geoweb_sync_token,
+            "geoweb_timeout_seconds": 30,
+            "default_page_type": "article",
         },
     )
     db.add(channel)
     await db.flush()
-    log(f"创建 gweb_wiki 渠道 id={channel.id}")
+    log(f"创建 geoweb 渠道 id={channel.id}")
     return channel
 
 
@@ -74,49 +77,35 @@ async def create_probe_article(db) -> Article:
     category_id = (await db.execute(select(Category.id).limit(1))).scalar_one()
     author_id = (await db.execute(select(Author.id).limit(1))).scalar_one()
 
-    wiki_meta = {
-        "title": PROBE_TITLE,
-        "type": "glossary",
-        "quick_answer": "端到端探针页：验证 GEOFlow 发布后可经 Gweb 公网访问。",
-        "tags": ["GEOFlow", "探针", "E2E"],
-        "related": ["topics/geoflow", "guides/geoflow-wiki-publishing", "concepts/shen-dun-battery"],
-        "schema_type": "TechArticle",
-        "last_updated": datetime.now(UTC).strftime("%Y-%m-%d"),
-        "faq": [
-            {"q": "本页如何产生？", "a": "由 verify-gweb-e2e.py 经 DistributionOrchestrator 同步写入。"},
-            {"q": "通路是否正常？", "a": "若可访问本页且 distribution 状态为 published，则端到端畅通。"},
-        ],
-    }
-
     content = """## 定义
 
-本页为 **GEOFlow → Gweb** 端到端通路验证探针，由分发编排器经 `GwebWikiPublisher` 写入。
+本页为 **GEOFlow → GEOweb** 端到端通路验证探针。
 
 ## 验证项
 
 | 环节 | 期望 |
 |:---|:---|
-| GEOFlow 配置 | GWEB_SYNC_ENABLED=true |
-| 鉴权 | GWEB_REVALIDATE_SECRET 与 Gweb 一致 |
-| 同步 API | POST /api/wiki/sync 返回 200 |
-| 公网展现 | GET /glossary/geoflow-e2e-probe 返回 200 |
-
-## 相关
-
-- [GEOFlow 内容发布](/topics/geoflow)
-- [Wiki 发布指南](/guides/geoflow-wiki-publishing)
-- [神盾电池安全系统](/concepts/shen-dun-battery)
+| GEOFlow 配置 | GEOWEB_SYNC_ENABLED=true |
+| 鉴权 | GEOWEB_SYNC_TOKEN 与 GEOweb GEOFLOW_SYNC_TOKEN 一致 |
+| 同步 API | POST /api/geoflow/sync 返回 200 |
+| 展现 | GET /articles/geoflow-geoweb-e2e-probe 返回 200 |
 """
 
     article = Article(
         title=PROBE_TITLE,
         slug=SLUG,
-        excerpt=wiki_meta["quick_answer"],
+        excerpt="端到端探针：验证发布后可经 GEOweb /articles 访问。",
         content=content,
         category_id=category_id,
         author_id=author_id,
-        content_format="wiki_mdx",
-        wiki_meta=wiki_meta,
+        content_format="article",
+        original_keyword="GEOFlow GEOweb 发布验证",
+        wiki_meta={
+            "domain": "adas",
+            "core_takeaway": "GEOFlow 发布可同步到 GEOweb /articles",
+            "quick_answer": "通路探针页",
+            "target_query": "GEOFlow 如何发布到 GEOweb",
+        },
         status="published",
         review_status="auto_approved",
         eval_status="passed",
@@ -131,31 +120,34 @@ async def create_probe_article(db) -> Article:
 
 async def run_e2e() -> int:
     settings = get_settings()
-    log(f"GWEB_BASE_URL={settings.gweb_base_url}")
-    log(f"GWEB_SYNC_ENABLED={settings.gweb_sync_enabled}")
+    base = (settings.geoweb_base_url or "").rstrip("/")
+    log(f"GEOWEB_BASE_URL={base}")
+    log(f"GEOWEB_SYNC_ENABLED={settings.geoweb_sync_enabled}")
 
-    if not settings.gweb_sync_enabled:
-        log("FAIL: GWEB_SYNC_ENABLED 未开启")
+    if not settings.geoweb_sync_enabled:
+        log("FAIL: GEOWEB_SYNC_ENABLED 未开启")
         return 1
-    if not settings.gweb_revalidate_secret:
-        log("FAIL: GWEB_REVALIDATE_SECRET 未配置")
+    if not settings.geoweb_sync_token:
+        log("FAIL: GEOWEB_SYNC_TOKEN 未配置")
+        return 1
+    if not base:
+        log("FAIL: GEOWEB_BASE_URL 未配置")
         return 1
 
-    gweb_health_url = f"{settings.gweb_base_url.rstrip('/')}/api/health"
-    code, body = http_get(gweb_health_url)
-    if code != 200 or "gweb" not in body:
-        log(f"FAIL: Gweb 不可达 {gweb_health_url} status={code}")
+    home_code, _ = http_get(f"{base}/")
+    if home_code != 200:
+        log(f"FAIL: GEOweb 不可达 {base}/ status={home_code}")
         return 1
-    log(f"Gweb 健康检查 OK ({gweb_health_url})")
+    log("GEOweb 首页 OK")
 
     async with async_session_factory() as db:
-        await ensure_gweb_wiki_channel(db)
+        await ensure_geoweb_channel(db)
         existing = (
             await db.execute(select(Article).where(Article.slug == SLUG))
         ).scalar_one_or_none()
         if existing:
             article = existing
-            log(f"复用探针文章 id={article.id} slug={SLUG}")
+            log(f"复用探针文章 id={article.id}")
         else:
             article = await create_probe_article(db)
         await db.commit()
@@ -178,11 +170,11 @@ async def run_e2e() -> int:
         log("FAIL: article_distributions 未 published")
         return 1
 
-    page_url = f"{settings.gweb_base_url.rstrip('/')}/{ROUTE_PREFIX}/{SLUG}"
+    page_url = f"{base}/articles/{SLUG}"
     for attempt in range(1, 8):
         code, html = http_get(page_url)
         if code == 200 and PROBE_TITLE in html:
-            log(f"OK  公网页面可访问 {page_url}")
+            log(f"OK 页面可访问 {page_url}")
             log(json.dumps({"article_id": article_id, "distribution_id": dist.id, "url": page_url}, ensure_ascii=False))
             return 0
         log(f"等待页面就绪 ({attempt}/7) status={code}")

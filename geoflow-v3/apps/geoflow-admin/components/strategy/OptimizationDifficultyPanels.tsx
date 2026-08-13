@@ -1,7 +1,57 @@
-import type { DifficultyPanel, OptimizationPanel } from "@/lib/strategy-types";
-import { AivisKpiCard, GapPriorityBadge, LayerSection, surfaceCardClass } from "./shared/AivisPrimitives";
+"use client";
 
-export function OptimizationPanelView({ data }: { data: OptimizationPanel }) {
+import { FormEvent, useState } from "react";
+import { apiPut, getToken } from "@/lib/api-client";
+import type { DifficultyPanel, OptimizationPanel } from "@/lib/strategy-types";
+import { AivisKpiCard, GapPriorityBadge, LayerSection, surfaceCardClass, surfaceInputClass } from "./shared/AivisPrimitives";
+
+export function OptimizationPanelView({
+  data,
+  onMarketSaved,
+}: {
+  data: OptimizationPanel;
+  onMarketSaved?: () => void;
+}) {
+  const [monthlySearch, setMonthlySearch] = useState(String(data.market_opportunity.monthly_search_volume || 50000));
+  const [mau, setMau] = useState(String(data.market_opportunity.ai_platform_mau || 820000000));
+  const [regulatory, setRegulatory] = useState("3");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  async function saveMarket(e: FormEvent) {
+    e.preventDefault();
+    const t = getToken();
+    if (!t) return;
+    setSaving(true);
+    setMsg("");
+    try {
+      await apiPut("/api/admin/settings/site", t, {
+        setting_key: "aivis_monthly_search_volume",
+        setting_value: String(Number(monthlySearch) || 50000),
+        group_name: "aivis",
+        value_type: "int",
+      });
+      await apiPut("/api/admin/settings/site", t, {
+        setting_key: "aivis_ai_platform_mau",
+        setting_value: String(Number(mau) || 820000000),
+        group_name: "aivis",
+        value_type: "int",
+      });
+      await apiPut("/api/admin/settings/site", t, {
+        setting_key: "aivis_regulatory_score",
+        setting_value: String(Math.max(1, Math.min(5, Number(regulatory) || 3))),
+        group_name: "aivis",
+        value_type: "int",
+      });
+      setMsg("市场/监管参数已保存，刷新后生效");
+      onMarketSaved?.();
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "保存失败");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <LayerSection title="市场机会分析">
@@ -10,6 +60,26 @@ export function OptimizationPanelView({ data }: { data: OptimizationPanel }) {
           <AivisKpiCard label="月搜索量" value={`${(data.market_opportunity.monthly_search_volume / 10000).toFixed(0)}万+`} />
           <AivisKpiCard label="AI 平台月活" value={`${(data.market_opportunity.ai_platform_mau / 1e8).toFixed(1)} 亿`} tone="cyan" />
         </div>
+        <form onSubmit={saveMarket} className={`mt-4 grid gap-2 md:grid-cols-4 ${surfaceCardClass} p-4`}>
+          <div>
+            <label className="text-xs text-gray-500">月搜索量</label>
+            <input className={surfaceInputClass} value={monthlySearch} onChange={(e) => setMonthlySearch(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500">AI 平台月活</label>
+            <input className={surfaceInputClass} value={mau} onChange={(e) => setMau(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500">监管难度 1–5</label>
+            <input className={surfaceInputClass} value={regulatory} onChange={(e) => setRegulatory(e.target.value)} />
+          </div>
+          <div className="flex items-end">
+            <button type="submit" disabled={saving} className="rounded-md bg-violet-600 px-4 py-2 text-sm text-white disabled:opacity-50">
+              {saving ? "保存中…" : "保存参数"}
+            </button>
+          </div>
+          {msg && <p className="md:col-span-4 text-xs text-gray-600">{msg}</p>}
+        </form>
       </LayerSection>
 
       <LayerSection title="平台选择建议">
@@ -88,7 +158,9 @@ export function DifficultyPanelView({ data }: { data: DifficultyPanel }) {
               <li key={key} className={`${surfaceCardClass} px-4 py-3 text-sm`}>
                 <div className="flex items-center justify-between">
                   <span className="font-medium">{title}</span>
-                  <span className="text-violet-700">{d.score}/5 · {d.label}</span>
+                  <span className="text-violet-700">
+                    {d.score}/5 · {d.label}
+                  </span>
                 </div>
                 <p className="mt-1 text-gray-500">{d.description}</p>
                 <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-100">

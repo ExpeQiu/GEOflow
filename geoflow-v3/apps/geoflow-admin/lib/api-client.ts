@@ -12,7 +12,22 @@ export type ApiResponse<T> = {
   success: boolean;
   data: T;
   meta?: { request_id?: string };
+  detail?: string | { detail?: string };
 };
+
+async function throwApiError(res: Response, path: string): Promise<never> {
+  let detail = "";
+  try {
+    const body = (await res.json()) as { detail?: unknown; message?: string };
+    if (typeof body.detail === "string") detail = body.detail;
+    else if (body.message) detail = body.message;
+    else if (body.detail != null) detail = JSON.stringify(body.detail);
+  } catch {
+    /* ignore */
+  }
+  const suffix = detail ? ` · ${detail}` : "";
+  throw new Error(`请求失败 ${res.status} (${path})${suffix}`);
+}
 
 export async function adminLogin(username: string, password: string) {
   const res = await fetch(`${API_URL}/api/v1/auth/admin-login`, {
@@ -30,7 +45,7 @@ export async function apiGet<T>(path: string, token: string): Promise<T> {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   });
-  if (!res.ok) throw new Error(`api_error:${res.status}`);
+  if (!res.ok) await throwApiError(res, path);
   const json = (await res.json()) as ApiResponse<T>;
   return json.data;
 }
@@ -41,7 +56,7 @@ export async function apiPost<T>(path: string, token: string, body?: unknown): P
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(`api_error:${res.status}`);
+  if (!res.ok) await throwApiError(res, path);
   const json = (await res.json()) as ApiResponse<T>;
   return json.data;
 }
@@ -52,7 +67,7 @@ export async function apiPatch<T>(path: string, token: string, body?: unknown): 
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(`api_error:${res.status}`);
+  if (!res.ok) await throwApiError(res, path);
   const json = (await res.json()) as ApiResponse<T>;
   return json.data;
 }
@@ -63,7 +78,7 @@ export async function apiPut<T>(path: string, token: string, body?: unknown): Pr
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(`api_error:${res.status}`);
+  if (!res.ok) await throwApiError(res, path);
   const json = (await res.json()) as ApiResponse<T>;
   return json.data;
 }
@@ -73,7 +88,7 @@ export async function apiDelete<T>(path: string, token: string): Promise<T> {
     method: "DELETE",
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error(`api_error:${res.status}`);
+  if (!res.ok) await throwApiError(res, path);
   const json = (await res.json()) as ApiResponse<T>;
   return json.data;
 }
@@ -86,7 +101,7 @@ export async function apiUpload<T>(path: string, token: string, file: File): Pro
     headers: { Authorization: `Bearer ${token}` },
     body: form,
   });
-  if (!res.ok) throw new Error(`api_error:${res.status}`);
+  if (!res.ok) await throwApiError(res, path);
   const json = (await res.json()) as ApiResponse<T>;
   return json.data;
 }

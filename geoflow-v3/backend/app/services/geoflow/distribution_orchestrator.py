@@ -8,8 +8,12 @@ from app.models.article import Article
 from app.models.distribution import ArticleDistribution, DistributionChannel
 from app.models.task import Task
 from app.services.admin.production_service import _table_exists
-from app.services.geoflow.distribution_publishers import publish_generic_http, publish_geoflow_agent, publish_wordpress
-from app.services.geoflow.gweb_wiki_publisher import GwebWikiPublisher
+from app.services.geoflow.distribution_publishers import (
+    publish_generic_http,
+    publish_geoflow_agent,
+    publish_wordpress,
+)
+from app.services.geoflow.geoweb_publisher import GeowebPublisher
 
 logger = get_logger("geoflow.distribution")
 
@@ -17,7 +21,7 @@ logger = get_logger("geoflow.distribution")
 class DistributionOrchestrator:
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.gweb = GwebWikiPublisher()
+        self.geoweb = GeowebPublisher()
 
     async def _resolve_channels(self, article: Article) -> list[DistributionChannel]:
         if article.task_id:
@@ -64,8 +68,8 @@ class DistributionOrchestrator:
             await self.db.flush()
 
             try:
-                if channel.channel_type == "gweb_wiki" and article.content_format == "wiki_mdx":
-                    result = await self.gweb.publish(article, channel=channel)
+                if channel.channel_type == "geoweb":
+                    result = await self.geoweb.publish(article, channel=channel)
                     dist.status = "published"
                     dist.remote_url = result.get("url")
                     dist.remote_id = result.get("slug") or result.get("remote_id")

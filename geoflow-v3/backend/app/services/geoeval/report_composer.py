@@ -11,7 +11,7 @@ from app.core.config import get_settings
 from app.services.admin.aivis_service import build_brand_panel, build_product_panel
 from app.services.admin.production_service import _table_exists
 from app.services.geoeval.aivis_analyzers import assess_difficulty, build_optimization_panel
-from app.services.geoeval.competitive_analyzer import build_competitor_matrix, compute_optimization_potential
+from app.services.geoeval.competitive_analyzer import build_competitor_matrix, compute_optimization_potential  # noqa: F401 — matrix used for north-star
 from app.services.geoeval.insight_generator import generate_monitor_insights
 from app.services.geoeval.monitor_probe import aggregate_probe_kpis, load_brand_keywords
 from app.services.geoeval.scene_gap_analyzer import compute_all_scene_gaps
@@ -46,17 +46,24 @@ def _closed_loop_items(
 ) -> list[str]:
     items: list[str] = []
     for r in completed_lifts[:8]:
+        top3_bit = ""
+        if r.get("delta_top3_pp") is not None:
+            top3_bit = (
+                f" · Top3 {r.get('baseline_top3_pct')}%→{r.get('post_top3_pct')}%"
+                f"(Δ {r.get('delta_top3_pp')}pp)"
+            )
         items.append(
             f"[{r.get('status')}] {r.get('scene_name') or r.get('scene_id')} "
-            f"基线 {r.get('baseline_visibility_pct')}% → 复测 {r.get('post_visibility_pct')}% "
-            f"(Δ {r.get('delta_visibility_pct')}pp) task={r.get('task_id')}"
+            f"可见性 {r.get('baseline_visibility_pct')}% → {r.get('post_visibility_pct')}% "
+            f"(Δ {r.get('delta_visibility_pct')}pp){top3_bit} task={r.get('task_id')}"
         )
     for r in rem_items:
         if r.get("status") == "completed":
             continue
         items.append(
             f"[进行中] {r.get('scene_name') or r.get('scene_id')} status={r.get('status')} "
-            f"baseline={r.get('baseline_visibility_pct')}% rescan_after={r.get('rescan_after')}"
+            f"baseline={r.get('baseline_visibility_pct')}% top3={r.get('baseline_top3_pct')} "
+            f"rescan_after={r.get('rescan_after')}"
         )
         if len([x for x in items if x.startswith("[进行中]")]) >= 5:
             break
@@ -88,9 +95,13 @@ def _render_matrix_html(matrix: list, title: str = "竞品对标矩阵") -> str:
         brand_map = {b["name"]: b for b in row.get("brands") or []}
         for bname in brands:
             cell = brand_map.get(bname, {})
+            top3 = cell.get("top3_pct")
             vis = cell.get("visibility_pct", 0)
-            rank = cell.get("weighted_rank_score")
-            parts.append(f"<td>{vis}%{f' / {rank}' if rank else ''}</td>")
+            if top3 is not None:
+                parts.append(f"<td>Top3 {top3}% <small>可见 {vis}%</small></td>")
+            else:
+                rank = cell.get("weighted_rank_score")
+                parts.append(f"<td>{vis}%{f' / {rank}' if rank else ''}</td>")
         parts.append("</tr>")
     parts.append("</table>")
     return "".join(parts)
@@ -130,31 +141,47 @@ async def compose_visibility_report(db: AsyncSession, period_days: int = 7) -> d
     period_end = date.today()
     period_start = period_end - timedelta(days=period_days)
 
-    kpis = await aggregate_probe_kpis(db)
-    brand_kpis = await aggregate_probe_kpis(db, query_type="brand")
-    product_kpis = await aggregate_probe_kpis(db, query_type="product")
+    kpis = await aggregate_probe_kpis(db, north_star=True)
+    brand_kpis = await aggregate_probe_kpis(db, query_type="brand", north_star=True)
+    product_kpis = await aggregate_probe_kpis(db, query_type="product", north_star=True)
     brand_panel = await build_brand_panel(db)
     product_panel = await build_product_panel(db)
-    matrix = brand_panel["competitor_matrix"]
+    matrix = await build_competitor_matrix(db, north_star=True)
     gaps = await compute_all_scene_gaps(db)
     optimization = await build_optimization_panel(db)
     difficulty = await assess_difficulty(db)
     await generate_monitor_insights(db)
     insights = optimization.get("insights") or []
 
+    from app.services.geoeval.quality_metrics_service import compute_quality_gates
+    from app.services.geoeval.source_metrics_service import compute_source_shares
+
+    quality = await compute_quality_gates(db)
+    source = await compute_source_shares(db)
+
     opt = await compute_optimization_potential(
-        float(brand_kpis.get("visibility_pct") or 0),
-        float(matrix.get("self_visibility_pct") or 0) + float(matrix.get("gap_vs_leader") or 0),
+        float(brand_kpis.get("top3_pct") or brand_kpis.get("visibility_pct") or 0),
+        float(matrix.get("leader_top3_pct") or matrix.get("self_visibility_pct") or 0)
+        + float(matrix.get("gap_vs_leader_top3_pp") or matrix.get("gap_vs_leader") or 0),
     )
     high_scenes = [s for s in gaps.get("scenes", []) if s.get("gap_priority") == "high"][:3]
 
     from app.services.geoeval.remediation_service import list_remediations
-    from app.services.geoeval.gweb_alignment_service import compute_gweb_alignment
+    from app.services.geoeval.geoweb_alignment_service import compute_geoweb_alignment
 
     remediations = await list_remediations(db, limit=10)
     rem_items = remediations.get("items") or []
     completed_lifts = [r for r in rem_items if r.get("status") == "completed"]
-    alignment = await compute_gweb_alignment(db)
+    alignment = await compute_geoweb_alignment(db)
+
+    from app.services.geoeval.gold_bias_service import compute_gold_bias
+    from app.services.admin.geo_eval_settings_service import get_probe_standards
+
+    gold_bias = await compute_gold_bias(db, days=max(period_days, 30))
+    probe_std = await get_probe_standards(db)
+    gold_footnote = gold_bias.get("footnote") or "金标辅轨：暂无对照样本"
+    if not probe_std.get("footnote_on_bias", True):
+        gold_footnote = "金标脚注已关闭（probe_footnote_on_bias=false）"
 
     qstats = {"brand": 0, "product": 0}
     if await _table_exists(db, "geo_monitor_questions"):
@@ -174,44 +201,86 @@ async def compose_visibility_report(db: AsyncSession, period_days: int = 7) -> d
                 qstats[str(qt)] = int(cnt)
 
     platform_count = len(kpis.get("platform_matrix") or []) or 6
+    gate_note = ""
+    if quality.get("gate_pass") is False:
+        gate_note = "<p><strong>否决：</strong>参数一致率未达 95%，结果层视为未达标。</p>"
+    elif quality.get("gate_pass") is None:
+        gate_note = "<p>参数一致率待标定（SSOT 或答文样本不足）。</p>"
 
     sections = {
         "cover": {
             "title": "封面",
-            "items": [f"品牌：{brand_name}", f"数据窗口：{period_start} ~ {period_end}"],
+            "items": [
+                f"品牌：{brand_name}",
+                f"数据窗口：{period_start} ~ {period_end}",
+                f"口径：{kpis.get('kpi_track', 'open_api')}（Chat API ≠ C 端联网回答）",
+                "实体层：L2 技术 IP · 题型子集：对比+决策",
+            ],
         },
         "overview": {
-            "title": "数据概况",
+            "title": "北极星摘要",
             "html": (
+                f"<div class='kpi'>Top3 概率 <strong>{kpis.get('top3_pct') if kpis.get('top3_pct') is not None else '—'}%</strong></div>"
+                f"<div class='kpi'>竞品差距 <strong>{matrix.get('gap_vs_leader_top3_pp') if matrix.get('gap_vs_leader_top3_pp') is not None else '—'}pp</strong></div>"
+                f"<div class='kpi'>提及率 <strong>{kpis.get('mention_rate_pct', 0)}%</strong></div>"
+                f"<div class='kpi'>有效样本 <strong>{kpis.get('valid_sample_n', 0)}</strong></div>"
                 f"<div class='kpi'>平台数 <strong>{platform_count}</strong></div>"
-                f"<div class='kpi'>品牌问题 <strong>{qstats['brand']}</strong> 题</div>"
-                f"<div class='kpi'>产品问题 <strong>{qstats['product']}</strong> 题</div>"
-                f"<div class='kpi'>探针总数 <strong>{kpis.get('probe_count', 0)}</strong></div>"
+                f"<div class='kpi'>品牌/产品题 <strong>{qstats['brand']}/{qstats['product']}</strong></div>"
+                f"<p>探针总数 {kpis.get('probe_count', 0)} · API 口径 · 对比+决策子集</p>"
             ),
         },
         "brand": {
-            "title": "品牌现状",
+            "title": "结果层 · 品牌/技术 IP",
             "html": (
-                f"<div class='kpi'>可见性 <strong>{brand_kpis.get('visibility_pct')}%</strong></div>"
-                f"<div class='kpi'>加权排名 <strong>{brand_kpis.get('weighted_rank_score') or '—'}</strong></div>"
-                f"<div class='kpi'>好感度 <strong>{brand_kpis.get('sentiment_score') or '—'}%</strong></div>"
-                f"<p>与领先者差距 {matrix.get('gap_vs_leader')}pp</p>"
-                + _render_matrix_html(matrix.get("matrix") or [], "品牌竞品矩阵")
+                f"<div class='kpi'>Top3 <strong>{brand_kpis.get('top3_pct') if brand_kpis.get('top3_pct') is not None else '—'}%</strong></div>"
+                f"<div class='kpi'>Top5 <strong>{brand_kpis.get('top5_pct') if brand_kpis.get('top5_pct') is not None else '—'}%</strong></div>"
+                f"<div class='kpi'>提及率 <strong>{brand_kpis.get('mention_rate_pct', 0)}%</strong></div>"
+                f"<div class='kpi'>负向率 <strong>{brand_kpis.get('sentiment_negative_pct') if brand_kpis.get('sentiment_negative_pct') is not None else '—'}%</strong></div>"
+                f"<p>相对最强竞品 Top3 差距 {matrix.get('gap_vs_leader_top3_pp')}pp"
+                f"（可见性差距 {matrix.get('gap_vs_leader')}pp，过渡保留）</p>"
+                + gate_note
+                + _render_matrix_html(matrix.get("matrix") or [], "品牌竞品矩阵（Top3）")
             ),
             "items": [f"{i.get('title')}：{i.get('body')}" for i in insights if i.get("insight_type") != "core_scene"][:3],
+        },
+        "quality": {
+            "title": "质量层 · 硬门槛",
+            "html": (
+                f"<div class='kpi'>参数一致率 <strong>{quality.get('param_consistency_pct') if quality.get('param_consistency_pct') is not None else '—'}%</strong></div>"
+                f"<div class='kpi'>门槛 <strong>≥{quality.get('threshold', 95)}%</strong></div>"
+                f"<div class='kpi'>归因正确率 <strong>{quality.get('attribution_accuracy_pct') if quality.get('attribution_accuracy_pct') is not None else '—'}%</strong></div>"
+                f"<div class='kpi'>门禁 <strong>{'通过' if quality.get('gate_pass') else ('未达标' if quality.get('gate_pass') is False else '待标定')}</strong></div>"
+            ),
+            "items": [
+                f"SSOT 键：{', '.join(quality.get('ssot_keys') or []) or '无'}",
+                f"检查样本参数点：{quality.get('checked', 0)}，命中 {quality.get('matched', 0)}",
+            ],
         },
         "product": {
             "title": "产品现状 · 场景缺口",
             "html": (
-                f"<div class='kpi'>可见性 <strong>{product_kpis.get('visibility_pct')}%</strong></div>"
-                f"<div class='kpi'>加权排名 <strong>{product_kpis.get('weighted_rank_score') or '—'}</strong></div>"
-                f"<div class='kpi'>好感度 <strong>{product_kpis.get('sentiment_score') or '—'}%</strong></div>"
+                f"<div class='kpi'>Top3 <strong>{product_kpis.get('top3_pct') if product_kpis.get('top3_pct') is not None else '—'}%</strong></div>"
+                f"<div class='kpi'>提及率 <strong>{product_kpis.get('mention_rate_pct', 0)}%</strong></div>"
+                f"<div class='kpi'>负向率 <strong>{product_kpis.get('sentiment_negative_pct') if product_kpis.get('sentiment_negative_pct') is not None else '—'}%</strong></div>"
             ),
             "items": [
                 f"{s.get('scene_name')} — 缺口率 {float(s.get('gap_rate', 0))*100:.1f}% [{s.get('gap_priority')}]"
                 for s in sorted(gaps.get("scenes", []), key=lambda x: x.get("gap_rate", 0), reverse=True)[:8]
             ]
             or ["暂无场景数据"],
+        },
+        "source": {
+            "title": "信源层 · 为什么排不上",
+            "html": (
+                f"<div class='kpi'>官方信源占比 <strong>{source.get('official_share_pct') if source.get('official_share_pct') is not None else '—'}%</strong></div>"
+                f"<div class='kpi'>第三方占比 <strong>{source.get('third_party_share_pct') if source.get('third_party_share_pct') is not None else '—'}%</strong></div>"
+                f"<div class='kpi'>目标域名命中 <strong>{source.get('target_domain_hits', 0)}</strong></div>"
+                f"<div class='kpi'>引用样本 <strong>{source.get('citation_count', 0)}</strong></div>"
+            ),
+            "items": [
+                f"目标域名：{', '.join(source.get('target_domains') or []) or '未配置 official_domains'}",
+                f"证据过滤 L1+：{source.get('evidence_filtered', 0)}/{source.get('evidence_total', 0)}",
+            ],
         },
         "strategy": {
             "title": "优化策略",
@@ -229,11 +298,11 @@ async def compose_visibility_report(db: AsyncSession, period_days: int = 7) -> d
                 f"市场竞争 {difficulty['market_competition']['score']}/5（{difficulty['market_competition']['label']}）",
                 f"实体基础 {difficulty['entity_foundation']['score']}/5（{difficulty['entity_foundation']['label']}）",
                 f"综合难度 {difficulty['overall_score']}/5",
-                f"优化提升需 {opt.get('lift_needed')}%",
+                f"Top3 优化提升需 {opt.get('lift_needed')}%",
             ],
         },
         "closed_loop": {
-            "title": "闭环验证 · 补缺 Lift 与数据质量",
+            "title": "闭环验证 · 补缺 Lift（ΔTop3 优先）与数据质量",
             "html": (
                 "<div class='kpi'>探针 engine 构成 <strong>"
                 + (
@@ -244,8 +313,19 @@ async def compose_visibility_report(db: AsyncSession, period_days: int = 7) -> d
                 f"<div class='kpi'>Gweb 对齐率 <strong>{alignment.get('alignment_pct', 0)}%</strong></div>"
                 f"<div class='kpi'>Gweb 页数 <strong>{alignment.get('gweb_page_count', 0)}</strong></div>"
                 f"<div class='kpi'>补缺实验 <strong>{len(rem_items)}</strong></div>"
+                f"<p>口径脚注：open_api；{gold_footnote}</p>"
+                f"<p>金标样本 n={gold_bias.get('sample_n', 0)} · 提及一致率="
+                f"{gold_bias.get('mention_agreement') if gold_bias.get('mention_agreement') is not None else '—'} "
+                f"· 平均 rank 偏移={gold_bias.get('mean_rank_delta') if gold_bias.get('mean_rank_delta') is not None else '—'} "
+                f"（禁止覆盖 visibility_open_api）</p>"
             ),
             "items": _closed_loop_items(rem_items, completed_lifts, alignment, high_scenes),
+            "gold_bias": {
+                "sample_n": gold_bias.get("sample_n", 0),
+                "mention_agreement": gold_bias.get("mention_agreement"),
+                "mean_rank_delta": gold_bias.get("mean_rank_delta"),
+                "footnote": gold_footnote,
+            },
         },
     }
 

@@ -188,7 +188,14 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between gap-4">
                   <dt className="text-gray-500">{zh.settings.fields.gwebSync}</dt>
                   <dd>
-                    <BoolBadge enabled={data.gweb_sync_enabled} onLabel={zh.settings.enabled} offLabel={zh.settings.disabled} />
+                    <BoolBadge
+                      enabled={Boolean(data.geoweb_sync_enabled ?? data.gweb_sync_enabled)}
+                      onLabel={zh.settings.enabled}
+                      offLabel={zh.settings.disabled}
+                    />
+                    {data.geoweb_base_url ? (
+                      <span className="ml-2 text-xs text-gray-400">{data.geoweb_base_url}</span>
+                    ) : null}
                   </dd>
                 </div>
               </dl>

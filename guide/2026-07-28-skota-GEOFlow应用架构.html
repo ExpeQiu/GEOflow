@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>GEOFlow v3 · 应用架构图 · Skota B+K</title>
+<style>
+:root{
+  --bg-page:#f5f6fa;
+  --bg-card:#fff;
+  --ink:#1f2937;
+  --muted:#6b7280;
+  --line:#e5e7eb;
+  --c-arrow:#94a3b8;
+  --r:12px;
+  --shadow:0 1px 3px rgba(0,0,0,.04),0 4px 12px rgba(0,0,0,.05);
+  --c-ui:#3b82f6;
+  --c-api:#06b6d4;
+  --c-svc:#10b981;
+  --c-ai:#f97316;
+  --c-data:#8b5cf6;
+  --c-ext:#64748b;
+  --c-rl:#ff5a3c;
+  --bg-stack:#0f172a;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg-page);color:var(--ink);padding:32px 24px;line-height:1.65}
+.wrap{max-width:1180px;margin:0 auto}
+header{margin-bottom:10px}
+h1{font-size:22px;margin:0 0 6px;font-weight:700}
+header p{color:var(--muted);margin:0;font-size:13px;max-width:860px}
+.sec{margin-top:32px}
+.sec-h{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.sec-h h2{margin:0;font-size:17px;font-weight:700}
+.pip{font-size:11px;font-weight:600;padding:2px 10px;border-radius:999px;background:#ede9fe;color:#7c3aed}
+.pip.k{background:#dbeafe;color:#1d4ed8}
+.pip.b{background:#1e293b;color:#38bdf8}
+.pip.g{background:#fef3c7;color:#92400e}
+.sec-desc{color:var(--muted);font-size:12.5px;margin:0 0 14px}
+.callout{margin-top:14px;padding:12px 16px;background:#eff6ff;border-left:4px solid #3b82f6;border-radius:0 8px 8px 0;font-size:12.5px;color:#1e3a8a}
+.callout b{color:#1e40af}
+.callout code{font-size:11.5px;background:#dbeafe;padding:1px 5px;border-radius:4px}
+
+/* ===== K · 分层主图 ===== */
+.layers{display:flex;flex-direction:column;gap:10px}
+.layer{background:var(--bg-card);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;border:1px solid var(--line)}
+.layer-head{padding:12px 16px;color:#fff;display:flex;align-items:center;gap:12px}
+.layer-head .ico{width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.22);display:grid;place-items:center;font-size:12px;font-weight:700}
+.layer-head h3{margin:0;font-size:15px;font-weight:700}
+.layer-head .sub{font-size:11px;opacity:.9;margin-top:2px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.layer-body{padding:12px 16px;display:grid;gap:12px}
+.layer-body.cols-3{grid-template-columns:repeat(3,1fr)}
+.layer-body.cols-4{grid-template-columns:repeat(4,1fr)}
+.layer-body.cols-2{grid-template-columns:repeat(2,1fr)}
+@media(max-width:900px){
+  .layer-body.cols-3,.layer-body.cols-4,.layer-body.cols-2{grid-template-columns:1fr}
+}
+.zone .zt{font-size:11px;font-weight:700;color:#0f172a;margin-bottom:8px;display:inline-block;padding:3px 9px;border-radius:999px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:4px 9px;border:1px solid var(--line);border-radius:6px;font-size:11.5px;color:#0f172a;background:#fff}
+.chip.bold{font-weight:700}
+.between{text-align:center;color:var(--c-arrow);font-size:13px;padding:2px 0;letter-spacing:2px}
+
+.l-ui .layer-head{background:var(--c-ui)}
+.l-ui .zt{background:#dbeafe;color:var(--c-ui)}
+.l-ui .chip{background:#eff6ff;border-color:#bfdbfe}
+
+.l-api .layer-head{background:var(--c-api)}
+.l-api .zt{background:#cffafe;color:#0e7490}
+.l-api .chip{background:#ecfeff;border-color:#a5f3fc}
+
+.l-svc .layer-head{background:var(--c-svc)}
+.l-svc .zt{background:#d1fae5;color:#047857}
+.l-svc .chip{background:#ecfdf5;border-color:#a7f3d0}
+
+.l-ai .layer-head{background:var(--c-ai)}
+.l-ai .zt{background:#ffedd5;color:#c2410c}
+.l-ai .chip{background:#fff7ed;border-color:#fed7aa}
+
+.l-data .layer-head{background:var(--c-data)}
+.l-data .zt{background:#ede9fe;color:#6d28d9}
+.l-data .chip{background:#f5f3ff;border-color:#ddd6fe}
+
+.l-ext .layer-head{background:var(--c-ext)}
+.l-ext .zt{background:#f1f5f9;color:#475569}
+.l-ext .chip{background:#f8fafc;border-color:#cbd5e1}
+
+/* ===== 双栏：模块包 + 运行时 ===== */
+.split{display:grid;grid-template-columns:1.4fr .9fr;gap:14px}
+@media(max-width:960px){.split{grid-template-columns:1fr}}
+.card{background:var(--bg-card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:16px}
+.card h4{margin:0 0 10px;font-size:14px}
+.pkg{margin-bottom:12px}
+.pkg:last-child{margin-bottom:0}
+.pkg .name{font-size:12.5px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.pkg .name span{font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:999px;background:#f1f5f9;color:#64748b;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.pkg ul{margin:0;padding-left:16px;font-size:12px;color:#475569}
+.pkg li{margin:2px 0}
+.rt-row{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;background:#f8fafc;border:1px solid var(--line);border-radius:8px;margin-bottom:8px;font-size:12px}
+.rt-row:last-child{margin-bottom:0}
+.rt-row b{color:#0f172a}
+.rt-row code{font-size:11px;color:#64748b}
+
+/* ===== B · 调用栈（浅底适配） ===== */
+.stack-box{background:var(--bg-stack);border-radius:var(--r);padding:18px 16px;color:#f1f5f9}
+.stack-box .hint{color:#94a3b8;font-size:12px;margin:0 0 12px}
+.stack{display:flex;flex-direction:column;gap:6px}
+.sl{background:#1e293b;border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:12px;border-left:4px solid #38bdf8}
+.sl[data-d="1"]{margin-left:0;background:#334155}
+.sl[data-d="2"]{margin-left:28px;background:#3b4a63}
+.sl[data-d="3"]{margin-left:56px;background:#475569}
+.sl[data-d="4"]{margin-left:84px;background:#546178}
+.sl[data-d="5"]{margin-left:112px;background:#64748b}
+.sl-id{width:26px;height:26px;border-radius:50%;background:rgba(56,189,248,.2);color:#38bdf8;font-weight:700;display:grid;place-items:center;font-size:12px;flex-shrink:0}
+.sl-body{flex:1}
+.sl-body b{display:block;font-size:12.5px;margin-bottom:2px}
+.sl-body span{font-size:11px;color:#94a3b8}
+.arr{margin-left:28px;color:#38bdf8;font-size:13px;letter-spacing:3px;padding:1px 0}
+.arr.d2{margin-left:56px}.arr.d3{margin-left:84px}.arr.d4{margin-left:112px}
+
+/* ===== Celery 任务表 ===== */
+.task-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media(max-width:900px){.task-grid{grid-template-columns:1fr}}
+.tcard{background:var(--bg-card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;box-shadow:var(--shadow)}
+.tcard h5{margin:0 0 8px;font-size:13px;font-weight:700}
+.tcard ul{margin:0;padding-left:15px;font-size:11.5px;color:#475569}
+.tcard li{margin:3px 0}
+.tcard code{font-size:10.5px;background:#f1f5f9;padding:1px 4px;border-radius:3px}
+
+footer{margin-top:36px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:11.5px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+footer a{color:#3b82f6;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>GEOFlow v3 · 应用架构图</h1>
+    <p>Skota 组合：K 五色分层（应用栈）+ B 调用栈（Task 主路径）+ 服务包/运行时侧栏。相对业务架构图，本图聚焦进程、模块目录与请求落点。</p>
+  </header>
+
+  <div class="callout">
+    <b>仓内真源</b>：<code>geoflow-v3/apps/geoflow-admin</code> · <code>geoflow-v3/backend/app</code> · 入口 <code>main.py</code> · 作业 <code>workers/tasks.py</code> · 启动 <code>scripts/start*.sh</code>
+  </div>
+
+  <!-- ========== §K 应用分层 ========== -->
+  <section class="sec">
+    <div class="sec-h">
+      <span class="pip k">SKOTA · K</span>
+      <h2>应用分层 · 进程与模块</h2>
+    </div>
+    <p class="sec-desc">自上而下：体验 → 网关 → 领域服务 → AI/异步 → 数据 → 外部系统。层间箭头表示请求/作业下沉方向。</p>
+
+    <div class="layers">
+      <div class="layer l-ui">
+        <div class="layer-head">
+          <div class="ico">L0</div>
+          <div><h3>体验层 · Presentation</h3><div class="sub">apps/geoflow-admin · Next.js 16 · React 19 · Tailwind 4</div></div>
+        </div>
+        <div class="layer-body cols-3">
+          <div class="zone">
+            <div class="zt">Hub 路由</div>
+            <div class="chips">
+              <span class="chip bold">/dashboard</span>
+              <span class="chip">/strategy/*</span>
+              <span class="chip">/production/*</span>
+              <span class="chip">/operations/*</span>
+              <span class="chip">/settings/*</span>
+            </div>
+          </div>
+          <div class="zone">
+            <div class="zt">客户端契约</div>
+            <div class="chips">
+              <span class="chip">JWT → /api/admin/*</span>
+              <span class="chip">WS /ws/admin/tasks</span>
+              <span class="chip">BFF fetch · i18n zh</span>
+            </div>
+          </div>
+          <div class="zone">
+            <div class="zt">角色触点</div>
+            <div class="chips">
+              <span class="chip">运营 / 策略 / 管理员</span>
+              <span class="chip">登录 · Token 管理</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="between">↓ HTTP / WebSocket</div>
+
+      <div class="layer l-api">
+        <div class="layer-head">
+          <div class="ico">L1</div>
+          <div><h3>网关层 · API Surface</h3><div class="sub">backend/app/main.py · FastAPI</div></div>
+        </div>
+        <div class="layer-body cols-4">
+          <div class="zone">
+            <div class="zt">Admin BFF</div>
+            <div class="chips">
+              <span class="chip bold">/api/admin/*</span>
+              <span class="chip">api/admin/routes.py</span>
+              <span class="chip">JWT</span>
+            </div>
+          </div>
+          <div class="zone">
+            <div class="zt">对外 REST</div>
+            <div class="chips">
+              <span class="chip bold">/api/v1/*</span>
+              <span class="chip">tasks · articles</span>
+              <span class="chip">materials · jobs</span>
+              <span class="chip">API Token</span>
+            </div>
+          </div>
+          <div class="zone">
+            <div class="zt">Internal</div>
+            <div class="chips">
+              <span class="chip">/api/internal/*</span>
+              <span class="chip">content_agent</span>
+            </div>
+          </div>
+          <div class="zone">
+            <div class="zt">横切</div>
+            <div class="chips">
+              <span class="chip">/health · /up</span>
+              <span class="chip">X-Request-Id</span>
+              <span class="chip">/uploads</span>
+              <span class="chip">idempotency</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="between">↓ Service 调用</div>
+
+      <div class="layer l-svc">
+        <div class="layer-head">
+          <div class="ico">L2</div>
+          <div><h3>领域服务层 · Domain Services</h3><div class="sub">backend/app/services/{admin,geoflow,geoeval}</div></div>
+        </div>
+        <div class="layer-body cols-3">
+          <div class="zone">
+            <div class="zt">services/admin</div>
+            <div class="chips">
+              <span class="chip">production / operations</span>
+              <span class="chip">strategy / aivis</span>
+              <span class="chip">materials · knowledge</span>
+              <span class="chip">ai_config · settings</span>
+              <span class="chip">task/article forms</span>
+            </div>
+          </div>
+          <div class="zone">
+            <div class="zt">services/geoflow</div>
+            <div class="chips">
+              <span class="chip bold">task_lifecycle</span>
+              <span class="chip">article_publish</span>
+              <span class="chip">distribution_*</span>
+              <span class="chip">gweb_wiki_publisher</span>
+              <span class="chip">rag/* · llm_client</span>
+              <span class="chip">wiki_mdx_assembler</span>
+            </div>
+          </div>
+          <div class="zone">
+            <div class="zt">services/geoeval</div>
+            <div class="chips">
+              <span class="chip bold">article_evaluation</span>
+              <span class="chip">monitor_scan / probe</span>
+              <span class="chip">remediation_service</span>
+              <span class="chip">scene_gap_analyzer</span>
+              <span class="chip">platform_connectors</span>
+              <span class="chip">report_composer</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="between">↓ enqueue / invoke</div>
+
+      <div class="layer l-ai">
+        <div class="layer-head">
+          <div class="ico">L3</div>
+          <div><h3>AI 与异步执行层</h3><div class="sub">ai/ · workers/ · Celery + Redis · Flower :15555</div></div>
+        </div>
+        <div class="layer-body cols-2">
+          <div class="zone">
+            <div class="zt">LangGraph · content-agent</div>
+            <div class="chips">
+              <span class="chip bold">workflow_runner.py</span>
+              <span class="chip">agents.yml · workflows.yml</span>
+              <span class="chip">content_pipeline</span>
+              <span class="chip">url_import · semantic_chunk</span>
+              <span class="chip">langgraph_backend</span>
+            </div>
+          </div>
+          <div class="zone">
+            <div class="zt">Celery Workers</div>
+            <div class="chips">
+              <span class="chip bold">process_geoflow_task</span>
+              <span class="chip">evaluate_article</span>
+              <span class="chip">try_publish_after_eval</span>
+              <span class="chip">process_article_distribution</span>
+              <span class="chip">run_monitor_scan</span>
+              <span class="chip">process_due_remediations</span>
+              <span class="chip">sync_knowledge_chunks</span>
+              <span class="chip">schedule_tasks</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="between">↓ SQL / vector / cache</div>
+
+      <div class="layer l-data">
+        <div class="layer-head">
+          <div class="ico">L4</div>
+          <div><h3>数据层</h3><div class="sub">PostgreSQL 16 + pgvector · Redis · SQLAlchemy · Alembic</div></div>
+        </div>
+        <div class="layer-body cols-3">
+          <div class="zone">
+            <div class="zt">生产实体</div>
+            <div class="chips">
+              <span class="chip">tasks · task_runs</span>
+              <span class="chip">articles · evaluations</span>
+              <span class="chip">knowledge_* · materials</span>
+              <span class="chip">tech_ip_assets</span>
+            </div>
+          </div>
+          <div class="zone">
+            <div class="zt">运营 / 策略</div>
+            <div class="chips">
+              <span class="chip">distribution_*</span>
+              <span class="chip">geo_monitor_*</span>
+              <span class="chip">gap_remediation_runs</span>
+              <span class="chip">visibility_reports</span>
+            </div>
+          </div>
+          <div class="zone">
+            <div class="zt">系统</div>
+            <div class="chips">
+              <span class="chip">admins · api_tokens</span>
+              <span class="chip">site_settings</span>
+              <span class="chip">ai_models · prompts</span>
+              <span class="chip">idempotency_keys</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="between">↓ 出站集成</div>
+
+      <div class="layer l-ext">
+        <div class="layer-head">
+          <div class="ico">L5</div>
+          <div><h3>外部系统边界</h3><div class="sub">出站 Publisher / Connector · 非本仓进程</div></div>
+        </div>
+        <div class="layer-body cols-4">
+          <div class="zone">
+            <div class="zt">Gweb</div>
+            <div class="chips">
+              <span class="chip bold">wiki/sync</span>
+              <span class="chip">revalidate</span>
+              <span class="chip">pages.json</span>
+            </div>
+          </div>
+          <div class="zone">
+            <div class="zt">CMS / HTTP</div>
+            <div class="chips">
+              <span class="chip">WordPress REST</span>
+              <span class="chip">通用 HTTP</span>
+              <span class="chip">对端 Agent</span>
+            </div>
+          </div>
+          <div class="zone">
+            <div class="zt">LLM</div>
+            <div class="chips">
+              <span class="chip">OpenAI 兼容</span>
+              <span class="chip">Embedding</span>
+            </div>
+          </div>
+          <div class="zone">
+            <div class="zt">探针平台</div>
+            <div class="chips">
+              <span class="chip">豆包 / DeepSeek</span>
+              <span class="chip">api|llm|corpus</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 服务包 + 运行时 ========== -->
+  <section class="sec">
+    <div class="sec-h">
+      <span class="pip g">模块</span>
+      <h2>后端包结构 · 本地运行时</h2>
+    </div>
+    <div class="split">
+      <div class="card">
+        <h4>backend/app 包职责</h4>
+        <div class="pkg">
+          <div class="name">api/ <span>路由装配</span></div>
+          <ul>
+            <li>v1 · admin · internal · deps · idempotency · response</li>
+          </ul>
+        </div>
+        <div class="pkg">
+          <div class="name">services/ <span>业务逻辑</span></div>
+          <ul>
+            <li><b>admin</b>：表单/CRUD/Hub 编排（薄 BFF 逻辑）</li>
+            <li><b>geoflow</b>：任务、发布、分发、RAG、Wiki MDX</li>
+            <li><b>geoeval</b>：门禁、探针、缺口、补缺、报告</li>
+          </ul>
+        </div>
+        <div class="pkg">
+          <div class="name">ai/ <span>编排运行时</span></div>
+          <ul>
+            <li>content_agent（内嵌）· config YAML · orchestration backends</li>
+          </ul>
+        </div>
+        <div class="pkg">
+          <div class="name">workers · models · core · ws</div>
+          <ul>
+            <li>Celery tasks · SQLAlchemy models · config/security/logging · 任务 WS</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card">
+        <h4>默认本地端口</h4>
+        <div class="rt-row"><b>FastAPI</b><code>:18081 /health</code></div>
+        <div class="rt-row"><b>geoflow-admin</b><code>:13001 /login</code></div>
+        <div class="rt-row"><b>Flower</b><code>:15555</code></div>
+        <div class="rt-row"><b>PostgreSQL</b><code>16 + pgvector</code></div>
+        <div class="rt-row"><b>Redis</b><code>Celery broker</code></div>
+        <div style="margin-top:12px;font-size:12px;color:#475569">
+          <b style="color:#0f172a">生命周期</b><br>
+          <code>./scripts/start-local.sh</code> → <code>verify-services.sh</code><br>
+          Docker 全栈：<code>start.sh</code> / <code>stop.sh</code> / <code>verify.sh</code>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== §B 调用栈 ========== -->
+  <section class="sec">
+    <div class="sec-h">
+      <span class="pip b">SKOTA · B</span>
+      <h2>主路径调用栈 · Task → Lift</h2>
+    </div>
+    <p class="sec-desc">单线深度：Admin 触发 → API → Domain → Celery/LangGraph → 外部。层级越深越靠右。</p>
+
+    <div class="stack-box">
+      <p class="hint">示例：缺口建 Task → 生成 → evaluate → publish → distribute → awaiting_rescan → lift</p>
+      <div class="stack">
+        <div class="sl" data-d="1">
+          <div class="sl-id">1</div>
+          <div class="sl-body">
+            <b>Admin Hub</b>
+            <span>/operations/tasks · /strategy 缺口一键建 Task · JWT</span>
+          </div>
+        </div>
+        <div class="arr">↓</div>
+        <div class="sl" data-d="2">
+          <div class="sl-id">2</div>
+          <div class="sl-body">
+            <b>API · /api/admin/*</b>
+            <span>admin routes → task_form / gap_task_generator · 入队 Celery</span>
+          </div>
+        </div>
+        <div class="arr d2">↓</div>
+        <div class="sl" data-d="3">
+          <div class="sl-id">3</div>
+          <div class="sl-body">
+            <b>Domain · geoflow + geoeval</b>
+            <span>task_lifecycle · worker_execution · article_evaluation · remediation</span>
+          </div>
+        </div>
+        <div class="arr d3">↓ ↓ ↓</div>
+        <div class="sl" data-d="4">
+          <div class="sl-id">4</div>
+          <div class="sl-body">
+            <b>AI / Workers</b>
+            <span>process_geoflow_task → LangGraph · evaluate_article · try_publish · distribution · process_due_remediations</span>
+          </div>
+        </div>
+        <div class="arr d4">↓ ↓</div>
+        <div class="sl" data-d="5">
+          <div class="sl-id">5</div>
+          <div class="sl-body">
+            <b>Data + External</b>
+            <span>PG 落库 · Gweb wiki/sync · 探针 API · LLM Provider</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== Celery 任务分组 ========== -->
+  <section class="sec">
+    <div class="sec-h">
+      <span class="pip">Workers</span>
+      <h2>Celery 任务地图</h2>
+    </div>
+    <p class="sec-desc">摘自 <code>workers/tasks.py</code>，按业务域分组（非全部罗列）。</p>
+    <div class="task-grid">
+      <div class="tcard">
+        <h5>内容生产链</h5>
+        <ul>
+          <li><code>process_geoflow_task</code></li>
+          <li><code>evaluate_article</code></li>
+          <li><code>try_publish_after_eval</code></li>
+          <li><code>process_article_distribution</code></li>
+          <li><code>schedule_tasks</code></li>
+          <li><code>import_url_content</code></li>
+        </ul>
+      </div>
+      <div class="tcard">
+        <h5>知识 / RAG</h5>
+        <ul>
+          <li><code>sync_knowledge_chunks</code></li>
+          <li><code>remine_insight_template</code></li>
+          <li><code>refresh_web_source</code> / <code>fetch_web_source</code></li>
+        </ul>
+      </div>
+      <div class="tcard">
+        <h5>探针与闭环</h5>
+        <ul>
+          <li><code>run_monitor_scan</code></li>
+          <li><code>process_due_remediations</code></li>
+          <li><code>aggregate_monitor_snapshots</code></li>
+          <li><code>check_monitor_alerts</code></li>
+          <li><code>aggregate_adoption_metrics</code></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>2026-07-28 · Skota B+K · GEOFlow v3 应用架构 · 配对：业务架构图 2026-07-28-skota-GEOFlow业务架构.html</span>
+    <a class="source" href="./2026-07-28-skota-GEOFlow业务架构.html">← 业务架构图</a>
+  </footer>
+</div>
+</body>
+</html>

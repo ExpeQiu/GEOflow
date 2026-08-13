@@ -6,14 +6,17 @@ Laravel v2 保留在仓库 `v2-lts` 分支（`legacy/laravel/`）；主开发线
 
 ## 快速开始
 
-本地推荐（复用本机 Redis + `postgres:16-alpine`，不拉镜像、守护进程防 IDE 杀软）：
+本地推荐（复用本机 Redis + Postgres，守护进程防 IDE 杀软）：
 
 ```bash
 cd geoflow-v3
 cp .env.example .env
-./scripts/start-all.sh   # Postgres + API + Admin
-./scripts/status.sh      # 端口 / 数据指纹 / 日志路径
-./scripts/stop.sh        # 停进程；默认 docker stop（不删卷）
+# 无 Docker：本机 Homebrew Postgres(:5432) + Redis
+GEOFLOW_NO_DOCKER=1 ./scripts/start-all.sh
+# 或 Docker 仅跑 Postgres 容器（需本地有 postgres:16-alpine）
+./scripts/start-all.sh
+./scripts/status.sh
+./scripts/stop.sh
 ```
 
 全量 Docker Compose（默认 `--pull never`，缺镜像会明确失败）：
@@ -50,9 +53,12 @@ V3_DB_URL=postgresql://geo_user:geo_password@127.0.0.1:15433/geo_flow \
 ./scripts/migrate-from-laravel.sh
 ```
 
-## Gweb 集成
+## GEOweb 集成
 
-Wiki 展现仍由 [Gweb](/Volumes/Lexar/git/08 Gene/Gweb) 负责；v3 通过 `GwebWikiPublisher` 调用 `POST /api/wiki/sync`，契约不变。
+官方技术发布站为 [GEOweb](/Volumes/Lexar/git/03T/GEOweb)；通过 `GeowebPublisher` → `POST /api/geoflow/sync`（`channel_type=geoweb`）。  
+**Gweb**（`08 Gene/Gweb`）是独立项目前台，不在 GEOFlow 分发链路。详见 `guide/geoweb-integration.md`。
+
+存量 `gweb_wiki` 渠道清理：`scripts/migrate_gweb_channels_to_geoweb.py`。
 
 ## 开发
 

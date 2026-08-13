@@ -265,8 +265,8 @@ async def build_brand_panel(db: AsyncSession) -> dict:
     from app.services.geoeval.aivis_analyzers import _load_tjg_platform_breakdown
     from app.services.geoeval.competitive_analyzer import load_tjg_layer_snapshot
 
-    kpis = await aggregate_probe_kpis(db, query_type="brand")
-    matrix = await build_competitor_matrix(db, query_type="brand")
+    kpis = await aggregate_probe_kpis(db, query_type="brand", north_star=True)
+    matrix = await build_competitor_matrix(db, query_type="brand", north_star=True)
     topics = await extract_sentiment_topics(db)
     insights = (await list_monitor_insights(db)).get("items", [])
     brand_insights = [i for i in insights if i.get("insight_type") in ("competitor_surpass", "authority_endorsement")]
@@ -274,8 +274,15 @@ async def build_brand_panel(db: AsyncSession) -> dict:
 
     metrics = {
         "visibility_pct": kpis.get("visibility_pct", 0),
+        "visibility_open_api": kpis.get("visibility_open_api"),
         "weighted_rank_score": kpis.get("weighted_rank_score"),
         "sentiment_score": kpis.get("sentiment_score"),
+        "sentiment_negative_pct": kpis.get("sentiment_negative_pct"),
+        "top3_pct": kpis.get("top3_pct"),
+        "top5_pct": kpis.get("top5_pct"),
+        "mention_rate_pct": kpis.get("mention_rate_pct"),
+        "gap_vs_leader_top3_pp": matrix.get("gap_vs_leader_top3_pp"),
+        "kpi_track": kpis.get("kpi_track"),
         "probe_count": kpis.get("probe_count", 0),
     }
     if metrics["probe_count"] == 0:
@@ -305,7 +312,7 @@ async def build_brand_panel(db: AsyncSession) -> dict:
 async def build_product_panel(db: AsyncSession) -> dict:
     from app.services.geoeval.aivis_analyzers import _load_tjg_platform_breakdown
 
-    kpis = await aggregate_probe_kpis(db, query_type="product")
+    kpis = await aggregate_probe_kpis(db, query_type="product", north_star=True)
     matrix = await build_product_competitor_matrix(db)
     matrix["matrix"] = filter_matrix_by_entity(matrix.get("matrix") or [], "product")
     matrix["competitors"] = matrix_competitor_names(matrix["matrix"])
@@ -319,8 +326,14 @@ async def build_product_panel(db: AsyncSession) -> dict:
     return {
         "metrics": {
             "visibility_pct": kpis.get("visibility_pct", 0),
+            "visibility_open_api": kpis.get("visibility_open_api"),
             "weighted_rank_score": kpis.get("weighted_rank_score"),
             "sentiment_score": kpis.get("sentiment_score"),
+            "sentiment_negative_pct": kpis.get("sentiment_negative_pct"),
+            "top3_pct": kpis.get("top3_pct"),
+            "top5_pct": kpis.get("top5_pct"),
+            "mention_rate_pct": kpis.get("mention_rate_pct"),
+            "kpi_track": kpis.get("kpi_track"),
             "probe_count": kpis.get("probe_count", 0),
         },
         "competitor_matrix": matrix,

@@ -39,9 +39,10 @@ class Settings(BaseSettings):
     ai_mock_mode: bool = True
     pdf_ocr_enabled: bool = False
 
-    gweb_base_url: str = "http://localhost:3000"
-    gweb_revalidate_secret: str = ""
-    gweb_sync_enabled: bool = False
+    # GEOweb（官方技术发布站）— POST /api/geoflow/sync
+    geoweb_base_url: str = "http://127.0.0.1:3070"
+    geoweb_sync_token: str = ""
+    geoweb_sync_enabled: bool = False
 
     upload_path: str = "./storage/uploads"
     embedding_batch_size: int = 1

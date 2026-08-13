@@ -1,5 +1,10 @@
 # GWEB × GEOFlow AI 搜索索引溯源链设计方案
 
+> **状态更新 2026-08-13**：官方发布站已切换为 **GEOweb**；下文中的 GWEB / `gweb_wiki` / `/api/wiki/sync` 为历史设计。  
+> 现行契约见 [geoweb-integration.md](./geoweb-integration.md) 与 GEOweb `guide/geoflow-sync.md`。  
+> Gweb 仓库保留为**独立项目前台**，不再由 GEOFlow 分发。
+
+
 > 版本：v1.1
 > 日期：2026-07-16
 > 作者：小二（指挥官）

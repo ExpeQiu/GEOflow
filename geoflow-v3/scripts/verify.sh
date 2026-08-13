@@ -44,6 +44,11 @@ if [ -n "${TOKEN:-}" ]; then
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/gweb-alignment" -H "$AUTH_H" >/dev/null && log "Admin gweb-alignment OK" || log "WARN: gweb-alignment 未就绪"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/settings" -H "$AUTH_H" | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert 'strict_api' in d and 'remediation_delay_hours' in d" 2>/dev/null && log "Admin closed-loop settings OK" || log "WARN: closed-loop settings 字段缺失"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/knowledge-bases/rag-sandbox" -H "$AUTH_H" -H "Content-Type: application/json" -d '{"knowledge_base_id":1,"query":"test","limit":3}' >/dev/null 2>&1 && log "Admin RAG sandbox OK" || log "WARN: RAG sandbox 跳过（需知识库数据）"
+  if pgrep -f "celery -A app.workers.celery_app worker" >/dev/null 2>&1; then
+    python3 "${ROOT}/scripts/smoke_kb_content.py" && log "KB→内容小闭环 smoke OK" || log "WARN: KB→内容小闭环 smoke 失败"
+  else
+    log "WARN: 跳过 smoke_kb_content（无 Celery worker）"
+  fi
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/agents" -H "$AUTH_H" | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert len(d.get('items',[]))>=1" 2>/dev/null && log "Admin agents OK" || log "WARN: agents 配置未就绪"
 else
   log "WARN: Admin 登录失败（请先 seed）"

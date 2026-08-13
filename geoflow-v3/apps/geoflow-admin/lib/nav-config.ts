@@ -86,6 +86,10 @@ export const STRATEGY_NAV: HubNavItem[] = [
   { key: "optimization", label: zh.strategy.tabs.optimization, href: "/strategy/optimization" },
   { key: "difficulty", label: zh.strategy.tabs.difficulty, href: "/strategy/difficulty" },
   { key: "reports", label: zh.strategy.tabs.reports, href: "/strategy/reports" },
+  { key: "gold-labels", label: zh.strategy.tabs.goldLabels, href: "/strategy/gold-labels" },
+  { key: "sales-copy", label: zh.strategy.tabs.salesCopy, href: "/strategy/sales-copy" },
+  { key: "web-intel", label: zh.strategy.tabs["web-intel"], href: "/strategy/web-intel" },
+  { key: "simulator", label: zh.strategy.tabs.simulator, href: "/strategy/simulator" },
 ];
 
 export const HUB_TONE_CLASS: Record<HubTone, { active: string; inactive: string }> = {

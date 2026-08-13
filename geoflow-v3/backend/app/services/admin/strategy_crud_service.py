@@ -504,11 +504,28 @@ async def apply_recommendations(db: AsyncSession, article_id: int) -> dict:
         )
     ).scalar_one_or_none()
     note = "recommendations_applied"
-    if ev and ev.failure_reason:
-        eval_meta = dict(article.eval_meta or {})
-        eval_meta["applied_recommendations"] = ev.failure_reason
-        article.eval_meta = eval_meta
-        note = ev.failure_reason[:500]
+    changed: list[str] = []
+    eval_meta = dict(article.eval_meta or {})
+    if ev:
+        metrics = ev.metrics if isinstance(ev.metrics, dict) else {}
+        recs = metrics.get("recommendations") or metrics.get("suggestions") or []
+        reason = ev.failure_reason or ""
+        if isinstance(recs, list) and recs:
+            eval_meta["applied_recommendations"] = recs
+            for item in recs:
+                if isinstance(item, dict) and item.get("field") == "title" and item.get("value"):
+                    article.title = str(item["value"])[:200]
+                    changed.append("title")
+                    break
+            note = str(recs[0])[:500]
+        elif reason:
+            eval_meta["applied_recommendations"] = reason
+            note = reason[:500]
+        score = metrics.get("simulation_score")
+        if score is not None:
+            eval_meta["last_simulation_score"] = float(score)
+            changed.append("simulation_score")
+    article.eval_meta = eval_meta
     await db.flush()
-    logger.info("apply_recommendations article_id=%s", article_id)
-    return {"applied": True, "article_id": article_id, "note": note}
+    logger.info("apply_recommendations article_id=%s changed=%s", article_id, changed)
+    return {"applied": True, "article_id": article_id, "note": note, "changed_fields": changed}

@@ -1,6 +1,7 @@
 """RAG 混合召回 — 关键词 + 向量（pgvector）。"""
 
 import logging
+import os
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +11,10 @@ from app.services.geoflow.rag.chunking import pad_embedding_vector
 from app.services.geoflow.rag.embeddings import EmbeddingService
 
 logger = logging.getLogger(__name__)
+
+
+def _skip_pgvector() -> bool:
+    return os.getenv("SKIP_PGVECTOR", "").lower() in ("1", "true", "yes")
 
 
 class KnowledgeRetrievalService:
@@ -22,7 +27,7 @@ class KnowledgeRetrievalService:
 
         settings_data = await get_knowledge_settings(self.db)
         effective_limit = limit or int(settings_data.get("retrieval_limit") or 8)
-        hybrid_enabled = bool(settings_data.get("hybrid_enabled", True))
+        hybrid_enabled = bool(settings_data.get("hybrid_enabled", True)) and not _skip_pgvector()
         keyword = query[:120].strip()
 
         merged: dict[int, dict] = {}
@@ -106,6 +111,10 @@ class KnowledgeRetrievalService:
         ]
 
     async def vector_search(self, knowledge_base_id: int, query_vector: list[float], limit: int = 8) -> list[dict]:
+        if _skip_pgvector():
+            logger.info("vector_search_skipped skip_pgvector=true kb_id=%s", knowledge_base_id)
+            return []
+
         vector_literal = "[" + ",".join(str(float(v)) for v in query_vector) + "]"
         sql = text(
             """
@@ -117,25 +126,25 @@ class KnowledgeRetrievalService:
             """
         )
         try:
-            result = await self.db.execute(
-                sql,
-                {"qv": vector_literal, "kb_id": knowledge_base_id, "lim": limit},
-            )
+            # 用 savepoint，避免 pgvector 缺失时整事务 rollback 污染后续 keyword 查询
+            async with self.db.begin_nested():
+                result = await self.db.execute(
+                    sql,
+                    {"qv": vector_literal, "kb_id": knowledge_base_id, "lim": limit},
+                )
+                hits: list[dict] = []
+                for row in result:
+                    distance = float(row.distance)
+                    hits.append(
+                        {
+                            "chunk_id": row.id,
+                            "chunk_index": int(row.chunk_index),
+                            "content": row.content,
+                            "score": round(max(0.0, 1.0 - distance), 4),
+                            "source": "vector",
+                        }
+                    )
+                return hits
         except Exception:
             logger.exception("vector_search_failed kb_id=%s", knowledge_base_id)
-            await self.db.rollback()
             return []
-
-        hits: list[dict] = []
-        for row in result:
-            distance = float(row.distance)
-            hits.append(
-                {
-                    "chunk_id": row.id,
-                    "chunk_index": int(row.chunk_index),
-                    "content": row.content,
-                    "score": round(max(0.0, 1.0 - distance), 4),
-                    "source": "vector",
-                }
-            )
-        return hits

@@ -12,8 +12,12 @@ import { DifficultyPanelView, OptimizationPanelView } from "@/components/strateg
 import { ProductVisibilityPanel } from "@/components/strategy/ProductVisibilityPanel";
 import { ReportsPanel } from "@/components/strategy/ReportsPanel";
 import { QuestionBankPanel } from "@/components/strategy/QuestionBankPanel";
+import { SalesCopyPanel } from "@/components/strategy/SalesCopyPanel";
+import { GoldLabelsPanel } from "@/components/strategy/GoldLabelsPanel";
 import { SceneGraphPanel } from "@/components/strategy/SceneGraphPanel";
 import { SimulatorPanel } from "@/components/strategy/SimulatorPanel";
+import { StrategyOverview } from "@/components/strategy/StrategyOverview";
+import { WebIntelPanel } from "@/components/strategy/WebIntelPanel";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiDelete, apiGet, apiPatch, apiPost, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
@@ -38,8 +42,14 @@ import type {
   OptimizationPanel,
   ProductPanel,
   QueryTemplate,
+  StrategyOverviewData,
   VisibilityReport,
+  WebSource,
 } from "@/lib/strategy-types";
+
+function errMsg(e: unknown, fallback: string) {
+  return e instanceof Error && e.message ? e.message : fallback;
+}
 
 export default function StrategyPage() {
   const { tab } = useParams<{ tab: string }>();
@@ -49,13 +59,17 @@ export default function StrategyPage() {
   const [scanning, setScanning] = useState(false);
   const [scanStatus, setScanStatus] = useState("");
   const [loading, setLoading] = useState(true);
+  const [processBusy, setProcessBusy] = useState(false);
 
   const [diagnosis, setDiagnosis] = useState<DiagnosisPanel | null>(null);
+  const [overview, setOverview] = useState<StrategyOverviewData | null>(null);
   const [collection, setCollection] = useState<CollectionPanelData | null>(null);
   const [brandPanel, setBrandPanel] = useState<BrandPanel | null>(null);
   const [productPanel, setProductPanel] = useState<ProductPanel | null>(null);
   const [optimization, setOptimization] = useState<OptimizationPanel | null>(null);
   const [difficulty, setDifficulty] = useState<DifficultyPanel | null>(null);
+  const [webSources, setWebSources] = useState<WebSource[]>([]);
+  const [webReports, setWebReports] = useState<{ id: number; title: string; status: string; created_at: string | null }[]>([]);
 
   const [monitorKpis, setMonitorKpis] = useState<MonitorKpis | null>(null);
   const [monitorQuestions, setMonitorQuestions] = useState<MonitorQuestion[]>([]);
@@ -81,7 +95,12 @@ export default function StrategyPage() {
     setFlash(null);
     try {
       if (tab === "diagnosis" || tab === "overview") {
-        setDiagnosis(await apiGet<DiagnosisPanel>("/api/admin/strategy/diagnosis", t));
+        const [diag, ov] = await Promise.all([
+          apiGet<DiagnosisPanel>("/api/admin/strategy/diagnosis", t),
+          apiGet<StrategyOverviewData>("/api/admin/strategy/overview", t),
+        ]);
+        setDiagnosis(diag);
+        setOverview(ov);
       } else if (tab === "collection" || tab === "monitor") {
         const data = await apiGet<CollectionPanelData>("/api/admin/strategy/collection", t);
         setCollection(data);
@@ -112,9 +131,18 @@ export default function StrategyPage() {
         setGeoEval(data.summary);
         setFailureTopN(data.failure_top_n);
         setRecentFailures(data.recent_failures);
+      } else if (tab === "web-intel") {
+        const data = await apiGet<{
+          sources: WebSource[];
+          reports: { id: number; title: string; status: string; created_at: string | null }[];
+        }>("/api/admin/strategy/web-intel", t);
+        setWebSources(data.sources ?? []);
+        setWebReports(data.reports ?? []);
+      } else if (tab === "sales-copy" || tab === "reports" || tab === "gold-labels") {
+        /* panels self-load */
       }
-    } catch {
-      setFlash({ variant: "error", message: "加载失败" });
+    } catch (e) {
+      setFlash({ variant: "error", message: errMsg(e, "加载失败") });
     } finally {
       setLoading(false);
     }
@@ -175,7 +203,10 @@ export default function StrategyPage() {
         if (latest.id > beforeRunId) {
           setScanStatus(`任务 #${latest.id} · ${latest.status}`);
           if (latest.status === "completed" || latest.status === "failed") {
-            setFlash({ variant: "success", message: `扫描 #${latest.id} 已${latest.status === "completed" ? "完成" : "结束"}` });
+            setFlash({
+              variant: "success",
+              message: `扫描 #${latest.id} 已${latest.status === "completed" ? "完成" : "结束"}`,
+            });
             break;
           }
         } else {
@@ -183,8 +214,8 @@ export default function StrategyPage() {
         }
       }
       if (tab !== "collection" && tab !== "monitor") await reload();
-    } catch {
-      setFlash({ variant: "error", message: "扫描入队失败" });
+    } catch (e) {
+      setFlash({ variant: "error", message: errMsg(e, "扫描入队失败") });
     } finally {
       setScanning(false);
       setScanStatus("");
@@ -199,10 +230,40 @@ export default function StrategyPage() {
       await apiPost(`/api/admin/strategy/geo-eval/reevaluate/${articleId}`, t);
       setFlash({ variant: "success", message: `文章 #${articleId} 评估已入队` });
       await reload();
-    } catch {
-      setFlash({ variant: "error", message: "评估入队失败" });
+    } catch (e) {
+      setFlash({ variant: "error", message: errMsg(e, "评估入队失败") });
     } finally {
       setBusyId(null);
+    }
+  }
+
+  async function applyRecommendations(articleId: number) {
+    const t = getToken();
+    if (!t) return;
+    setBusyId(articleId);
+    try {
+      await apiPost(`/api/admin/strategy/simulator/apply-recommendations/${articleId}`, t);
+      setFlash({ variant: "success", message: `文章 #${articleId} 建议已应用` });
+      await reload();
+    } catch (e) {
+      setFlash({ variant: "error", message: errMsg(e, "应用建议失败") });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function processRemediationsDue() {
+    const t = getToken();
+    if (!t) return;
+    setProcessBusy(true);
+    try {
+      const res = await apiPost<{ processed?: number }>("/api/admin/strategy/monitor/remediations/process-due", t);
+      setFlash({ variant: "success", message: `已处理到期实验 ${res.processed ?? 0} 条` });
+      await reload();
+    } catch (e) {
+      setFlash({ variant: "error", message: errMsg(e, "处理到期实验失败") });
+    } finally {
+      setProcessBusy(false);
     }
   }
 
@@ -230,8 +291,31 @@ export default function StrategyPage() {
   async function batchReevaluate(articleIds: number[]) {
     const t = getToken();
     if (!t) return;
-    const res = await apiPost<{ queued: number }>("/api/admin/strategy/simulator/batch-reevaluate", t, { article_ids: articleIds });
+    const res = await apiPost<{ queued: number }>("/api/admin/strategy/simulator/batch-reevaluate", t, {
+      article_ids: articleIds,
+    });
     setFlash({ variant: "success", message: `已入队 ${res.queued} 篇` });
+  }
+
+  async function createWebSource(body: { url: string; label: string }) {
+    const t = getToken();
+    if (!t) return;
+    await apiPost("/api/admin/strategy/web-intel/sources", t, body);
+    await reload();
+  }
+
+  async function deleteWebSource(id: number) {
+    const t = getToken();
+    if (!t) return;
+    await apiDelete(`/api/admin/strategy/web-intel/sources/${id}`, t);
+    await reload();
+  }
+
+  async function refreshWebSource(id: number) {
+    const t = getToken();
+    if (!t) return;
+    await apiPost(`/api/admin/strategy/web-intel/sources/${id}/refresh`, t);
+    await reload();
   }
 
   const effectiveTab = tab === "overview" ? "diagnosis" : tab === "monitor" ? "collection" : tab;
@@ -242,29 +326,45 @@ export default function StrategyPage() {
       <HubNav items={STRATEGY_NAV} tone="violet" />
 
       {flash && <FlashAlert variant={flash.variant === "success" ? "success" : "error"}>{flash.message}</FlashAlert>}
-      {loading && <FlashAlert variant="info">{zh.common.loading}</FlashAlert>}
-
-      {(effectiveTab === "diagnosis") && diagnosis && (
-        <DiagnosisOverview
-          data={diagnosis}
-          monitor={
-            diagnosis.monitor ?? {
-              probe_count: 0,
-              avg_brand_rank: null,
-              mention_rate: 0,
-              visibility_pct: 0,
-              weighted_rank_score: null,
-              sentiment_score: null,
-              platform_summary: [],
-              question_count: 0,
-            }
-          }
-          onScan={runMonitorScan}
-          scanning={scanning}
-        />
+      {loading && effectiveTab !== "sales-copy" && effectiveTab !== "reports" && effectiveTab !== "gold-labels" && (
+        <FlashAlert variant="info">{zh.common.loading}</FlashAlert>
       )}
 
-      {(effectiveTab === "collection") && collection && (
+      {effectiveTab === "diagnosis" && diagnosis && (
+        <div className="space-y-8">
+          {overview && (
+            <StrategyOverview
+              geoEval={overview.geo_eval}
+              techBrand={overview.tech_brand}
+              monitor={overview.monitor}
+              analytics={overview.analytics}
+              geowebAlignment={overview.geoweb_alignment ?? overview.gweb_alignment}
+              remediations={overview.remediations ?? []}
+              onProcessDue={processRemediationsDue}
+              processBusy={processBusy}
+            />
+          )}
+          <DiagnosisOverview
+            data={diagnosis}
+            monitor={
+              diagnosis.monitor ?? {
+                probe_count: 0,
+                avg_brand_rank: null,
+                mention_rate: 0,
+                visibility_pct: 0,
+                weighted_rank_score: null,
+                sentiment_score: null,
+                platform_summary: [],
+                question_count: 0,
+              }
+            }
+            onScan={runMonitorScan}
+            scanning={scanning}
+          />
+        </div>
+      )}
+
+      {effectiveTab === "collection" && collection && (
         <CollectionPanel
           data={collection}
           onScan={runMonitorScan}
@@ -285,11 +385,27 @@ export default function StrategyPage() {
         <SceneGraphPanel scenes={monitorScenes} funnel={productPanel.scene_funnel} onRefresh={reload} />
       )}
 
-      {effectiveTab === "optimization" && optimization && <OptimizationPanelView data={optimization} />}
+      {effectiveTab === "optimization" && optimization && (
+        <OptimizationPanelView data={optimization} onMarketSaved={reload} />
+      )}
 
       {effectiveTab === "difficulty" && difficulty && <DifficultyPanelView data={difficulty} />}
 
       {effectiveTab === "reports" && <ReportsPanel />}
+
+      {effectiveTab === "gold-labels" && <GoldLabelsPanel />}
+
+      {effectiveTab === "sales-copy" && <SalesCopyPanel />}
+
+      {effectiveTab === "web-intel" && (
+        <WebIntelPanel
+          sources={webSources}
+          reports={webReports}
+          onCreate={createWebSource}
+          onDelete={deleteWebSource}
+          onRefresh={refreshWebSource}
+        />
+      )}
 
       {effectiveTab === "question-bank" && monitorKpis && (
         <QuestionBankPanel
@@ -313,7 +429,7 @@ export default function StrategyPage() {
           recentFailures={recentFailures}
           onReevaluate={reevaluate}
           onBatchReevaluate={batchReevaluate}
-          onApplyRecommendations={async () => {}}
+          onApplyRecommendations={applyRecommendations}
           busyId={busyId}
         />
       )}

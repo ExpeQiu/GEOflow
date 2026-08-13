@@ -641,9 +641,9 @@
         <a href="#login-nav" class="sub">顶部导航</a>
         <a href="#login-loop" class="sub">业务闭环</a>
         <a href="#dashboard">三、首页仪表盘</a>
-        <a href="#production">四、内容生产 L2</a>
-        <a href="#operations">五、运营与分发 L3</a>
-        <a href="#strategy">六、策略与分析 L1</a>
+        <a href="#strategy">四、策略与分析 L1</a>
+        <a href="#production">五、内容生产 L2</a>
+        <a href="#operations">六、运营与分发 L3</a>
         <a href="#settings">七、网站设置</a>
         <a href="#scenarios">八、典型业务场景</a>
         <a href="#glossary">九、关键概念</a>
@@ -656,22 +656,24 @@
     <main class="main">
       <header class="doc-header">
         <h1>GEOFlow 用户使用操作指南</h1>
-        <p class="lead">面向内容运营、技术品牌团队、策略分析人员的日常操作手册。通过管理后台完成 AI 内容生产、审核发布、多站点分发与 GEO 策略优化。</p>
+        <p class="lead">面向内容运营、技术品牌团队、策略分析人员的日常操作手册。通过管理后台完成 AI 可见性诊断（AIVIS）、内容生产、审核发布、多站点分发与补缺闭环验证。</p>
         <div class="badge-row">
           <span class="badge badge-blue">geoflow-admin 管理后台</span>
-          <span class="badge badge-violet">L1 策略 · L2 生产 · L3 运营</span>
-          <span class="badge badge-emerald">v3 主栈 · 2026-07</span>
+          <span class="badge badge-violet">AIVIS · L1 策略 · L2 生产 · L3 运营</span>
+          <span class="badge badge-emerald">v3 主栈 · 2026-08</span>
         </div>
       </header>
 
       <!-- 一、介绍 -->
       <section id="intro">
         <h2>一、GEOFlow 是什么</h2>
-        <p>GEOFlow 是一套 <strong>GEO（生成式引擎优化）内容工程平台</strong>，帮助团队用 AI 批量生产高质量内容，并结合知识库、任务调度与策略分析形成完整闭环。</p>
+        <p>GEOFlow 是一套 <strong>GEO（生成式引擎优化）内容工程平台</strong>，帮助团队用 AI 批量生产高质量内容，并结合知识库、任务调度、多站点分发与 AI 可见性诊断形成完整闭环。</p>
 
         <div class="card">
           <div class="card-title">核心能力</div>
           <div class="pipeline">
+            <span class="step violet">AIVIS 诊断</span>
+            <span class="arrow">→</span>
             <span class="step">AI 批量生产</span>
             <span class="arrow">→</span>
             <span class="step emerald">知识库 RAG</span>
@@ -682,7 +684,7 @@
             <span class="arrow">→</span>
             <span class="step violet">多站点分发</span>
             <span class="arrow">→</span>
-            <span class="step">策略监控复盘</span>
+            <span class="step">再扫验证 lift</span>
           </div>
         </div>
 
@@ -694,9 +696,8 @@
             <tr><td>技术品牌 / Wiki 模式</td><td><strong>Gweb</strong> 独立 Wiki 站点（GEOFlow 负责生产与同步）</td></tr>
           </tbody>
         </table>
-        <div class="note">日常操作均在 <strong>管理后台（geoflow-admin）</strong> 完成，读者不直接访问后台。</div>
+        <div class="note">日常操作均在 <strong>管理后台（geoflow-admin）</strong> 完成，读者不直接访问后台。本地默认入口：<code>http://127.0.0.1:13001/login</code>。</div>
 
-        <!-- 双模式架构示意 -->
         <div class="diagram-wrap">
           <svg viewBox="0 0 720 200" width="720" height="200" aria-label="双运营模式架构">
             <defs>
@@ -704,27 +705,22 @@
                 <path d="M0,0 L6,3 L0,6 Z" fill="#5c6b7a"/>
               </marker>
             </defs>
-            <!-- GEOFlow box -->
             <rect x="20" y="60" width="200" height="80" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
             <text x="120" y="92" text-anchor="middle" font-size="13" font-weight="700" fill="#1a2332">GEOFlow 管理后台</text>
-            <text x="120" y="112" text-anchor="middle" font-size="10" fill="#5c6b7a">生产 · 审核 · 分发 · 策略</text>
-            <!-- Arrow split -->
+            <text x="120" y="112" text-anchor="middle" font-size="10" fill="#5c6b7a">诊断 · 生产 · 审核 · 分发</text>
             <line x1="220" y1="100" x2="280" y2="100" stroke="#5c6b7a" stroke-width="1.5" marker-end="url(#arr)"/>
-            <!-- General mode -->
             <rect x="290" y="30" width="180" height="60" rx="6" fill="#ecfdf5" stroke="#059669" stroke-width="1.5"/>
             <text x="380" y="55" text-anchor="middle" font-size="11" font-weight="600" fill="#065f46">通用内容站</text>
             <text x="380" y="72" text-anchor="middle" font-size="9" fill="#5c6b7a">本站 SEO 前台</text>
-            <!-- Tech brand mode -->
             <rect x="290" y="110" width="180" height="60" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
             <text x="380" y="135" text-anchor="middle" font-size="11" font-weight="600" fill="#5b21b6">技术品牌 Wiki</text>
             <text x="380" y="152" text-anchor="middle" font-size="9" fill="#5c6b7a">Gweb 公网展现</text>
-            <!-- Readers -->
             <line x1="470" y1="60" x2="530" y2="60" stroke="#5c6b7a" stroke-width="1.5" marker-end="url(#arr)"/>
             <line x1="470" y1="140" x2="530" y2="140" stroke="#5c6b7a" stroke-width="1.5" marker-end="url(#arr)"/>
             <rect x="540" y="35" width="160" height="50" rx="6" fill="#fff" stroke="#d8dee4"/>
-            <text x="620" y="65" text-anchor="middle" font-size="11" fill="#1a2332">👤 内容读者</text>
+            <text x="620" y="65" text-anchor="middle" font-size="11" fill="#1a2332">内容读者</text>
             <rect x="540" y="115" width="160" height="50" rx="6" fill="#fff" stroke="#d8dee4"/>
-            <text x="620" y="145" text-anchor="middle" font-size="11" fill="#1a2332">👤 技术百科读者</text>
+            <text x="620" y="145" text-anchor="middle" font-size="11" fill="#1a2332">技术百科读者</text>
           </svg>
           <p class="caption">图 1 · 双运营模式：GEOFlow 统一后台，读者端按模式分流</p>
         </div>
@@ -741,7 +737,6 @@
           <li>登录成功后自动进入 <strong>首页（仪表盘）</strong></li>
         </ol>
 
-        <!-- 登录页示意 -->
         <div class="mock-browser">
           <div class="mock-chrome">
             <div class="mock-dots"><span></span><span></span><span></span></div>
@@ -766,73 +761,69 @@
         <p class="caption">图 2 · 登录页界面示意</p>
         <div class="warn-box">演示环境常见默认账号为 <code>admin</code> / <code>password</code>，<strong>生产环境务必修改</strong>。首次使用请联系系统管理员获取账号。</div>
 
-        <h3 id="login-nav">2.2 顶部主导航（五大模块）</h3>
+        <h3 id="login-nav">2.2 顶部主导航</h3>
         <div class="mock-browser">
           <div class="mock-header">
             <div class="mock-logo">GEOFlow</div>
             <div class="mock-nav">
               <span class="mock-nav-item active">首页</span>
+              <span class="mock-nav-item">策略与分析</span>
               <span class="mock-nav-item">内容生产</span>
               <span class="mock-nav-item">运营与分发</span>
-              <span class="mock-nav-item">策略与分析</span>
-              <span class="mock-nav-item">网站设置</span>
             </div>
+            <span style="font-size:0.72rem;color:var(--muted)">系统设置 ▾</span>
           </div>
         </div>
-        <p class="caption">图 3 · 顶部主导航结构</p>
+        <p class="caption">图 3 · 顶部主导航（网站设置从右上角用户菜单进入）</p>
 
         <table>
-          <thead><tr><th>导航</th><th>业务层</th><th>主要职责</th></tr></thead>
+          <thead><tr><th>导航</th><th>业务层</th><th>主要职责</th><th>默认入口</th></tr></thead>
           <tbody>
-            <tr><td><strong>首页</strong></td><td>—</td><td>数据概览、快速开始、自动化工作流状态</td></tr>
-            <tr><td><strong>内容生产</strong></td><td>L2</td><td>知识库、素材库、AI 模型与提示词</td></tr>
-            <tr><td><strong>运营与分发</strong></td><td>L3</td><td>任务、文章审核发布、多站点分发</td></tr>
-            <tr><td><strong>策略与分析</strong></td><td>L1</td><td>监控排名、GEO 诊断、数据分析、外部信源</td></tr>
-            <tr><td><strong>网站设置</strong></td><td>系统</td><td>站点信息、管理员、安全、API Token</td></tr>
+            <tr><td><strong>首页</strong></td><td>—</td><td>健康卡片、快速开始、自动化工作流</td><td><code>/dashboard</code></td></tr>
+            <tr><td><strong>策略与分析</strong></td><td>L1 · AIVIS</td><td>诊断总览、探针采集、场景图谱、补缺与报告</td><td><code>/strategy/diagnosis</code></td></tr>
+            <tr><td><strong>内容生产</strong></td><td>L2</td><td>内容工厂、素材、知识库、GEO 标准</td><td><code>/production/overview</code></td></tr>
+            <tr><td><strong>运营与分发</strong></td><td>L3</td><td>任务、文章、分发、引用分析</td><td><code>/operations/overview</code></td></tr>
+            <tr><td><strong>网站设置</strong></td><td>系统</td><td>站点信息、管理员、安全、API Token</td><td>用户菜单 → 系统设置</td></tr>
           </tbody>
         </table>
 
         <div class="layer-cards">
           <div class="layer-card l1">
-            <div class="tag">L1 策略</div>
+            <div class="tag">L1 策略 · AIVIS</div>
             <h5>策略与分析</h5>
-            <p>监控问题库 · 外部信源 · GEO 诊断 · 仿真建议 · 数据分析</p>
+            <p>诊断总览 · 数据采集 · 问题库 · 品牌/产品可见性 · 场景图谱 · 优化策略 · 诊断报告</p>
           </div>
           <div class="layer-card l2">
             <div class="tag">L2 生产</div>
             <h5>内容生产</h5>
-            <p>AI 配置 · 素材库 · 知识库 RAG · 技术 IP 资产</p>
+            <p>内容工厂 · 素材库 · 知识库 RAG · 技术 IP · GEO 标准</p>
           </div>
           <div class="layer-card l3">
             <div class="tag">L3 运营</div>
             <h5>运营与分发</h5>
-            <p>任务调度 · 文章审核 · 发布 · 多站点分发</p>
+            <p>任务调度 · 文章审核 · 多站点分发 · 引用分析</p>
           </div>
         </div>
 
         <h3 id="login-loop">2.3 核心业务闭环</h3>
         <div class="card">
           <div class="pipeline">
-            <span class="step">配置 AI 模型</span>
+            <span class="step violet">探针扫描 / 场景缺口</span>
             <span class="arrow">→</span>
-            <span class="step emerald">准备素材 / 知识库</span>
+            <span class="step">配置 AI / 素材 / 知识库</span>
             <span class="arrow">→</span>
-            <span class="step">创建并启用任务</span>
+            <span class="step emerald">创建并启用任务</span>
             <span class="arrow">→</span>
-            <span class="step">AI 自动生成草稿</span>
+            <span class="step">AI 生成草稿</span>
             <span class="arrow">→</span>
-            <span class="step warn">人工审核（可选）</span>
+            <span class="step warn">审核（可选）· GEO 评分</span>
             <span class="arrow">→</span>
-            <span class="step warn">GEO 评估门禁</span>
+            <span class="step">发布 · 分发</span>
             <span class="arrow">→</span>
-            <span class="step">发布</span>
-            <span class="arrow">→</span>
-            <span class="step violet">分发到远端渠道</span>
-            <span class="arrow">→</span>
-            <span class="step">策略分析复盘</span>
+            <span class="step violet">再扫验证 ΔTop3</span>
           </div>
         </div>
-        <p>首页的 <strong>「快速开始」</strong> 和 <strong>「GEO 自动化工作流」</strong> 会实时反映上述各环节是否就绪；有阻塞项时会给出建议动作，点击可跳转到对应模块。</p>
+        <p>首页的 <strong>「快速开始」</strong> 和 <strong>「GEO 自动化工作流」</strong> 会反映生产链路是否就绪；策略侧的 <strong>诊断总览 · 北极星 KPI</strong> 反映可见性主指标。</p>
       </section>
 
       <!-- 三、首页 -->
@@ -873,7 +864,7 @@
         <div class="form-sections">
           <div class="form-section">
             <div class="num">1</div>
-            <div class="info"><strong>配置 API</strong><span>添加 Chat 模型；使用 RAG 时需 Embedding 模型</span></div>
+            <div class="info"><strong>配置 API</strong><span>内容工厂 → AI 模型：添加 Chat；用 RAG 时再加 Embedding</span></div>
           </div>
           <div class="form-section">
             <div class="num">2</div>
@@ -885,37 +876,159 @@
           </div>
         </div>
 
-        <h3>3.3 运营车道</h3>
+        <h3>3.3 三层能力入口</h3>
         <div class="grid-2">
           <div class="card">
-            <div class="card-title">单站点运营</div>
-            <p style="font-size:0.84rem;margin:0">本站从配置到发布的完整流程</p>
+            <div class="card-title">L1 策略洞察</div>
+            <p style="font-size:0.84rem;margin:0">诊断总览、探针采集、品牌/产品可见性</p>
           </div>
           <div class="card">
-            <div class="card-title">多站点分发</div>
-            <p style="font-size:0.84rem;margin:0">渠道接入与远端同步</p>
+            <div class="card-title">L2 / L3 生产运营</div>
+            <p style="font-size:0.84rem;margin:0">内容工厂、任务审核、分发与引用分析</p>
           </div>
         </div>
       </section>
 
-      <!-- 四、L2 -->
+      <!-- 四、L1 AIVIS -->
+      <section id="strategy">
+        <h2>四、策略与分析（L1 · AIVIS）</h2>
+        <p>路径：<strong>策略与分析</strong> <span class="path-tag">/strategy/*</span></p>
+        <div class="note">Hub 标题为 <strong>AI 可见性诊断 (AIVIS)</strong>：多平台探针采集 → 品牌/产品可见性 → 场景图谱 → 优化策略 → 诊断报告。</div>
+
+        <div class="mock-tabs">
+          <span class="mock-tab active-violet">诊断总览</span>
+          <span class="mock-tab">数据采集</span>
+          <span class="mock-tab">监控问题库</span>
+          <span class="mock-tab">品牌可见性</span>
+          <span class="mock-tab">产品可见性</span>
+          <span class="mock-tab">场景图谱</span>
+          <span class="mock-tab">优化策略</span>
+          <span class="mock-tab">难度评估</span>
+          <span class="mock-tab">诊断报告</span>
+        </div>
+        <p class="caption">图 5 · L1 AIVIS 二级导航（旧路径 /strategy/overview、/strategy/monitor 会自动跳转）</p>
+
+        <h3>4.1 诊断总览与北极星 KPI</h3>
+        <p>路径：<span class="path-tag">/strategy/diagnosis</span></p>
+        <p>页面顶部 <strong>北极星 KPI</strong> 看板是对外主数字，口径默认 <code>open_api</code>（Chat API 指数，不等于 C 端 App 联网搜索结果）。</p>
+        <table>
+          <thead><tr><th>指标</th><th>含义</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Top3 概率</strong></td><td>对比 + 决策题子集中、可解析排名样本进前三的占比</td></tr>
+            <tr><td><strong>相对竞品 pp</strong></td><td>自有 Top3 − 最强竞品 Top3（百分点差）</td></tr>
+            <tr><td><strong>参数一致率</strong></td><td>答文参数 vs 技术 IP SSOT；硬门槛建议 ≥95%</td></tr>
+            <tr><td><strong>提及率</strong></td><td>品牌是否被 AI 回答提及；附负向情感占比</td></tr>
+          </tbody>
+        </table>
+        <p>总览同时汇总采集层、品牌/产品层、优化策略层与难度评估层；可一键跳转全量扫描、探针设置、诊断报告、问题库。</p>
+
+        <h3>4.2 数据采集与探针设置</h3>
+        <p>路径：<span class="path-tag">/strategy/collection</span></p>
+        <ol>
+          <li>配置探针模式：生产建议 <strong>真实 API</strong>（<code>api</code>）+ 开启 <strong>strict</strong>（禁止静默降级到语料/模拟）</li>
+          <li>选择扫描平台（如豆包、DeepSeek）</li>
+          <li>点击 <strong>全量扫描</strong> 或 <strong>竞品扫描</strong>，等待 Worker 完成</li>
+          <li>在最近运行中查看各平台状态与结果</li>
+        </ol>
+        <div class="warn-box">若无品牌类探针，可在采集页使用「补品牌题」。生产环境请关闭 <code>AI_MOCK_MODE</code>，否则可见性数字无业务参考价值。</div>
+
+        <h3>4.3 监控问题库</h3>
+        <p>路径：<span class="path-tag">/strategy/question-bank</span></p>
+        <ul>
+          <li>维护探针问题文案、平台、优先级与题型（<code>intent_type</code>，如认知 / 对比 / 决策）</li>
+          <li>问题决定「扫什么」；扫描结果进入诊断总览与报告</li>
+        </ul>
+
+        <h3>4.4 品牌 / 产品可见性</h3>
+        <table>
+          <thead><tr><th>页面</th><th>路径</th><th>用途</th></tr></thead>
+          <tbody>
+            <tr><td>品牌可见性</td><td><code>/strategy/brand</code></td><td>品牌提及、Top3、竞品矩阵、情感</td></tr>
+            <tr><td>产品可见性</td><td><code>/strategy/product</code></td><td>产品维度可见性与场景关联</td></tr>
+          </tbody>
+        </table>
+
+        <h3>4.5 场景图谱与一键补缺</h3>
+        <p>路径：<span class="path-tag">/strategy/scene-graph</span></p>
+        <p>维护「用户画像 → 场景 → 意图 → Query → 引用」漏斗，查看缺口率与优先级。</p>
+        <div class="card">
+          <div class="card-title">真实闭环（推荐）</div>
+          <div class="pipeline">
+            <span class="step violet">高缺口场景</span>
+            <span class="arrow">→</span>
+            <span class="step">一键创建 Task</span>
+            <span class="arrow">→</span>
+            <span class="step emerald">生产 / 审核 / 发布</span>
+            <span class="arrow">→</span>
+            <span class="step">Gweb 分发成功</span>
+            <span class="arrow">→</span>
+            <span class="step warn">等待再扫（默认 T+72h）</span>
+            <span class="arrow">→</span>
+            <span class="step violet">ΔTop3 / lift</span>
+          </div>
+        </div>
+        <p>高缺口场景可点 <strong>创建补缺 Task</strong>，系统会同步创建 remediation 实验；发布后再扫可证明可见性是否提升。</p>
+
+        <h3>4.6 优化策略 · 难度评估 · 诊断报告</h3>
+        <table>
+          <thead><tr><th>Tab</th><th>路径</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>优化策略</td><td><code>/strategy/optimization</code></td><td>平台优先建议、高优先级场景、洞察文案</td></tr>
+            <tr><td>难度评估</td><td><code>/strategy/difficulty</code></td><td>场景/问题被 AI 覆盖的难度分层</td></tr>
+            <tr><td>诊断报告</td><td><code>/strategy/reports</code></td><td>含北极星章、质量灯、信源占比、闭环验证等章节</td></tr>
+          </tbody>
+        </table>
+
+        <h3>GEO 优化闭环示意</h3>
+        <div class="diagram-wrap">
+          <svg viewBox="0 0 720 160" width="720" height="160">
+            <defs><marker id="arr3" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#7c3aed"/></marker></defs>
+            <rect x="10" y="55" width="95" height="50" rx="6" fill="#f5f3ff" stroke="#7c3aed"/><text x="57" y="85" text-anchor="middle" font-size="9" font-weight="600">探针扫描</text>
+            <line x1="105" y1="80" x2="125" y2="80" stroke="#7c3aed" marker-end="url(#arr3)"/>
+            <rect x="130" y="55" width="95" height="50" rx="6" fill="#f5f3ff" stroke="#7c3aed"/><text x="177" y="85" text-anchor="middle" font-size="9" font-weight="600">场景缺口</text>
+            <line x1="225" y1="80" x2="245" y2="80" stroke="#7c3aed" marker-end="url(#arr3)"/>
+            <rect x="250" y="55" width="95" height="50" rx="6" fill="#ecfdf5" stroke="#059669"/><text x="297" y="85" text-anchor="middle" font-size="9" font-weight="600">补缺 Task</text>
+            <line x1="345" y1="80" x2="365" y2="80" stroke="#7c3aed" marker-end="url(#arr3)"/>
+            <rect x="370" y="55" width="95" height="50" rx="6" fill="#eff6ff" stroke="#2563eb"/><text x="417" y="85" text-anchor="middle" font-size="9" font-weight="600">发布分发</text>
+            <line x1="465" y1="80" x2="485" y2="80" stroke="#7c3aed" marker-end="url(#arr3)"/>
+            <rect x="490" y="55" width="95" height="50" rx="6" fill="#fffbeb" stroke="#d97706"/><text x="537" y="85" text-anchor="middle" font-size="9" font-weight="600">再扫 lift</text>
+            <line x1="585" y1="80" x2="605" y2="80" stroke="#7c3aed" marker-end="url(#arr3)"/>
+            <rect x="610" y="55" width="95" height="50" rx="6" fill="#ecfdf5" stroke="#059669"/><text x="657" y="85" text-anchor="middle" font-size="9" font-weight="600">复盘 KPI</text>
+            <path d="M 657 105 Q 657 140 57 140 Q 10 140 10 105" fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arr3)"/>
+            <text x="360" y="155" text-anchor="middle" font-size="9" fill="#5c6b7a">AIVIS 持续迭代闭环</text>
+          </svg>
+          <p class="caption">图 6 · 从扫描到 lift 可证明的优化闭环</p>
+        </div>
+      </section>
+
+      <!-- 五、L2 -->
       <section id="production">
-        <h2>四、内容生产（L2）</h2>
-        <p>路径：<strong>内容生产</strong> → 各子 Tab <span class="path-tag">/production/*</span></p>
-        <div class="note">内容生产是「喂料」环节：任务生成文章时，会从这里读取模型、提示词、标题、关键词、知识库片段等。</div>
+        <h2>五、内容生产（L2）</h2>
+        <p>路径：<strong>内容生产</strong> <span class="path-tag">/production/*</span></p>
+        <div class="note">内容生产是「喂料」环节：任务生成时读取模型、提示词、标题、关键词、知识库片段等。GEO 内容门禁已迁到本 Hub 的 <strong>GEO 标准</strong>。</div>
 
         <div class="mock-tabs">
           <span class="mock-tab active-emerald">总览</span>
-          <span class="mock-tab">AI 配置器</span>
+          <span class="mock-tab">内容工厂</span>
           <span class="mock-tab">素材管理</span>
-          <span class="mock-tab">知识库</span>
-          <span class="mock-tab">RAG 沙箱</span>
-          <span class="mock-tab">知识设置</span>
-          <span class="mock-tab">技术 IP 资产</span>
+          <span class="mock-tab">知识库管理</span>
+          <span class="mock-tab">GEO标准</span>
         </div>
-        <p class="caption">图 5 · L2 内容生产二级导航</p>
+        <p class="caption">图 7 · L2 内容生产二级导航</p>
 
-        <h3>4.1 素材管理初始化顺序</h3>
+        <h3>5.1 内容工厂</h3>
+        <p>路径：<span class="path-tag">/production/ai_config</span>（子页：模型 / 提示词 / Agent）</p>
+        <table>
+          <thead><tr><th>子页</th><th>路径</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>Content Agent 编排</td><td><code>/production/ai_config</code></td><td>Legacy 单步 / 编辑部 Pipeline；查看工作流拓扑与健康</td></tr>
+            <tr><td>AI 模型</td><td><code>/production/ai-models</code></td><td>Chat（必填）与 Embedding（RAG 必填）；API Key 加密存储</td></tr>
+            <tr><td>提示词模板</td><td><code>/production/ai-prompts</code></td><td>普通文章 / Wiki（概念、对比、指南、数据）</td></tr>
+            <tr><td>Agent 配置</td><td><code>/production/ai-agents</code></td><td>多步写作 Agent 参数</td></tr>
+          </tbody>
+        </table>
+
+        <h3>5.2 素材管理初始化顺序</h3>
         <div class="diagram-wrap">
           <svg viewBox="0 0 600 120" width="600" height="120">
             <defs><marker id="arr2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#059669"/></marker></defs>
@@ -930,22 +1043,11 @@
             <rect x="470" y="40" width="110" height="40" rx="6" fill="#eff6ff" stroke="#2563eb"/><text x="525" y="65" text-anchor="middle" font-size="10" font-weight="600">⑤ 创建任务</text>
             <text x="55" y="30" text-anchor="middle" font-size="8" fill="#dc2626" font-weight="600">必做</text>
           </svg>
-          <p class="caption">图 6 · 素材库建议初始化顺序</p>
+          <p class="caption">图 8 · 素材库建议初始化顺序</p>
         </div>
+        <p>分类：<code>/production/materials/categories</code> · 标题库：<code>.../titles</code> · 关键词：<code>.../keywords</code> · 图片 / 作者同目录。</p>
 
-        <h3>4.2 AI 配置器</h3>
-        <p>路径：<span class="path-tag">/production/ai_config</span></p>
-        <table>
-          <thead><tr><th>配置项</th><th>说明</th></tr></thead>
-          <tbody>
-            <tr><td><strong>Chat 模型</strong></td><td>正文生成，至少配置一个；填写 API Key（加密存储）</td></tr>
-            <tr><td><strong>Embedding 模型</strong></td><td>知识库向量化与 RAG 召回，使用知识库时必填</td></tr>
-            <tr><td><strong>提示词模板</strong></td><td>普通文章 / Wiki 专用（概念、对比、指南、数据）</td></tr>
-            <tr><td><strong>Content Agent 编排</strong></td><td>多步流水线：Legacy 单步 或 编辑部 Pipeline</td></tr>
-          </tbody>
-        </table>
-
-        <h3>4.3 知识库（RAG）工作流</h3>
+        <h3>5.3 知识库（RAG）</h3>
         <div class="card">
           <div class="pipeline">
             <span class="step">新建知识库</span>
@@ -959,9 +1061,19 @@
             <span class="step violet">任务绑定知识库</span>
           </div>
         </div>
-        <p>支持 <code>.txt</code>、<code>.md</code>、<code>.pdf</code> 上传；也可通过 URL 导入网页内容。</p>
+        <table>
+          <thead><tr><th>功能</th><th>路径</th></tr></thead>
+          <tbody>
+            <tr><td>知识库列表</td><td><code>/production/knowledge</code></td></tr>
+            <tr><td>RAG 沙箱</td><td><code>/production/rag-sandbox</code></td></tr>
+            <tr><td>知识设置（切片/检索）</td><td><code>/production/knowledge-settings</code></td></tr>
+            <tr><td>技术 IP 资产</td><td><code>/production/tech-assets</code></td></tr>
+            <tr><td>URL 导入</td><td><code>/production/url-import</code></td></tr>
+          </tbody>
+        </table>
+        <p>支持 <code>.txt</code>、<code>.md</code>、<code>.pdf</code>（及已支持的 DOCX）；须先配置 Embedding 模型才能完成向量化。</p>
 
-        <h3>4.4 技术 IP 资产（技术品牌模式）</h3>
+        <h3>5.4 技术 IP 资产</h3>
         <p>路径：<span class="path-tag">/production/tech-assets</span></p>
         <table>
           <thead><tr><th>字段</th><th>说明</th></tr></thead>
@@ -969,14 +1081,27 @@
             <tr><td><strong>ip_id</strong></td><td>技术 IP 唯一标识</td></tr>
             <tr><td><strong>名称 / 描述</strong></td><td>对外展示的技术点名称与摘要</td></tr>
             <tr><td><strong>Wiki 类型</strong></td><td>概念、对比、指南、数据等</td></tr>
-            <tr><td><strong>优先级</strong></td><td>P0 / P1 等，影响策略 KPI 统计</td></tr>
+            <tr><td><strong>优先级</strong></td><td>P0 / P1 等，影响策略 KPI 与参数一致率标定</td></tr>
           </tbody>
         </table>
+
+        <h3>5.5 GEO 标准（内容门禁）</h3>
+        <p>路径：<span class="path-tag">/production/geo-eval</span></p>
+        <table>
+          <thead><tr><th>概念</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><strong>软门禁（默认）</strong></td><td>未达阈值 → 状态多为「建议改进」，<strong>不拦截</strong>发布与自动分发</td></tr>
+            <tr><td><strong>硬门禁</strong></td><td>管理员开启后，未通过则拦截发布</td></tr>
+            <tr><td><strong>双轨口径</strong></td><td>内容门禁控制发布评分；探针标准对齐 open_api 主 KPI，互不覆盖</td></tr>
+            <tr><td><strong>Wiki 合规</strong></td><td>技术品牌模式额外检查：结论、表格、内链、FAQ、证据链等</td></tr>
+          </tbody>
+        </table>
+        <p>可查看失败原因 Top N、最近失败列表，并对单篇/批量<strong>重新评估</strong>。文章编辑页也会展示仿真分与优化建议。</p>
       </section>
 
-      <!-- 五、L3 -->
+      <!-- 六、L3 -->
       <section id="operations">
-        <h2>五、运营与分发（L3）</h2>
+        <h2>六、运营与分发（L3）</h2>
         <p>路径：<strong>运营与分发</strong> <span class="path-tag">/operations/*</span></p>
 
         <div class="mock-tabs">
@@ -984,10 +1109,11 @@
           <span class="mock-tab">任务管理</span>
           <span class="mock-tab">文章管理</span>
           <span class="mock-tab">分发管理</span>
+          <span class="mock-tab">引用分析</span>
         </div>
-        <p class="caption">图 7 · L3 运营与分发二级导航</p>
+        <p class="caption">图 9 · L3 运营与分发二级导航</p>
 
-        <h3>5.1 创建任务（七区块表单）</h3>
+        <h3>6.1 创建任务（七区块表单）</h3>
         <p>路径：<span class="path-tag">/operations/tasks/new</span></p>
         <div class="form-sections">
           <div class="form-section"><div class="num">1</div><div class="info"><strong>基本信息</strong><span>任务名称、标题库、启用状态</span></div></div>
@@ -998,9 +1124,8 @@
           <div class="form-section"><div class="num">6</div><div class="info"><strong>分发范围</strong><span>本站+分发 / 仅本站 / 仅分发</span></div></div>
           <div class="form-section"><div class="num">7</div><div class="info"><strong>高级选项</strong><span>生成上限、循环、自动关键词/描述、分类策略</span></div></div>
         </div>
-        <p class="caption">图 8 · 新建任务表单区块结构</p>
 
-        <h4>发布范围说明</h4>
+        <h4>发布范围</h4>
         <table>
           <thead><tr><th>选项</th><th>含义</th></tr></thead>
           <tbody>
@@ -1010,7 +1135,7 @@
           </tbody>
         </table>
 
-        <h3>5.2 创建任务前置检查清单</h3>
+        <h3>6.2 创建任务前置检查清单</h3>
         <ul class="checklist">
           <li>至少一个 <strong>文章分类</strong></li>
           <li>至少一个 <strong>标题库</strong>（库内有标题）</li>
@@ -1020,7 +1145,18 @@
           <li>若 Wiki MDX：已配置 <strong>技术 IP 资产</strong> 与 <strong>GWeb Wiki 渠道</strong></li>
         </ul>
 
-        <h3>5.3 文章生命周期</h3>
+        <h3>6.3 任务日常操作</h3>
+        <table>
+          <thead><tr><th>操作</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>启动 / 暂停</td><td>控制是否参与调度</td></tr>
+            <tr><td>立即执行</td><td>马上跑一轮生成</td></tr>
+            <tr><td>编辑</td><td>修改模型、素材、发布策略等</td></tr>
+            <tr><td>实时状态</td><td>WebSocket 推送，无需反复刷新</td></tr>
+          </tbody>
+        </table>
+
+        <h3>6.4 文章生命周期与审核</h3>
         <div class="lifecycle">
           <span class="lc-node">AI 生成 / 手动创建</span>
           <span class="arrow">→</span>
@@ -1032,19 +1168,16 @@
           <span class="arrow">→</span>
           <span class="lc-node highlight">发布</span>
           <span class="arrow">↓</span>
-          <span class="lc-node">回收站（可恢复/永久删除）</span>
+          <span class="lc-node">回收站</span>
         </div>
-        <p class="caption">图 9 · 文章状态流转</p>
-
-        <h3>5.4 日常审核发布流程</h3>
         <ol>
           <li>文章列表 → <strong>待审核</strong> 筛选</li>
-          <li>进入编辑页，检查标题、正文、SEO 字段</li>
-          <li>查看 <strong>GEO 评估</strong>：已通过 / 未通过 / 待评估</li>
+          <li>进入编辑页，检查标题、正文、SEO 字段与 GEO 评分/建议</li>
+          <li>软门禁下「建议改进」通常仍可发布；硬门禁下须达标</li>
           <li>点击 <strong>通过审核</strong> → <strong>发布</strong></li>
         </ol>
 
-        <h3>5.5 分发渠道类型</h3>
+        <h3>6.5 分发渠道</h3>
         <table>
           <thead><tr><th>类型</th><th>适用场景</th></tr></thead>
           <tbody>
@@ -1054,76 +1187,27 @@
             <tr><td><strong>通用 HTTP API</strong></td><td>自定义接口对接</td></tr>
           </tbody>
         </table>
-      </section>
+        <p>分发任务队列：<span class="path-tag">/operations/distribution/jobs</span></p>
 
-      <!-- 六、L1 -->
-      <section id="strategy">
-        <h2>六、策略与分析（L1）</h2>
-        <p>路径：<strong>策略与分析</strong> <span class="path-tag">/strategy/*</span></p>
-
-        <div class="mock-tabs">
-          <span class="mock-tab active-violet">总览</span>
-          <span class="mock-tab">监控问题库</span>
-          <span class="mock-tab">外部信源</span>
-          <span class="mock-tab">仿真与建议</span>
-          <span class="mock-tab">GEO 诊断</span>
-          <span class="mock-tab">数据分析</span>
-          <span class="mock-tab">洞察模板</span>
-        </div>
-        <p class="caption">图 10 · L1 策略与分析二级导航</p>
-
-        <div class="grid-2">
-          <div class="card">
-            <div class="card-title">监控问题库</div>
-            <p style="font-size:0.84rem">维护探针问题 → 全量扫描 → 追踪各 AI 平台排名与提及率</p>
-          </div>
-          <div class="card">
-            <div class="card-title">GEO 诊断</div>
-            <p style="font-size:0.84rem">门禁状态 · 失败原因 Top N · 单篇/批量重评</p>
-          </div>
-          <div class="card">
-            <div class="card-title">仿真与建议</div>
-            <p style="font-size:0.84rem">批量重评低分文章，将优化建议应用到正文</p>
-          </div>
-          <div class="card">
-            <div class="card-title">洞察模板</div>
-            <p style="font-size:0.84rem">从优秀外部 URL 挖掘写作风格，注入 Prompt</p>
-          </div>
-        </div>
-
-        <h3>GEO 优化闭环</h3>
-        <div class="diagram-wrap">
-          <svg viewBox="0 0 640 160" width="640" height="160">
-            <defs><marker id="arr3" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#7c3aed"/></marker></defs>
-            <rect x="20" y="55" width="100" height="50" rx="6" fill="#f5f3ff" stroke="#7c3aed"/><text x="70" y="85" text-anchor="middle" font-size="9" font-weight="600">监控扫描</text>
-            <line x1="120" y1="80" x2="145" y2="80" stroke="#7c3aed" marker-end="url(#arr3)"/>
-            <rect x="150" y="55" width="100" height="50" rx="6" fill="#f5f3ff" stroke="#7c3aed"/><text x="200" y="85" text-anchor="middle" font-size="9" font-weight="600">GEO 诊断</text>
-            <line x1="250" y1="80" x2="275" y2="80" stroke="#7c3aed" marker-end="url(#arr3)"/>
-            <rect x="280" y="55" width="100" height="50" rx="6" fill="#f5f3ff" stroke="#7c3aed"/><text x="330" y="85" text-anchor="middle" font-size="9" font-weight="600">仿真优化</text>
-            <line x1="380" y1="80" x2="405" y2="80" stroke="#7c3aed" marker-end="url(#arr3)"/>
-            <rect x="410" y="55" width="100" height="50" rx="6" fill="#f5f3ff" stroke="#7c3aed"/><text x="460" y="85" text-anchor="middle" font-size="9" font-weight="600">更新内容</text>
-            <line x1="510" y1="80" x2="535" y2="80" stroke="#7c3aed" marker-end="url(#arr3)"/>
-            <rect x="540" y="55" width="80" height="50" rx="6" fill="#ecfdf5" stroke="#059669"/><text x="580" y="85" text-anchor="middle" font-size="9" font-weight="600">复盘 KPI</text>
-            <path d="M 580 105 Q 580 140 70 140 Q 20 140 20 105" fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arr3)"/>
-            <text x="320" y="155" text-anchor="middle" font-size="9" fill="#5c6b7a">持续迭代闭环</text>
-          </svg>
-          <p class="caption">图 11 · GEO 监控与优化闭环</p>
-        </div>
+        <h3>6.6 引用分析</h3>
+        <p>路径：<span class="path-tag">/operations/distribution-citations</span></p>
+        <p>对照探针结果，查看已分发文章是否被 AI 回答引用：可见性、引用来源、平台覆盖、索引状态。可按「未索引」筛选并建议重新扫描。</p>
       </section>
 
       <!-- 七、设置 -->
       <section id="settings">
         <h2>七、网站设置</h2>
-        <p>路径：<span class="path-tag">/settings/site</span></p>
+        <p>从右上角用户菜单进入 <strong>系统设置</strong>。路径：<span class="path-tag">/settings/site</span></p>
         <table>
           <thead><tr><th>子页面</th><th>路径</th><th>功能</th></tr></thead>
           <tbody>
-            <tr><td>站点信息</td><td><code>/settings/site</code></td><td>站点名称、只读功能开关（GEO 评估、技术品牌模式等）</td></tr>
+            <tr><td>站点信息</td><td><code>/settings/site</code></td><td>站点名称、只读开关（公开站、GEO 评估、Wiki 合规、技术品牌、AI Mock、GWeb 同步等）</td></tr>
             <tr><td>管理员</td><td><code>/settings/admins</code></td><td>增删改管理员、活动日志</td></tr>
             <tr><td>安全</td><td><code>/settings/security</code></td><td>敏感词列表、修改密码</td></tr>
             <tr><td>API Token</td><td><code>/settings/api-tokens</code></td><td>创建/吊销 REST API 访问令牌</td></tr>
           </tbody>
         </table>
+        <div class="note">探针模式、平台列表、再扫延迟等业务参数也可在 <strong>策略 → 数据采集</strong> 的探针设置中调整；生产建议 <code>monitor_probe_mode=api</code>、<code>monitor_strict_api=true</code>。</div>
       </section>
 
       <!-- 八、场景 -->
@@ -1134,12 +1218,12 @@
             <div class="letter">A</div>
             <h4>每日自动资讯站</h4>
             <ol>
-              <li>AI 配置器添加 Chat 模型</li>
+              <li>内容工厂 → AI 模型添加 Chat</li>
               <li>创建分类、标题库、关键词库</li>
               <li>（可选）建知识库并同步切片</li>
               <li>新建普通文章任务并启用</li>
               <li>审核或等待自动发布</li>
-              <li>周报查看数据分析与 GEO 诊断</li>
+              <li>周报看诊断总览北极星 KPI</li>
             </ol>
           </div>
           <div class="scenario">
@@ -1169,19 +1253,20 @@
               <li>维护 P0 技术 IP 资产卡</li>
               <li>新建 GWeb Wiki 渠道</li>
               <li>任务选 Wiki MDX 格式</li>
-              <li>通过 Wiki 合规门禁后自动同步</li>
-              <li>策略总览查看同步率 KPI</li>
+              <li>通过评分/合规后发布并同步</li>
+              <li>诊断总览查看同步与参数一致率</li>
             </ol>
           </div>
           <div class="scenario">
             <div class="letter">E</div>
-            <h4>GEO 监控优化闭环</h4>
+            <h4>AIVIS 补缺闭环</h4>
             <ol>
-              <li>添加 10–20 个探针问题</li>
-              <li>每周全量扫描</li>
-              <li>GEO 诊断处理失败 Top</li>
-              <li>仿真批量优化低分文章</li>
-              <li>洞察模板更新 Prompt</li>
+              <li>数据采集配置真实 API + strict</li>
+              <li>问题库维护对比/决策题</li>
+              <li>全量扫描 → 看北极星 KPI</li>
+              <li>场景图谱对高缺口「创建补缺 Task」</li>
+              <li>发布分发后等待再扫，看 ΔTop3</li>
+              <li>诊断报告复盘闭环验证章</li>
             </ol>
           </div>
           <div class="scenario">
@@ -1191,12 +1276,11 @@
               <li>文章管理 → 新建文章</li>
               <li>Markdown 编辑 + SEO 优化</li>
               <li>通过审核 → 发布</li>
-              <li>GEO 诊断单篇重评</li>
+              <li>GEO 标准单篇重评（如需）</li>
             </ol>
           </div>
         </div>
 
-        <!-- Wiki 场景详细流程 -->
         <h3>场景 D 详解：技术品牌 Wiki 同步流程</h3>
         <div class="card">
           <div class="pipeline">
@@ -1206,7 +1290,7 @@
             <span class="arrow">→</span>
             <span class="step emerald">LangGraph 生成</span>
             <span class="arrow">→</span>
-            <span class="step warn">Wiki 合规门禁</span>
+            <span class="step warn">GEO / Wiki 合规评分</span>
             <span class="arrow">→</span>
             <span class="step">发布</span>
             <span class="arrow">→</span>
@@ -1224,15 +1308,19 @@
           <thead><tr><th>术语</th><th>通俗解释</th></tr></thead>
           <tbody>
             <tr><td><strong>GEO</strong></td><td>让内容更容易被 AI 搜索、问答引擎引用和推荐</td></tr>
+            <tr><td><strong>AIVIS</strong></td><td>AI 可见性诊断体系：探针采集 → 可见性 → 场景 → 优化 → 报告</td></tr>
+            <tr><td><strong>北极星 KPI</strong></td><td>对外主指标：Top3、相对竞品 pp、参数一致率、提及率（open_api 口径）</td></tr>
             <tr><td><strong>任务（Task）</strong></td><td>自动生产的调度单元，绑定素材与发布策略</td></tr>
             <tr><td><strong>标题库</strong></td><td>待生成文章的题目队列</td></tr>
             <tr><td><strong>RAG</strong></td><td>从知识库检索相关片段，注入 AI 生成上下文</td></tr>
             <tr><td><strong>发布范围</strong></td><td>本站、远端、或两者同时发布</td></tr>
-            <tr><td><strong>GEO 评估 / 门禁</strong></td><td>发布前自动检查内容是否满足 GEO 规范</td></tr>
-            <tr><td><strong>探针 / Monitor</strong></td><td>向 AI 平台提问以监测品牌排名</td></tr>
-            <tr><td><strong>技术 IP 资产</strong></td><td>企业技术点在 Wiki 体系中的「身份证」</td></tr>
+            <tr><td><strong>GEO 标准 / 门禁</strong></td><td>内容评分与建议；默认软门禁不拦发布，硬门禁才拦截</td></tr>
+            <tr><td><strong>探针 / Monitor</strong></td><td>向 AI 平台提问以监测品牌/产品排名</td></tr>
+            <tr><td><strong>补缺 / remediation</strong></td><td>对高缺口场景建 Task，发布后再扫证明 lift</td></tr>
+            <tr><td><strong>技术 IP 资产</strong></td><td>企业技术点在 Wiki 体系中的「身份证」与参数 SSOT</td></tr>
             <tr><td><strong>Wiki MDX</strong></td><td>面向 Gweb 的结构化百科页面格式</td></tr>
             <tr><td><strong>分发渠道</strong></td><td>内容发布后的远端同步目标</td></tr>
+            <tr><td><strong>引用分析</strong></td><td>对照探针，看分发内容是否被 AI 回答引用</td></tr>
             <tr><td><strong>Content Agent</strong></td><td>多步骤 AI 写作流水线（大纲、初稿、润色等）</td></tr>
           </tbody>
         </table>
@@ -1251,7 +1339,7 @@
           <summary>Q2：知识库一直显示「待向量化」</summary>
           <div class="answer">
             <ol>
-              <li>确认已在 AI 配置器中添加 <strong>Embedding 模型</strong></li>
+              <li>确认已在 <strong>内容工厂 → AI 模型</strong> 中添加 Embedding 模型</li>
               <li>点击知识库列表的 <strong>同步切片</strong></li>
               <li>仍失败请联系管理员查看后台日志</li>
             </ol>
@@ -1264,19 +1352,13 @@
         </details>
 
         <details class="faq">
-          <summary>Q4：文章 GEO 评估未通过无法发布</summary>
-          <div class="answer">
-            <ol>
-              <li>进入 <strong>策略与分析 → GEO 诊断</strong> 查看失败原因</li>
-              <li>编辑文章补充结构（FAQ、内链、摘要等）</li>
-              <li>单篇 <strong>重新评估</strong> 或批量重评</li>
-            </ol>
-          </div>
+          <summary>Q4：文章 GEO 显示「建议改进」还能发布吗？</summary>
+          <div class="answer">默认是 <strong>软门禁</strong>：可发布，建议按评分建议改稿。仅当管理员开启硬门禁时，未通过才会拦截发布。内容门禁在 <strong>内容生产 → GEO 标准</strong>。</div>
         </details>
 
         <details class="faq">
           <summary>Q5：Wiki 内容没有出现在 Gweb</summary>
-          <div class="answer">确认：任务为 <strong>Wiki MDX</strong>、渠道类型为 <strong>GWeb Wiki</strong> 且已启用、文章已 <strong>发布</strong>、Wiki 合规门禁已通过、网站设置中 <strong>GWeb 同步</strong> 为已启用。</div>
+          <div class="answer">确认：任务为 <strong>Wiki MDX</strong>、渠道类型为 <strong>GWeb Wiki</strong> 且已启用、文章已 <strong>发布</strong>、合规/硬门禁（若开启）已通过、网站设置中 <strong>GWeb 同步</strong> 为已启用。</div>
         </details>
 
         <details class="faq">
@@ -1285,8 +1367,13 @@
         </details>
 
         <details class="faq">
-          <summary>Q7：演示环境生成内容质量很低</summary>
-          <div class="answer">若 <strong>AI Mock 模式</strong> 已启用，系统不调用真实大模型。正式使用需关闭 Mock 并配置真实 API Key。</div>
+          <summary>Q7：演示环境生成 / 探针质量很低</summary>
+          <div class="answer">若 <strong>AI Mock 模式</strong> 已启用，或探针模式为语料/模拟，系统不会走真实大模型。正式使用需关闭 Mock，探针设为 <code>api</code> + strict，并配置真实 API Key。</div>
+        </details>
+
+        <details class="faq">
+          <summary>Q8：北极星 Top3 为什么和 App 里搜到的不一样？</summary>
+          <div class="answer">主 KPI 口径是 <code>open_api</code>（Chat API），不等于豆包/元宝等 App 联网搜索结果。报告中会用脚注说明偏移，不会用语料假数据覆盖主数字。</div>
         </details>
       </section>
 
@@ -1299,17 +1386,16 @@
             <ul class="checklist">
               <li>打开首页，查看任务队列与待审文章数</li>
               <li>处理 <strong>待审核</strong> 文章</li>
-              <li>检查分发失败项并处理</li>
+              <li>检查分发失败项；必要时看 <strong>引用分析</strong></li>
             </ul>
           </div>
           <div class="card">
             <div class="card-title">每周（约 30 分钟）</div>
             <ul class="checklist">
-              <li>监控问题库执行一次 <strong>全量扫描</strong></li>
-              <li>查看 <strong>数据分析</strong> 与热门内容</li>
-              <li><strong>GEO 诊断</strong> 处理失败 Top 原因</li>
-              <li>补充标题库、更新知识库文档</li>
-              <li>检查技术品牌 KPI（若适用）</li>
+              <li>数据采集执行一次 <strong>全量扫描</strong></li>
+              <li>诊断总览核对 <strong>北极星 KPI</strong> 与参数一致率</li>
+              <li>场景图谱处理高缺口补缺；GEO 标准处理失败 Top</li>
+              <li>补充标题库、更新知识库；查看诊断报告</li>
             </ul>
           </div>
         </div>
@@ -1322,16 +1408,17 @@
           <thead><tr><th>需求</th><th>参考文档</th></tr></thead>
           <tbody>
             <tr><td>系统架构与模块关系</td><td><a href="geoflow-architecture.html">系统架构 HTML</a>、<a href="../guide/系统设计学习笔记.md">系统设计学习笔记</a></td></tr>
-            <tr><td>Gweb Wiki 同步细节</td><td><a href="../guide/gweb-integration.md">Gweb 集成说明</a>、<a href="gweb-geoflow-architecture.html">Gweb 架构图</a></td></tr>
-            <tr><td>业务域与 API 概念</td><td><a href="../guide/解析文档.md">解析文档</a></td></tr>
+            <tr><td>真实闭环 / 北极星口径</td><td><a href="../guide/真实闭环P0.md">真实闭环 P0</a>、<a href="../geoflow-v3/guide/待办清单.md">v3 待办清单</a></td></tr>
+            <tr><td>Gweb Wiki 同步</td><td><a href="../guide/gweb-integration.md">Gweb 集成说明</a>、<a href="gweb-geoflow-architecture.html">Gweb 架构图</a></td></tr>
+            <tr><td>业务域与 API</td><td><a href="../guide/解析文档.md">解析文档</a></td></tr>
             <tr><td>Markdown 原版指南</td><td><a href="../guide/用户使用操作指南.md">用户使用操作指南.md</a></td></tr>
-            <tr><td>部署与运维</td><td>联系系统管理员或查阅 geoflow-v3/README.md</td></tr>
+            <tr><td>部署与运维</td><td>geoflow-v3/README.md · <code>scripts/start-all.sh</code> / <code>verify.sh</code></td></tr>
           </tbody>
         </table>
       </section>
 
       <footer>
-        GEOFlow 用户使用操作指南 · 基于 v3 管理后台（geoflow-admin）· 最后更新 2026-07<br>
+        GEOFlow 用户使用操作指南 · 基于 v3 管理后台（geoflow-admin）· 对齐 AIVIS / 北极星 KPI · 最后更新 2026-08-13<br>
         在浏览器中直接打开本文件，或使用本地 HTTP 服务访问以获得最佳体验
       </footer>
     </main>

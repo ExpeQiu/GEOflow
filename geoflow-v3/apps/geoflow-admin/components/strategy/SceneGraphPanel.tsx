@@ -31,8 +31,24 @@ export function SceneGraphPanel({
   async function createGapTask(sceneId: number) {
     const t = getToken();
     if (!t) return;
-    await apiPost(`/api/admin/strategy/monitor/scenes/${sceneId}/create-task`, t, {});
-    alert("补缺 Task 已创建");
+    try {
+      await apiPost(`/api/admin/strategy/monitor/scenes/${sceneId}/create-task`, t, {});
+      alert("补缺 Task 已创建");
+      onRefresh?.();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "创建 Task 失败");
+    }
+  }
+
+  async function computeGap(sceneId: number) {
+    const t = getToken();
+    if (!t) return;
+    try {
+      await apiPost(`/api/admin/strategy/monitor/scenes/${sceneId}/compute-gap`, t, {});
+      onRefresh?.();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "计算缺口失败");
+    }
   }
 
   return (
@@ -82,7 +98,14 @@ export function SceneGraphPanel({
                   <td className="px-3 py-2">{(s.gap_rate * 100).toFixed(1)}%</td>
                   <td className="px-3 py-2"><GapPriorityBadge priority={s.gap_priority} /></td>
                   <td className="px-3 py-2">
-                    <button type="button" className="text-violet-600" onClick={() => createGapTask(s.id)}>创建补缺 Task</button>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" className="text-violet-600 hover:underline" onClick={() => computeGap(s.id)}>
+                        计算缺口
+                      </button>
+                      <button type="button" className="text-violet-600 hover:underline" onClick={() => createGapTask(s.id)}>
+                        补缺 Task
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

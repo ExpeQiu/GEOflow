@@ -86,19 +86,39 @@ async def test_ai_model(db: AsyncSession, model_id: int) -> dict:
     from app.core.config import get_settings
 
     if get_settings().ai_mock_mode:
-        return {"ok": True, "mock": True, "message": "mock_mode_ok"}
+        return {"ok": True, "mock": True, "message": "mock_mode_ok — 请设 AI_MOCK_MODE=false 后重测"}
 
     import httpx
 
+    base = row.api_url.rstrip("/")
+    headers = {"Authorization": f"Bearer {row.api_key}", "Content-Type": "application/json"}
+    model_type = (row.model_type or "chat").strip().lower()
+
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                f"{row.api_url.rstrip('/')}/models",
-                headers={"Authorization": f"Bearer {row.api_key}"},
-            )
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            if model_type == "embedding":
+                resp = await client.post(
+                    f"{base}/embeddings",
+                    headers=headers,
+                    json={"model": row.model_id, "input": "geoflow embedding connectivity probe"},
+                )
+            else:
+                resp = await client.post(
+                    f"{base}/chat/completions",
+                    headers=headers,
+                    json={
+                        "model": row.model_id,
+                        "messages": [{"role": "user", "content": "只回复 OK"}],
+                        "max_tokens": 8,
+                        "temperature": 0,
+                    },
+                )
         if resp.status_code >= 400:
-            return {"ok": False, "mock": False, "message": f"http_{resp.status_code}"}
-        return {"ok": True, "mock": False, "message": "connectivity_ok"}
+            detail = (resp.text or "")[:160]
+            logger.warning("ai_model_test_http id=%s status=%s body=%s", model_id, resp.status_code, detail)
+            return {"ok": False, "mock": False, "message": f"http_{resp.status_code}:{detail}"}
+        logger.info("ai_model_test_ok id=%s type=%s model=%s", model_id, model_type, row.model_id)
+        return {"ok": True, "mock": False, "message": f"{model_type}_ok"}
     except Exception as exc:
         logger.warning("ai_model_test_failed id=%s err=%s", model_id, exc)
         return {"ok": False, "mock": False, "message": str(exc)[:200]}

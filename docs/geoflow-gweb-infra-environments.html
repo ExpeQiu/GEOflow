@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GEOFlow + Gweb 基础设施详细配置建议</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --surface: #ffffff;
+      --stroke: #d8dee4;
+      --text: #1a2332;
+      --muted: #5c6b7a;
+      --geoflow: #2563eb;
+      --geoflow-bg: #eff6ff;
+      --gweb: #059669;
+      --gweb-bg: #ecfdf5;
+      --warn: #d97706;
+      --warn-bg: #fffbeb;
+      --accent: #7c3aed;
+      --accent-bg: #f5f3ff;
+      --mono: "SF Mono", "Menlo", "Consolas", monospace;
+      --sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      padding: 2rem 1.25rem 3rem;
+    }
+    .page { max-width: 1200px; margin: 0 auto; }
+    header {
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--stroke);
+      padding-bottom: 1rem;
+    }
+    header h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; }
+    header p { margin-top: 0.45rem; color: var(--muted); font-size: 0.9rem; max-width: 900px; }
+    .badges { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.7rem; }
+    .badge {
+      font-size: 0.7rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 4px;
+    }
+    .badge.dev { color: var(--warn); background: var(--warn-bg); }
+    .badge.prod { color: var(--geoflow); background: var(--geoflow-bg); }
+    .badge.base { color: var(--gweb); background: var(--gweb-bg); }
+    .toc {
+      display: flex; flex-wrap: wrap; gap: 0.35rem;
+      margin-bottom: 1.5rem; padding: 0.7rem 0.8rem;
+      background: var(--surface); border: 1px solid var(--stroke); border-radius: 8px;
+    }
+    .toc a {
+      font-size: 0.7rem; font-weight: 600; color: var(--geoflow);
+      text-decoration: none; padding: 0.2rem 0.45rem; border-radius: 4px; background: var(--geoflow-bg);
+    }
+    h2 { font-size: 1.05rem; font-weight: 700; margin-bottom: 0.7rem; }
+    h3 { font-size: 0.86rem; font-weight: 700; margin: 0.9rem 0 0.4rem; color: var(--geoflow); }
+    section { margin-bottom: 1.5rem; }
+    .card {
+      background: var(--surface); border: 1px solid var(--stroke);
+      border-radius: 8px; padding: 1rem 1.1rem;
+    }
+    .card + .card { margin-top: 0.65rem; }
+    .callout {
+      border-radius: 6px; padding: 0.7rem 0.85rem; font-size: 0.8rem; margin-top: 0.65rem;
+    }
+    .callout.warn { background: var(--warn-bg); border: 1px solid #fde68a; color: #92400e; }
+    .callout.ok { background: var(--gweb-bg); border: 1px solid #a7f3d0; color: #065f46; }
+    .callout.info { background: var(--geoflow-bg); border: 1px solid #bfdbfe; color: #1e40af; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+    th, td {
+      text-align: left; padding: 0.42rem 0.5rem;
+      border-bottom: 1px solid var(--stroke); vertical-align: top;
+    }
+    th {
+      font-size: 0.66rem; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.04em; background: var(--bg);
+    }
+    tr:last-child td { border-bottom: none; }
+    tr.hl td { background: var(--geoflow-bg); }
+    code {
+      font-family: var(--mono); font-size: 0.72rem;
+      background: var(--bg); padding: 0.06rem 0.28rem; border-radius: 3px;
+    }
+    pre {
+      font-family: var(--mono); font-size: 0.7rem; background: #0f172a; color: #e2e8f0;
+      padding: 0.85rem 0.95rem; border-radius: 6px; overflow-x: auto; line-height: 1.5; margin-top: 0.45rem;
+    }
+    pre .c { color: #94a3b8; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .dim {
+      border: 1px solid var(--stroke); border-radius: 8px;
+      background: var(--surface); margin-bottom: 0.75rem; overflow: hidden;
+    }
+    .dim-h {
+      padding: 0.55rem 0.85rem; border-bottom: 1px solid var(--stroke);
+      background: #fafbfc; font-size: 0.92rem; font-weight: 700;
+    }
+    .dim-body { padding: 0.75rem 0.85rem; }
+    .tag {
+      display: inline-block; font-size: 0.65rem; font-weight: 700;
+      padding: 0.12rem 0.4rem; border-radius: 3px; margin-left: 0.35rem; vertical-align: middle;
+    }
+    .tag.dev { background: var(--warn-bg); color: var(--warn); }
+    .tag.prod { background: var(--geoflow-bg); color: var(--geoflow); }
+    footer { margin-top: 1.5rem; font-size: 0.72rem; color: var(--muted); text-align: center; }
+    @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>GEOFlow + Gweb 基础设施详细配置建议</h1>
+      <p>
+        基于同机部署基线（Compose · Nginx · PG/pgvector · Redis/Celery），给出
+        <strong>DEV / TEST / UAT / 生产</strong> 各维度可落地的规格、端口、资源 limit、参数与环境变量。
+        数值为建议起点，可按探针题量与 chunk 规模上浮。
+      </p>
+      <div class="badges">
+        <span class="badge base">基线：8C · 32G · 200GB NVMe</span>
+        <span class="badge dev">DEV/TEST/UAT · Compose 同机</span>
+        <span class="badge prod">生产 · 同机加固 → 托管拆分</span>
+      </div>
+    </header>
+
+    <nav class="toc">
+      <a href="#summary">规格总表</a>
+      <a href="#vm">虚拟机</a>
+      <a href="#container">应用容器</a>
+      <a href="#db">数据库</a>
+      <a href="#redis">Redis</a>
+      <a href="#slb">SLB</a>
+      <a href="#nas">NAS</a>
+      <a href="#oss">OSS</a>
+      <a href="#k8s">容器集群</a>
+      <a href="#mq">RocketMQ / 队列</a>
+      <a href="#env">环境变量</a>
+      <a href="#schedule">调度与错峰</a>
+    </nav>
+
+    <!-- 规格总表 -->
+    <section id="summary">
+      <h2>一、环境规格总表</h2>
+      <div class="card">
+        <table>
+          <thead>
+            <tr>
+              <th>项</th>
+              <th>DEV</th>
+              <th>TEST</th>
+              <th>UAT</th>
+              <th>生产（阶段 A 同机）</th>
+              <th>生产（阶段 B 拆分）</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="hl">
+              <td>VM 数量</td>
+              <td>1</td>
+              <td>1</td>
+              <td>1</td>
+              <td>1</td>
+              <td>App×2 + 托管服务</td>
+            </tr>
+            <tr class="hl">
+              <td>vCPU / 内存</td>
+              <td>4C / 16G</td>
+              <td>4–8C / 16–32G</td>
+              <td>8C / 32G</td>
+              <td>8C / 32G</td>
+              <td>App 节点 4–8C / 16G+</td>
+            </tr>
+            <tr>
+              <td>系统盘</td>
+              <td>100GB SSD</td>
+              <td>150GB SSD</td>
+              <td>200GB NVMe</td>
+              <td>200GB NVMe</td>
+              <td>系统 100GB + 数据盘/托管</td>
+            </tr>
+            <tr>
+              <td>上行带宽</td>
+              <td>5 Mbps</td>
+              <td>10 Mbps</td>
+              <td>20 Mbps</td>
+              <td>≥20 Mbps</td>
+              <td>≥20 Mbps / 节点</td>
+            </tr>
+            <tr>
+              <td>AI_MOCK_MODE</td>
+              <td><code>true</code></td>
+              <td><code>false</code></td>
+              <td><code>false</code></td>
+              <td><code>false</code></td>
+              <td><code>false</code></td>
+            </tr>
+            <tr>
+              <td>Worker 拓扑</td>
+              <td>单 Worker · c=1</td>
+              <td>单 Worker · c=2</td>
+              <td>content + batch</td>
+              <td>content + batch 强制隔离</td>
+              <td>池化扩缩</td>
+            </tr>
+            <tr>
+              <td>DB / Redis</td>
+              <td>同机容器</td>
+              <td>同机容器</td>
+              <td>同机或托管预演</td>
+              <td>同机加固 / 可托管</td>
+              <td>RDS + Redis 托管 HA</td>
+            </tr>
+            <tr>
+              <td>SLB / NAS / 集群</td>
+              <td>— / — / —</td>
+              <td>— / — / —</td>
+              <td>可选 SLB</td>
+              <td>SLB + OSS 备份</td>
+              <td>全开 + NAS(Wiki)</td>
+            </tr>
+            <tr>
+              <td>日产能预算</td>
+              <td>联调</td>
+              <td>5–10 篇</td>
+              <td>10–30 篇</td>
+              <td>10–30 篇 + 夜间探针</td>
+              <td>按副本线性扩展</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="callout warn">
+          同机 16GB 在「Monitor 全量 + 向量化 + 并发生成」叠加时易 OOM。UAT/生产同机必须按 <strong>32GB</strong> 采购；DEV 可 16GB 但需关全量 Monitor。
+        </div>
+      </div>
+    </section>
+
+    <!-- 虚拟机 -->
+    <section id="vm">
+      <h2>二、虚拟机详细配置</h2>
+      <div class="dim">
+        <div class="dim-h">2.1 云主机选型建议</div>
+        <div class="dim-body">
+          <table>
+            <thead>
+              <tr><th>环境</th><th>规格（示例）</th><th>磁盘</th><th>网络</th><th>安全组入站</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>DEV</td>
+                <td>ecs.g7.xlarge 级 · 4C16G</td>
+                <td>高效云盘 100GB</td>
+                <td>按量 5–10M</td>
+                <td>22(跳板) · 443(可选)</td>
+              </tr>
+              <tr>
+                <td>TEST</td>
+                <td>ecs.g7.2xlarge 级 · 8C16G 或 8C32G</td>
+                <td>SSD 150GB</td>
+                <td>10M</td>
+                <td>同 DEV；仅测试网段</td>
+              </tr>
+              <tr class="hl">
+                <td>UAT / 生产 A</td>
+                <td><strong>8C32G</strong>（计算型/通用型）</td>
+                <td><strong>NVMe/ESSD 200GB</strong></td>
+                <td>≥20M 上行</td>
+                <td>443←SLB；禁 5432/6379 公网</td>
+              </tr>
+              <tr>
+                <td>生产 B · App</td>
+                <td>2×(4–8C / 16G)</td>
+                <td>系统盘 100GB</td>
+                <td>≥20M</td>
+                <td>仅 SLB / 内网</td>
+              </tr>
+            </tbody>
+          </table>
+          <h3>磁盘分区建议（同机 200GB）</h3>
+          <table>
+            <thead><tr><th>挂载/路径</th><th>容量</th><th>用途</th></tr></thead>
+            <tbody>
+              <tr><td><code>/</code> 与 Docker</td><td>~40GB</td><td>OS · 镜像 · 容器层</td></tr>
+              <tr><td><code>.../docker-data/postgres</code></td><td>~80–100GB</td><td>PG + pgvector（含余量）</td></tr>
+              <tr><td><code>.../storage/uploads</code></td><td>~20GB</td><td>GEOFlow 上传</td></tr>
+              <tr><td><code>.../content/wiki</code></td><td>~10GB</td><td>Gweb MDX</td></tr>
+              <tr><td>日志 / 备份暂存</td><td>~20GB</td><td>轮转后推 OSS</td></tr>
+              <tr><td>余量</td><td>~30–50GB</td><td>向量增长缓冲</td></tr>
+            </tbody>
+          </table>
+          <div class="callout info">
+            OS：Ubuntu 22.04 LTS / Debian 12 · Docker Engine 24+ · Compose v2 · 时区 <code>Asia/Shanghai</code> · NTP 开启。
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 应用容器 -->
+    <section id="container">
+      <h2>三、应用容器详细配置</h2>
+      <div class="dim">
+        <div class="dim-h">3.1 资源 limit（相对 32GB 同机）</div>
+        <div class="dim-body">
+          <table>
+            <thead>
+              <tr>
+                <th>服务</th>
+                <th>镜像/进程</th>
+                <th>DEV</th>
+                <th>TEST</th>
+                <th>UAT / 生产 A</th>
+                <th>端口（宿主机）</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>postgres</td>
+                <td><code>pgvector/pgvector:pg16</code></td>
+                <td>2G / 1CPU</td>
+                <td>4G / 2CPU</td>
+                <td><strong>6G / 2CPU</strong></td>
+                <td><code>127.0.0.1:15433→5432</code></td>
+              </tr>
+              <tr>
+                <td>redis</td>
+                <td><code>redis:7-alpine</code></td>
+                <td>256M / 0.25</td>
+                <td>512M / 0.5</td>
+                <td><strong>1G / 0.5</strong></td>
+                <td><code>127.0.0.1:16380→6379</code></td>
+              </tr>
+              <tr>
+                <td>api</td>
+                <td>uvicorn · port 8080</td>
+                <td>768M / 1 · workers=1 · reload</td>
+                <td>1G / 1 · workers=2</td>
+                <td><strong>1G / 1 · workers=2 · 无 reload</strong></td>
+                <td><code>18081→8080</code>（仅内网/反代）</td>
+              </tr>
+              <tr>
+                <td>worker-content</td>
+                <td>celery · Q=celery,geoflow</td>
+                <td>合并单 Worker</td>
+                <td>2G / 2 · c=2</td>
+                <td><strong>2G / 2 · concurrency=2</strong></td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td>worker-batch</td>
+                <td>celery · Q=batch</td>
+                <td>—</td>
+                <td>可选</td>
+                <td><strong>2G / 2 · concurrency=1</strong></td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td>scheduler</td>
+                <td>celery beat</td>
+                <td>128M</td>
+                <td>256M</td>
+                <td><strong>256M / 0.25 · 全局仅 1</strong></td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td>geoflow-admin</td>
+                <td>Next standalone</td>
+                <td>512M</td>
+                <td>768M</td>
+                <td><strong>768M / 0.5</strong></td>
+                <td><code>13001→3000</code></td>
+              </tr>
+              <tr>
+                <td>gweb</td>
+                <td>Next :3000</td>
+                <td>768M</td>
+                <td>1G</td>
+                <td><strong>1G / 1</strong></td>
+                <td><code>3000</code></td>
+              </tr>
+              <tr>
+                <td>nginx</td>
+                <td>宿主机或容器</td>
+                <td>64M</td>
+                <td>128M</td>
+                <td><strong>128M / 0.25</strong></td>
+                <td><code>80/443</code></td>
+              </tr>
+              <tr>
+                <td>flower</td>
+                <td>可选</td>
+                <td>可选</td>
+                <td>可选 · 内网</td>
+                <td>内网 <code>127.0.0.1:15555</code></td>
+                <td>禁公网</td>
+              </tr>
+              <tr>
+                <td>系统预留</td>
+                <td>OS + dockerd</td>
+                <td>~2G</td>
+                <td>~3G</td>
+                <td><strong>~4G</strong></td>
+                <td>—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="dim">
+        <div class="dim-h">3.2 启动命令（生产形态）</div>
+        <div class="dim-body">
+          <div class="grid-2">
+            <div>
+              <h3>API / Content Worker</h3>
+              <pre>uvicorn app.main:app \
+  --host 0.0.0.0 --port 8080 \
+  --workers 2
+<span class="c"># 禁止生产 --reload</span>
+
+celery -A app.workers.celery_app worker \
+  -Q celery,geoflow \
+  --concurrency=2 \
+  --loglevel=info \
+  --max-tasks-per-child=50</pre>
+            </div>
+            <div>
+              <h3>Batch Worker / Beat</h3>
+              <pre>celery -A app.workers.celery_app worker \
+  -Q batch \
+  --concurrency=1 \
+  --loglevel=info
+
+celery -A app.workers.celery_app beat \
+  --loglevel=info
+<span class="c"># 全环境仅 1 个活跃 Beat</span></pre>
+            </div>
+          </div>
+          <div class="callout ok" style="margin-top:0.65rem;">
+            健康检查：API <code>GET /health</code> · Gweb <code>GET /api/health</code> · PG <code>pg_isready</code> · Redis <code>PING</code>。
+            Compose <code>depends_on</code> + interval 10s / retries 10（与现仓库一致）。
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 数据库 -->
+    <section id="db">
+      <h2>四、数据库详细配置</h2>
+      <div class="dim">
+        <div class="dim-h">4.1 实例与库隔离</div>
+        <div class="dim-body">
+          <table>
+            <thead>
+              <tr><th>项</th><th>DEV/TEST</th><th>UAT</th><th>生产</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>引擎</td>
+                <td colspan="3">PostgreSQL <strong>16</strong> + 扩展 <strong>pgvector</strong>（镜像 <code>pgvector/pgvector:pg16</code>）</td>
+              </tr>
+              <tr>
+                <td>GEOFlow 库</td>
+                <td colspan="3">库名 <code>geo_flow</code> · 用户 <code>geo_user</code>（生产改强密码/KMS）</td>
+              </tr>
+              <tr>
+                <td>Gweb 库</td>
+                <td>同实例另库 <code>gweb_db</code> 或独立容器</td>
+                <td>独立库</td>
+                <td><strong>独立库 / 独立 RDS 实例更佳</strong></td>
+              </tr>
+              <tr>
+                <td>连接串（Compose 内网）</td>
+                <td colspan="3">
+                  <code>postgresql+asyncpg://geo_user:***@postgres:5432/geo_flow</code><br>
+                  sync：<code>postgresql://geo_user:***@postgres:5432/geo_flow</code>
+                </td>
+              </tr>
+              <tr>
+                <td>宿主机调试端口</td>
+                <td colspan="3"><code>127.0.0.1:15433</code>（禁止映射 0.0.0.0）</td>
+              </tr>
+              <tr>
+                <td>max_connections</td>
+                <td>50</td>
+                <td>80</td>
+                <td><strong>100</strong>（App 池化：API 20 + Worker 各 10 + 余量）</td>
+              </tr>
+              <tr>
+                <td>备份</td>
+                <td>可选</td>
+                <td>每日 dump</td>
+                <td>每日 dump + RDS 自动备份 · 保留 7–14 天 · 副本至 OSS</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>postgresql.conf（32GB 同机 / 对等 RDS 参数组）</h3>
+          <pre>shared_buffers = 4GB
+effective_cache_size = 12GB
+maintenance_work_mem = 512MB
+work_mem = 32MB
+max_connections = 100
+random_page_cost = 1.1
+wal_buffers = 64MB
+checkpoint_completion_target = 0.9
+<span class="c"># DEV 16GB 机型：shared_buffers=1GB · effective_cache_size=4GB · work_mem=16MB</span></pre>
+
+          <h3>向量容量粗估（embedding 3072 维）</h3>
+          <table>
+            <thead><tr><th>chunk 规模</th><th>磁盘（含 HNSW）</th><th>建议环境</th></tr></thead>
+            <tbody>
+              <tr><td>≤1 万</td><td>~3–5 GB</td><td>DEV/TEST</td></tr>
+              <tr><td>5 万</td><td>~15 GB</td><td>UAT</td></tr>
+              <tr class="hl"><td>10 万</td><td>~30 GB</td><td>生产（盘余量按 ×2）</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Redis -->
+    <section id="redis">
+      <h2>五、Redis 详细配置</h2>
+      <div class="dim">
+        <div class="dim-h">5.1 角色与参数</div>
+        <div class="dim-body">
+          <table>
+            <thead>
+              <tr><th>项</th><th>DEV/TEST</th><th>UAT</th><th>生产</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>版本</td>
+                <td colspan="3">Redis <strong>7</strong>（alpine 镜像可）</td>
+              </tr>
+              <tr>
+                <td>db 分配</td>
+                <td colspan="3">
+                  <code>CELERY_BROKER_URL=redis://redis:6379/0</code><br>
+                  <code>CELERY_RESULT_BACKEND=redis://redis:6379/1</code><br>
+                  <code>REDIS_URL=redis://redis:6379/0</code>
+                </td>
+              </tr>
+              <tr>
+                <td>maxmemory</td>
+                <td>256MB</td>
+                <td>512MB</td>
+                <td><strong>768MB–1GB</strong></td>
+              </tr>
+              <tr>
+                <td>淘汰策略</td>
+                <td colspan="3"><code>noeviction</code>（队列场景禁止 LRU 丢任务）</td>
+              </tr>
+              <tr>
+                <td>持久化</td>
+                <td>可关</td>
+                <td>AOF everysec</td>
+                <td><strong>AOF everysec</strong>；托管开主从</td>
+              </tr>
+              <tr>
+                <td>密码</td>
+                <td>可空（内网）</td>
+                <td>建议有</td>
+                <td>必开 · ACL · 仅 VPC</td>
+              </tr>
+              <tr>
+                <td>端口暴露</td>
+                <td colspan="3"><code>127.0.0.1:16380→6379</code>；生产托管则无宿主机映射</td>
+              </tr>
+              <tr>
+                <td>队列名</td>
+                <td><code>celery,geoflow</code>（可合并）</td>
+                <td>+ <code>batch</code></td>
+                <td><code>celery</code> · <code>geoflow</code> · <code>batch</code> 路由分离</td>
+              </tr>
+            </tbody>
+          </table>
+          <pre><span class="c"># redis.conf 片段（自建）</span>
+maxmemory 1gb
+maxmemory-policy noeviction
+appendonly yes
+appendfsync everysec
+bind 0.0.0.0
+<span class="c"># 容器网络内访问；宿主机勿对公网 publish</span>
+requirepass &lt;strong-secret&gt;</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLB -->
+    <section id="slb">
+      <h2>六、SLB 详细配置</h2>
+      <div class="dim">
+        <div class="dim-h">6.1 监听与转发 <span class="tag prod">生产建议</span> <span class="tag dev">DEV/TEST 可省略</span></div>
+        <div class="dim-body">
+          <table>
+            <thead>
+              <tr><th>监听</th><th>协议</th><th>后端</th><th>说明</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>443</td>
+                <td>HTTPS（TLS1.2+）</td>
+                <td>Nginx :443 或 :80（若 SSL 在 SLB 终结）</td>
+                <td>证书挂 SLB 或 Nginx；推荐 SLB 终结</td>
+              </tr>
+              <tr>
+                <td>80</td>
+                <td>HTTP</td>
+                <td>同组</td>
+                <td>301 → HTTPS</td>
+              </tr>
+            </tbody>
+          </table>
+          <h3>域名与路径（与同机 Nginx 一致）</h3>
+          <table>
+            <thead><tr><th>域名</th><th>路径</th><th>上游</th></tr></thead>
+            <tbody>
+              <tr><td><code>tech.example.com</code></td><td><code>/</code></td><td><code>127.0.0.1:3000</code> Gweb</td></tr>
+              <tr><td><code>admin.tech.example.com</code></td><td><code>/</code></td><td><code>127.0.0.1:3001</code>（或 13001）Admin</td></tr>
+              <tr><td><code>admin.tech.example.com</code></td><td><code>/api/</code></td><td><code>127.0.0.1:8080</code>（或 18081）FastAPI</td></tr>
+              <tr><td>同上</td><td><code>/ws/</code></td><td>FastAPI · 开启 WebSocket / 空闲超时 ≥3600s</td></tr>
+            </tbody>
+          </table>
+          <h3>健康检查</h3>
+          <table>
+            <thead><tr><th>后端组</th><th>路径</th><th>间隔</th><th>成功码</th></tr></thead>
+            <tbody>
+              <tr><td>Gweb</td><td><code>GET /api/health</code></td><td>10s</td><td>200</td></tr>
+              <tr><td>API</td><td><code>GET /health</code></td><td>10s</td><td>200</td></tr>
+              <tr><td>Admin</td><td><code>GET /</code> 或专用 health</td><td>15s</td><td>200</td></tr>
+            </tbody>
+          </table>
+          <div class="callout info">
+            UAT：可挂测试 SLB 验证证书与域名。DEV/TEST：直接 Nginx 或 SSH 隧道即可，不必买 SLB。
+            会话：API 无状态；WS 建议开启粘性或较短超时重连。
+          </div>
+          <pre><span class="c"># Nginx 参考（同机文档）</span>
+server {
+    listen 443 ssl http2;
+    server_name tech.example.com;
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+server {
+    listen 443 ssl http2;
+    server_name admin.tech.example.com;
+    location / { proxy_pass http://127.0.0.1:3001; }
+    location /api/ { proxy_pass http://127.0.0.1:8080; }
+    location /ws/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 3600s;
+    }
+}</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- NAS -->
+    <section id="nas">
+      <h2>七、NAS 详细配置</h2>
+      <div class="dim">
+        <div class="dim-h">7.1 何时需要 / 挂载点</div>
+        <div class="dim-body">
+          <table>
+            <thead>
+              <tr><th>环境</th><th>NAS</th><th>容量建议</th><th>协议</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>DEV/TEST</td><td>不需要（本地 volume）</td><td>—</td><td>—</td></tr>
+              <tr><td>UAT</td><td>可选预演</td><td>50GB</td><td>NFS v3/v4</td></tr>
+              <tr class="hl">
+                <td>生产 · Gweb 多副本</td>
+                <td><strong>必挂</strong></td>
+                <td>100GB 起 · 按 MDX 增长</td>
+                <td>NFS；性能型</td>
+              </tr>
+              <tr><td>生产 · 单机 Gweb</td><td>不强制</td><td>本地盘 + OSS 备份</td><td>—</td></tr>
+            </tbody>
+          </table>
+          <table>
+            <thead><tr><th>挂载路径（容器内）</th><th>宿主机/NAS 路径</th><th>读写方</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><code>/app/content/wiki</code>（Gweb）</td>
+                <td><code>/mnt/nas/gweb/content/wiki</code></td>
+                <td>wiki/sync 写入 · 页面读取</td>
+              </tr>
+              <tr>
+                <td><code>/app/storage/uploads</code>（API+Worker）</td>
+                <td><code>/mnt/nas/geoflow/uploads</code> 或改 OSS</td>
+                <td>多 Worker 共享时需要</td>
+              </tr>
+              <tr>
+                <td>PG data</td>
+                <td colspan="2"><strong>禁止</strong>挂 NAS；用云盘或 RDS</td>
+              </tr>
+            </tbody>
+          </table>
+          <pre><span class="c"># 宿主机 fstab 示例</span>
+&lt;nas-addr&gt;:/gweb-wiki  /mnt/nas/gweb/content/wiki  nfs  vers=4,rsize=1048576,wsize=1048576,_netdev  0  0</pre>
+          <div class="callout warn">
+            未挂 NAS 前不要把 Gweb replicas 调到 &gt;1，否则 <code>/api/wiki/sync</code> 只落单 Pod，页面出现「有时有、有时无」。
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- OSS -->
+    <section id="oss">
+      <h2>八、对象存储 OSS 详细配置</h2>
+      <div class="dim">
+        <div class="dim-h">8.1 Bucket 与前缀</div>
+        <div class="dim-body">
+          <table>
+            <thead>
+              <tr><th>环境</th><th>Bucket 示例</th><th>用途</th><th>生命周期</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>DEV</td>
+                <td><code>geoflow-dev-backup</code>（可选）</td>
+                <td>手工包</td>
+                <td>7 天</td>
+              </tr>
+              <tr>
+                <td>TEST/UAT</td>
+                <td><code>geoflow-uat-backup</code></td>
+                <td>日备演练</td>
+                <td>7–14 天</td>
+              </tr>
+              <tr class="hl">
+                <td>生产</td>
+                <td><code>geoflow-prod-backup</code>（异地）</td>
+                <td>强制日备</td>
+                <td>热 7 天 · 冷 30–90 天</td>
+              </tr>
+              <tr>
+                <td>生产媒体</td>
+                <td><code>geoflow-prod-media</code> / 现有 COS</td>
+                <td>上传、Wiki 配图</td>
+                <td>长期；CDN 可选</td>
+              </tr>
+            </tbody>
+          </table>
+          <h3>对象前缀约定</h3>
+          <pre>s3://geoflow-prod-backup/
+  postgres/geo_flow/2026-07-23.dump.gz
+  uploads/2026-07-23.tar.gz
+  wiki/content-wiki-2026-07-23.tar.gz
+  logs/...</pre>
+          <h3>备份频率</h3>
+          <table>
+            <thead><tr><th>数据</th><th>本地路径</th><th>频率</th><th>命令提示</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>PostgreSQL</td>
+                <td><code>docker-data/postgres</code></td>
+                <td>每日 01:30</td>
+                <td><code>pg_dump -Fc geo_flow | gzip</code> → OSS</td>
+              </tr>
+              <tr>
+                <td>上传</td>
+                <td><code>storage/uploads</code></td>
+                <td>每日</td>
+                <td><code>tar czf</code> 增量/全量</td>
+              </tr>
+              <tr>
+                <td>Wiki MDX</td>
+                <td><code>gweb/content/wiki</code></td>
+                <td>每日</td>
+                <td>打包推送；多副本时仍备份 NAS</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="callout ok">
+            生产：本地保留 7 天 + OSS 异地；每季度做一次 PG 恢复演练。Bucket 禁公共读；RAM 子账号最小权限。
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 容器集群 -->
+    <section id="k8s">
+      <h2>九、容器集群详细配置（阶段 B）</h2>
+      <div class="dim">
+        <div class="dim-h">9.1 工作负载副本与资源 <span class="tag prod">非 DEV/TEST</span></div>
+        <div class="dim-body">
+          <table>
+            <thead>
+              <tr><th>Workload</th><th>replicas</th><th>requests</th><th>limits</th><th>备注</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>api</td><td>2</td><td>500m / 512Mi</td><td>1000m / 1Gi</td><td>HPA：CPU 70% → max 4</td></tr>
+              <tr><td>geoflow-admin</td><td>2</td><td>200m / 512Mi</td><td>500m / 768Mi</td><td>无状态</td></tr>
+              <tr><td>gweb</td><td>2</td><td>500m / 768Mi</td><td>1000m / 1Gi</td><td><strong>须挂 NAS Wiki</strong></td></tr>
+              <tr><td>worker-content</td><td>2</td><td>1000m / 1.5Gi</td><td>2000m / 2Gi</td><td>每 Pod concurrency=1–2</td></tr>
+              <tr><td>worker-batch</td><td>1–2</td><td>1000m / 1.5Gi</td><td>2000m / 2Gi</td><td>夜间可扩</td></tr>
+              <tr><td>scheduler（beat）</td><td><strong>1</strong></td><td>100m / 128Mi</td><td>250m / 256Mi</td><td>用 leader 选举或单副本</td></tr>
+            </tbody>
+          </table>
+          <div class="callout info">
+            DEV/TEST/UAT：<strong>不上集群</strong>，继续 Compose，避免环境漂移。
+            集群内不要跑 PG/Redis StatefulSet（除非专职 DBA）；用 RDS + 托管 Redis。
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RocketMQ -->
+    <section id="mq">
+      <h2>十、RocketMQ / 消息队列</h2>
+      <div class="dim">
+        <div class="dim-h">10.1 现行与可选</div>
+        <div class="dim-body">
+          <table>
+            <thead>
+              <tr><th>环境</th><th>方案</th><th>配置要点</th></tr>
+            </thead>
+            <tbody>
+              <tr class="hl">
+                <td>全部（现行）</td>
+                <td><strong>Celery + Redis</strong></td>
+                <td>
+                  Broker db0 · Result db1<br>
+                  队列：<code>celery</code> · <code>geoflow</code> · <code>batch</code><br>
+                  关键任务：<code>process_geoflow_task</code> · <code>evaluate_article</code> ·
+                  <code>process_article_distribution</code> · <code>sync_knowledge_chunks</code> ·
+                  <code>run_monitor_scan</code> 等
+                </td>
+              </tr>
+              <tr>
+                <td>DEV/TEST/UAT</td>
+                <td>不部署 RocketMQ</td>
+                <td>平台清单填写「Redis（Celery）」</td>
+              </tr>
+              <tr>
+                <td>生产（企业强制 MQ 时）</td>
+                <td>可选演进</td>
+                <td>
+                  独立 Topic 建议（若改造）：<br>
+                  <code>GEO_CONTENT_TASK</code> · <code>GEO_EVAL</code> · <code>GEO_DISTRIBUTE</code> ·
+                  <code>GEO_MONITOR_BATCH</code><br>
+                  需单独开发桥接；<strong>同机基线不含</strong>。上线不阻塞。
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="callout warn">
+            不建议 DEV 上 RocketMQ、生产上 Celery 双栈并存。统一以 Redis 队列验收，RocketMQ 仅作二期。
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 环境变量 -->
+    <section id="env">
+      <h2>十一、环境变量配置建议</h2>
+      <div class="grid-2">
+        <div class="card">
+          <h3>GEOFlow · DEV</h3>
+          <pre>AI_MOCK_MODE=true
+DEBUG=true
+GEO_EVAL_ENABLED=true
+GEOFLOW_TECH_BRAND_MODE=true
+GEOFLOW_PUBLIC_SITE_ENABLED=false
+GWEB_BASE_URL=http://gweb:3000
+GWEB_SYNC_ENABLED=true
+GWEB_REVALIDATE_SECRET=dev-only-secret
+EMBEDDING_BATCH_SIZE=1
+JWT_SECRET=dev-change-me
+JWT_EXPIRE_HOURS=24</pre>
+        </div>
+        <div class="card">
+          <h3>GEOFlow · UAT / 生产</h3>
+          <pre>AI_MOCK_MODE=false
+DEBUG=false
+GEO_EVAL_ENABLED=true
+GEO_EVAL_WIKI_GATE_ENABLED=true
+GEO_EVAL_SIMULATION_PASS_SCORE=0.55
+GEO_EVAL_AUDIT_PASS_SCORE=0.60
+GEOFLOW_TECH_BRAND_MODE=true
+GEOFLOW_PUBLIC_SITE_ENABLED=false
+GWEB_BASE_URL=https://tech.example.com
+<span class="c"># 同机内网也可 http://gweb:3000</span>
+GWEB_SYNC_ENABLED=true
+GWEB_REVALIDATE_SECRET=&lt;≥32 字节随机&gt;
+EMBEDDING_BATCH_SIZE=1
+JWT_SECRET=&lt;KMS/强随机&gt;
+JWT_EXPIRE_HOURS=24</pre>
+        </div>
+      </div>
+      <div class="card" style="margin-top:0.65rem;">
+        <h3>Gweb · 各环境</h3>
+        <table>
+          <thead><tr><th>变量</th><th>DEV</th><th>TEST/UAT</th><th>生产</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>NODE_ENV</code></td>
+              <td>development</td>
+              <td>production</td>
+              <td>production</td>
+            </tr>
+            <tr>
+              <td><code>GWEB_REVALIDATE_SECRET</code></td>
+              <td>与 GEOFlow 相同</td>
+              <td>相同 · 非默认</td>
+              <td>相同 · 轮换记录</td>
+            </tr>
+            <tr>
+              <td>数据库</td>
+              <td><code>DATABASE_URL</code> → gweb_db</td>
+              <td>同左</td>
+              <td>RDS 连接串 · SSL 按云要求</td>
+            </tr>
+            <tr>
+              <td>端口</td>
+              <td>3000</td>
+              <td>3000</td>
+              <td>3000（经 Nginx/SLB）</td>
+            </tr>
+          </tbody>
+        </table>
+        <h3>AIVIS 探针（后台 / site_settings）</h3>
+        <table>
+          <thead><tr><th>项</th><th>DEV</th><th>UAT</th><th>生产</th></tr></thead>
+          <tbody>
+            <tr><td><code>monitor_probe_mode</code></td><td>关或 corpus</td><td>api</td><td>api（降级 llm）</td></tr>
+            <tr><td><code>monitor_scan_limit</code></td><td>10</td><td>50–100</td><td>50–500（默认 50）</td></tr>
+            <tr><td><code>monitor_platforms</code></td><td>1–2 个</td><td>全量预演</td><td>6 平台</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 调度 -->
+    <section id="schedule">
+      <h2>十二、调度与错峰（UAT/生产）</h2>
+      <div class="card">
+        <table>
+          <thead><tr><th>时间</th><th>任务</th><th>队列</th><th>约束</th></tr></thead>
+          <tbody>
+            <tr><td>02:00</td><td><code>sync_knowledge_chunks</code>（全量）</td><td>batch</td><td>勿与 Monitor 重叠</td></tr>
+            <tr><td>03:00 周一</td><td>market-scan <code>run_monitor_scan</code></td><td>batch</td><td>—</td></tr>
+            <tr><td>04:00</td><td>daily monitor-scan</td><td>batch</td><td>—</td></tr>
+            <tr><td>04:30</td><td><code>aggregate_monitor_snapshots</code></td><td>batch</td><td>—</td></tr>
+            <tr class="hl"><td>白天</td><td>内容生产 · Wiki sync · 用户操作</td><td>celery/geoflow</td><td>worker-content ≤2</td></tr>
+          </tbody>
+        </table>
+        <div class="callout warn">
+          <strong>禁止同时跑：</strong>Monitor 全量扫描 + 全量向量化 + 多篇并发生成。
+          DEV 用 Mock；TEST 限 <code>monitor_scan_limit</code>；生产靠 Beat 错峰。
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="callout ok">
+        <strong>验收最小集：</strong>
+        健康检查 200 → Wiki sync 落 MDX → RAG chunk 有 <code>embedding_vector</code>（非 Mock）→
+        Monitor 写入 <code>geo_monitor_*</code> → 5432/6379 公网不可达 → 密钥非默认 →
+        峰值（2 篇并发生成 + 批量向量化）内存 &lt; 90%。
+      </div>
+    </section>
+
+    <footer>
+      基于 docs/geoflow-gweb-colocated-deployment.html · GEOFlow v3 + Gweb
+      · 详细配置建议 · 2026-07-23
+      · 相关：geoflow-gweb-infra-environments.html · guide/gweb-integration.md
+    </footer>
+  </div>
+</body>
+</html>

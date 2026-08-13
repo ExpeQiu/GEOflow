@@ -79,12 +79,13 @@ async def run_rag_sandbox(db: AsyncSession, body: RagSandboxBody) -> dict:
     kb = await db.get(KnowledgeBase, body.knowledge_base_id)
     if kb is None:
         raise HTTPException(status_code=404, detail="knowledge_base_not_found")
+    kb_name = kb.name
     svc = KnowledgeRetrievalService(db)
     chunks = await svc.retrieve(body.knowledge_base_id, body.query, limit=body.limit)
     logger.info("rag_sandbox_query kb_id=%s hits=%s", body.knowledge_base_id, len(chunks))
     return {
         "knowledge_base_id": body.knowledge_base_id,
-        "knowledge_base_name": kb.name,
+        "knowledge_base_name": kb_name,
         "query": body.query,
         "hits": chunks,
         "hit_count": len(chunks),

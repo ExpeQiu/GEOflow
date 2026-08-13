@@ -28,30 +28,34 @@ pkill -f "run-worker-watchdog.sh" 2>/dev/null || true
 pkill -f "celery -A app.workers.celery_app worker" 2>/dev/null || true
 rm -f "${GEOFLOW_ADMIN_PID}" "${GEOFLOW_API_PID}" "${GEOFLOW_WORKER_PID}"
 
-if docker ps --format '{{.Names}}' | grep -q "^${PG_NAME}$"; then
-  log "停止 PostgreSQL 容器（保留数据卷）: ${PG_NAME}"
-  docker stop "${PG_NAME}" >/dev/null
-elif docker ps -a --format '{{.Names}}' | grep -q "^${PG_NAME}$"; then
-  log "PostgreSQL 容器已是停止状态: ${PG_NAME}"
+if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  if docker ps --format '{{.Names}}' | grep -q "^${PG_NAME}$"; then
+    log "停止 PostgreSQL 容器（保留数据卷）: ${PG_NAME}"
+    docker stop "${PG_NAME}" >/dev/null
+  elif docker ps -a --format '{{.Names}}' | grep -q "^${PG_NAME}$"; then
+    log "PostgreSQL 容器已是停止状态: ${PG_NAME}"
+  else
+    log "未发现 PostgreSQL 容器 ${PG_NAME}"
+  fi
+
+  if [[ "${PURGE}" == "1" ]]; then
+    log "purge: 移除容器 ${PG_NAME}（volume 默认保留）"
+    docker rm -f "${PG_NAME}" 2>/dev/null || true
+  fi
+
+  if [[ "${WIPE_DB}" == "1" ]]; then
+    err "wipe-db: 删除命名卷 ${PG_VOL}（不可恢复）"
+    docker volume rm "${PG_VOL}" 2>/dev/null || true
+    log "注意: 历史匿名卷 ${PG_LEGACY_VOL:0:12}... 未自动删除；确认无用后再 docker volume rm"
+  fi
+
+  cd "$ROOT"
+  if docker compose ps -q 2>/dev/null | grep -q .; then
+    log "docker compose down（不删 volume）..."
+    docker compose down 2>/dev/null || true
+  fi
 else
-  log "未发现 PostgreSQL 容器 ${PG_NAME}"
-fi
-
-if [[ "${PURGE}" == "1" ]]; then
-  log "purge: 移除容器 ${PG_NAME}（volume 默认保留）"
-  docker rm -f "${PG_NAME}" 2>/dev/null || true
-fi
-
-if [[ "${WIPE_DB}" == "1" ]]; then
-  err "wipe-db: 删除命名卷 ${PG_VOL}（不可恢复）"
-  docker volume rm "${PG_VOL}" 2>/dev/null || true
-  log "注意: 历史匿名卷 ${PG_LEGACY_VOL:0:12}... 未自动删除；确认无用后再 docker volume rm"
-fi
-
-cd "$ROOT"
-if docker compose ps -q 2>/dev/null | grep -q .; then
-  log "docker compose down（不删 volume）..."
-  docker compose down 2>/dev/null || true
+  log "Docker 未运行，跳过容器停止（宿主机 Postgres/Redis 保持原样）"
 fi
 
 log "GEOFlow v3 已停止"

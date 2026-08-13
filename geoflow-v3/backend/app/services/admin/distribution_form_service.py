@@ -14,14 +14,14 @@ from app.models.distribution import DistributionChannel
 
 logger = logging.getLogger(__name__)
 
-CHANNEL_TYPES = ("geoflow_agent", "gweb_wiki", "wordpress_rest", "generic_http_api")
+CHANNEL_TYPES = ("geoflow_agent", "geoweb", "wordpress_rest", "generic_http_api")
 
 
 class AdminDistributionCreateBody(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     domain: str = Field(min_length=1, max_length=255)
     endpoint_url: str = Field(min_length=1, max_length=500)
-    channel_type: str = Field(default="geoflow_agent")
+    channel_type: str = Field(default="geoweb")
     front_mode: str = Field(default="static", pattern="^(static|rewrite)$")
     template_key: str = ""
     status: str = Field(default="active", pattern="^(active|paused)$")
@@ -44,22 +44,25 @@ class AdminDistributionCreateBody(BaseModel):
     generic_remote_id_path: str = "id"
     generic_remote_url_path: str = "url"
     generic_payload_wrapper: str = Field(default="none", pattern="^(none|data)$")
-    gweb_sync_secret: str = ""
-    gweb_timeout_seconds: int = Field(default=30, ge=5, le=120)
-    gweb_route_prefix: str = ""
+    geoweb_sync_token: str = ""
+    geoweb_timeout_seconds: int = Field(default=30, ge=5, le=120)
+    geoweb_default_page_type: str = Field(default="article")
 
 
 def build_distribution_form_options() -> dict[str, Any]:
     settings = get_settings()
-    default_type = "gweb_wiki" if settings.geoflow_tech_brand_mode else "geoflow_agent"
+    default_type = "geoweb" if settings.geoflow_tech_brand_mode else "geoflow_agent"
     return {
         "default_channel_type": default_type,
         "channel_types": list(CHANNEL_TYPES),
         "tech_brand_mode": settings.geoflow_tech_brand_mode,
+        "default_geoweb_base_url": (settings.geoweb_base_url or "").rstrip("/"),
     }
 
 
 async def create_admin_distribution_channel(db: AsyncSession, body: AdminDistributionCreateBody) -> dict:
+    if body.channel_type == "gweb_wiki":
+        raise HTTPException(status_code=422, detail="gweb_wiki_removed_use_geoweb")
     if body.channel_type not in CHANNEL_TYPES:
         raise HTTPException(status_code=422, detail="invalid_channel_type")
 
@@ -113,8 +116,8 @@ def _validate_type_specific(body: AdminDistributionCreateBody) -> None:
             raise HTTPException(status_code=422, detail="wordpress_username_required")
         if not body.wordpress_application_password.strip():
             raise HTTPException(status_code=422, detail="wordpress_password_required")
-    if body.channel_type == "gweb_wiki" and not body.gweb_sync_secret.strip():
-        raise HTTPException(status_code=422, detail="gweb_sync_secret_required")
+    if body.channel_type == "geoweb" and not body.geoweb_sync_token.strip():
+        raise HTTPException(status_code=422, detail="geoweb_sync_token_required")
     if body.channel_type == "generic_http_api":
         if body.generic_auth_type == "basic" and not body.generic_basic_username.strip():
             raise HTTPException(status_code=422, detail="generic_basic_username_required")
@@ -125,16 +128,14 @@ def _validate_type_specific(body: AdminDistributionCreateBody) -> None:
 
 
 def _build_type_config(body: AdminDistributionCreateBody, endpoint_url: str) -> dict[str, Any]:
-    if body.channel_type == "gweb_wiki":
-        cfg: dict[str, Any] = {
-            "gweb_base_url": endpoint_url.rstrip("/"),
-            "gweb_sync_secret": body.gweb_sync_secret.strip(),
-            "gweb_timeout_seconds": body.gweb_timeout_seconds,
+    if body.channel_type == "geoweb":
+        page_type = (body.geoweb_default_page_type or "article").strip() or "article"
+        return {
+            "geoweb_base_url": endpoint_url.rstrip("/"),
+            "geoweb_sync_token": body.geoweb_sync_token.strip(),
+            "geoweb_timeout_seconds": body.geoweb_timeout_seconds,
+            "default_page_type": page_type,
         }
-        prefix = body.gweb_route_prefix.strip()
-        if prefix:
-            cfg["route_prefix"] = prefix
-        return cfg
     if body.channel_type == "wordpress_rest":
         return {
             "wordpress_username": body.wordpress_username.strip(),
@@ -183,7 +184,5 @@ def _normalize_endpoint_url(endpoint_url: str) -> str:
 
 
 def _is_valid_http_endpoint(endpoint_url: str) -> bool:
-    if not endpoint_url or re.search(r"\s", endpoint_url):
-        return False
     parsed = urlparse(endpoint_url)
     return parsed.scheme in ("http", "https") and bool(parsed.netloc)

@@ -81,7 +81,9 @@ def test_rank_fixtures_list_order_accuracy():
         ):
             ok += 1
     accuracy = ok / len(rows)
-    assert accuracy >= 0.8, f"list_order accuracy {accuracy:.2%} < 80% ({ok}/{len(rows)})"
+    # 对齐 probe_fixture_min_list_acc 默认 0.8（CI 不读 DB，避免耦合）
+    min_acc = float(__import__("os").environ.get("PROBE_FIXTURE_MIN_LIST_ACC", "0.8"))
+    assert accuracy >= min_acc, f"list_order accuracy {accuracy:.2%} < {min_acc:.0%} ({ok}/{len(rows)})"
 
 
 def test_rank_fixtures_first_mention():
