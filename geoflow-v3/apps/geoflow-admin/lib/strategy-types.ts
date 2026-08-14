@@ -133,6 +133,8 @@ export type GapRemediation = {
   id: number;
   scene_id: number;
   task_id: number | null;
+  theme_id?: number | null;
+  theme_title?: string;
   status: string;
   gap_rate_at_create: number;
   baseline_visibility_pct: number | null;
@@ -329,6 +331,33 @@ export type EvalFailureRow = {
 
 export type FailureTopN = { failure_reason: string; total: number };
 
+/** 虚拟 GEO 仿真：采纳/检索概率结果 */
+export type SimulateResult = {
+  query: string;
+  kb_id?: number | null;
+  retrieved_count?: number;
+  retrieval_score?: number;
+  overlap_score?: number;
+  article_in_retrieval?: boolean;
+  simulated_answer?: string;
+  confidence?: number;
+  simulation_score: number;
+  adoption_probability?: number;
+  retrieval_probability?: number;
+  in_context_probability?: number;
+  engine?: string;
+  pass_threshold?: number;
+  passes_threshold?: boolean;
+  probability_pct?: number;
+  breakdown?: {
+    retrieval: number;
+    overlap: number;
+    confidence: number;
+    in_context: number;
+    adoption: number;
+  };
+};
+
 export type AnalyticsSnapshot = {
   total_articles: number;
   published_articles: number;
@@ -474,6 +503,8 @@ export type ProbeCitation = {
   url: string;
   position: number;
   domain?: string;
+  evidence_level?: string;
+  source?: string;
 };
 
 export type QueryProbe = {
@@ -487,6 +518,16 @@ export type QueryProbe = {
   snippet_preview: string;
   citations: ProbeCitation[];
   citation_count: number;
+  engine?: string | null;
+  thinking_text?: string | null;
+  thinking_ms?: number | null;
+  keywords?: string[];
+  rank_blocks?: Array<Record<string, unknown>>;
+  decision_table?: Array<Record<string, unknown>>;
+  source_hosts?: string[];
+  evidence_level?: string | null;
+  metric_kind?: string | null;
+  capture_artifact?: string | null;
 };
 
 export type CitationChainQuery = {
@@ -559,9 +600,71 @@ export type ProductPanel = {
 
 export type OptimizationPanel = {
   market_opportunity: { monthly_search_volume: number; ai_platform_mau: number; summary: string };
-  platform_recommendations: Array<{ platform: string; label: string; score: number; visibility_pct: number }>;
-  priority_scenes: Array<{ scene_name: string; gap_rate: number; gap_priority: string; weight_pct?: number }>;
+  platform_recommendations: Array<{
+    platform: string;
+    label: string;
+    score: number;
+    visibility_pct: number;
+    top3_pct?: number | null;
+    sample_n?: number;
+    weighted_rank_score?: number | null;
+    sentiment_score?: number | null;
+    reason?: string;
+  }>;
+  priority_scenes: Array<{
+    scene_id?: number | null;
+    scene_name: string;
+    persona?: string | null;
+    intent?: string | null;
+    gap_rate: number;
+    gap_priority: string;
+    weight_pct?: number;
+    question_count?: number | null;
+    supported_count?: number | null;
+    unsupported_sample?: Array<{ id: number; question_text: string }>;
+  }>;
   insights: MonitorInsight[];
+  north_star?: {
+    top3_pct?: number | null;
+    gap_vs_leader_top3_pp?: number | null;
+    mention_rate_pct?: number | null;
+    valid_sample_n?: number | null;
+    probe_count?: number;
+    kpi_track?: string;
+  };
+  readiness?: {
+    question_count: number;
+    scene_count: number;
+    probe_count: number;
+    competitor_count: number;
+    high_gap_count?: number;
+    has_scan: boolean;
+    ready: boolean;
+    blockers: string[];
+    summary: string;
+  };
+  actions?: Array<{
+    id: string;
+    priority: "high" | "medium" | "low" | string;
+    title: string;
+    body: string;
+    href: string;
+    cta: string;
+    scene_id?: number | null;
+  }>;
+  difficulty?: {
+    overall_score?: number;
+    overall_label?: string;
+    market_competition?: { score: number; label: string; description: string };
+    entity_foundation?: { score: number; label: string; description: string };
+    lift_needed_pct?: number | null;
+  };
+  competitor_gap?: {
+    gap_vs_leader?: number | null;
+    self_visibility_pct?: number | null;
+    competitors?: string[];
+    lift_needed_pct?: number | null;
+  };
 };
 
 export type DifficultyPanel = {

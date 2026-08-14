@@ -136,9 +136,11 @@ async def build_geo_eval_panel(db: AsyncSession) -> dict:
 
 async def build_analytics_panel(db: AsyncSession) -> dict:
     from app.services.admin.monitor_aivis_service import list_monitor_insights, list_monitor_snapshots
+    from app.services.geoeval.theme_service import analytics_by_theme
 
     snapshot = await _analytics_snapshot(db)
     trend = await _publication_trend(db, days=7)
+    theme_analytics = await analytics_by_theme(db)
     return {
         "snapshot": snapshot,
         "publication_trend": trend,
@@ -147,6 +149,7 @@ async def build_analytics_panel(db: AsyncSession) -> dict:
         "top_articles": await _top_articles(db),
         "insights": (await list_monitor_insights(db)).get("items", []),
         "visibility_trends": (await list_monitor_snapshots(db, 30)).get("items", []),
+        "themes": theme_analytics.get("items", []),
     }
 
 

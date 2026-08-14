@@ -1,7 +1,7 @@
 """GEO 模拟 RAG — 检索语料 + LLM 模拟回答。"""
 
 import logging
-import re
+from types import SimpleNamespace
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -99,8 +99,9 @@ class SimulationRagService:
         *,
         kb_id: int | None,
         model: AiModel | None,
+        query_override: str | None = None,
     ) -> dict:
-        query = build_eval_query(article)
+        query = (query_override or "").strip()[:200] or build_eval_query(article)
         chunks: list[dict] = []
 
         if kb_id:
@@ -148,6 +149,9 @@ class SimulationRagService:
             "simulated_answer": str(llm_result.get("answer") or "")[:600],
             "confidence": confidence,
             "simulation_score": simulation_score,
+            "adoption_probability": simulation_score,
+            "retrieval_probability": retrieval_score,
+            "in_context_probability": 1.0 if in_retrieval else overlap_score,
             "engine": engine,
             "model": model_meta or None,
             "chunks_preview": [
@@ -157,9 +161,43 @@ class SimulationRagService:
         }
         logger.info(
             "geo_eval_simulation article_id=%s engine=%s score=%s retrieval=%s",
-            article.id,
+            getattr(article, "id", 0),
             engine,
             simulation_score,
             retrieval_score,
+        )
+        return result
+
+    async def simulate_draft(
+        self,
+        *,
+        title: str,
+        content: str,
+        query: str | None = None,
+        keyword: str | None = None,
+        kb_id: int | None = None,
+        model: AiModel | None = None,
+    ) -> dict:
+        """对草稿内容跑虚拟 GEO 环境仿真，不落库。"""
+        article = SimpleNamespace(
+            id=0,
+            title=(title or "").strip() or "未命名草稿",
+            content=(content or "").strip(),
+            original_keyword=(keyword or "").strip() or None,
+            keywords=(keyword or "").strip() or None,
+            meta_description="",
+            excerpt="",
+        )
+        result = await self.simulate(
+            article,  # type: ignore[arg-type]
+            kb_id=kb_id,
+            model=model,
+            query_override=(query or "").strip() or None,
+        )
+        logger.info(
+            "geo_eval_simulation_draft title_len=%s content_len=%s score=%s",
+            len(title or ""),
+            len(content or ""),
+            result.get("simulation_score"),
         )
         return result

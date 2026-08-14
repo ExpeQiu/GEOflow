@@ -13,11 +13,15 @@ import { KnowledgePanel } from "@/components/production/KnowledgePanel";
 import { KnowledgeSubNav } from "@/components/production/KnowledgeSubNav";
 import { MaterialsPanel } from "@/components/production/MaterialsPanel";
 import { ProductionOverview, type KnowledgeHealth } from "@/components/production/ProductionOverview";
+import { TasksPanel } from "@/components/operations/TasksPanel";
+import { ThemesPanel } from "@/components/themes/ThemesPanel";
 import { GeoEvalPanel } from "@/components/strategy/GeoEvalPanel";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
-import { apiGet, apiPost, apiPut, getToken } from "@/lib/api-client";
+import { useTaskWebSocket } from "@/hooks/use-task-websocket";
+import { apiDelete, apiGet, apiPost, apiPut, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
 import { PRODUCTION_NAV } from "@/lib/nav-config";
+import type { AdminTask } from "@/lib/operations-types";
 import type {
   AiStats,
   KnowledgeItem,
@@ -33,6 +37,7 @@ import type {
   GeoAlert,
   GeoEvalSummary,
   ProbeStandardsConfig,
+  SimulateResult,
 } from "@/lib/strategy-types";
 
 export default function ProductionPage() {
@@ -44,6 +49,8 @@ export default function ProductionPage() {
   const [orchestration, setOrchestration] = useState<OrchestrationStats | null>(null);
   const [workflowCatalog, setWorkflowCatalog] = useState<WorkflowCatalog | null>(null);
   const [assets, setAssets] = useState<TechAsset[]>([]);
+  const [tasks, setTasks] = useState<AdminTask[]>([]);
+  const [themeFilter, setThemeFilter] = useState("");
   const [yamlText, setYamlText] = useState("");
   const [yamlFlash, setYamlFlash] = useState("");
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -57,6 +64,7 @@ export default function ProductionPage() {
   const [recentFailures, setRecentFailures] = useState<EvalFailureRow[]>([]);
   const [geoAlerts, setGeoAlerts] = useState<GeoAlert[]>([]);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [simulating, setSimulating] = useState(false);
 
   const reload = useCallback(async () => {
     const t = getToken();
@@ -110,17 +118,77 @@ export default function ProductionPage() {
       } else if (tab === "tech-assets") {
         const data = await apiGet<{ items: TechAsset[] }>("/api/admin/tech-assets", t);
         setAssets(data.items);
+      } else if (tab === "tasks") {
+        const qs = themeFilter ? `?theme_id=${encodeURIComponent(themeFilter)}` : "";
+        const data = await apiGet<{ tasks: AdminTask[] }>(`/api/admin/tasks${qs}`, t);
+        setTasks(data.tasks);
       }
     } catch {
       setFlash({ variant: "error", message: "加载失败，请刷新重试" });
     } finally {
       setLoading(false);
     }
-  }, [tab]);
+  }, [tab, themeFilter]);
 
   useEffect(() => {
     if (token) reload();
   }, [token, reload]);
+
+  useTaskWebSocket(() => {
+    const t = getToken();
+    if (t && tab === "tasks") {
+      const qs = themeFilter ? `?theme_id=${encodeURIComponent(themeFilter)}` : "";
+      apiGet<{ tasks: AdminTask[] }>(`/api/admin/tasks${qs}`, t).then((data) => setTasks(data.tasks)).catch(() => undefined);
+    }
+  });
+
+  async function runTaskAction(id: number, action: "start" | "stop" | "enqueue") {
+    const t = getToken();
+    if (!t) return;
+    setBusyId(id);
+    try {
+      await apiPost(`/api/admin/tasks/${id}/${action === "enqueue" ? "enqueue" : action}`, t);
+      setFlash({ variant: "success", message: `任务 #${id} 操作成功` });
+      const qs = themeFilter ? `?theme_id=${encodeURIComponent(themeFilter)}` : "";
+      const data = await apiGet<{ tasks: AdminTask[] }>(`/api/admin/tasks${qs}`, t);
+      setTasks(data.tasks);
+    } catch {
+      setFlash({ variant: "error", message: `任务 #${id} 操作失败` });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function deleteTask(id: number) {
+    const t = getToken();
+    if (!t || !confirm(`确认删除任务 #${id}？`)) return;
+    setBusyId(id);
+    try {
+      await apiDelete(`/api/admin/tasks/${id}`, t);
+      setFlash({ variant: "success", message: `任务 #${id} 已删除` });
+      const qs = themeFilter ? `?theme_id=${encodeURIComponent(themeFilter)}` : "";
+      const data = await apiGet<{ tasks: AdminTask[] }>(`/api/admin/tasks${qs}`, t);
+      setTasks(data.tasks);
+    } catch {
+      setFlash({ variant: "error", message: `任务 #${id} 删除失败` });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function batchStartTasks(ids: number[]) {
+    const t = getToken();
+    if (!t || ids.length === 0) return;
+    try {
+      const res = await apiPost<{ started: number }>("/api/admin/tasks/batch/start", t, { ids });
+      setFlash({ variant: "success", message: `已启动 ${res.started} 个任务` });
+      const qs = themeFilter ? `?theme_id=${encodeURIComponent(themeFilter)}` : "";
+      const data = await apiGet<{ tasks: AdminTask[] }>(`/api/admin/tasks${qs}`, t);
+      setTasks(data.tasks);
+    } catch {
+      setFlash({ variant: "error", message: "批量启动失败" });
+    }
+  }
 
   async function syncKb(kbId: number) {
     const t = getToken();
@@ -224,18 +292,51 @@ export default function ProductionPage() {
     }
   }
 
+  async function simulateDraft(payload: {
+    title: string;
+    content: string;
+    query?: string;
+    keyword?: string;
+    article_id?: number;
+  }): Promise<SimulateResult> {
+    const t = getToken();
+    if (!t) throw new Error("unauthorized");
+    setSimulating(true);
+    try {
+      const data = await apiPost<SimulateResult>("/api/admin/strategy/geo-eval/simulate", t, payload);
+      setFlash({
+        variant: "success",
+        message: `仿真完成：采纳概率 ${data.probability_pct ?? Math.round((data.adoption_probability ?? data.simulation_score) * 1000) / 10}%`,
+      });
+      return data;
+    } catch (err) {
+      setFlash({ variant: "error", message: "仿真失败" });
+      throw err;
+    } finally {
+      setSimulating(false);
+    }
+  }
+
   const headerTitle =
     tab === "geo-eval"
       ? zh.production.tabs["geo-eval"]
-      : tab === "knowledge" || tab === "tech-assets"
-        ? zh.production.tabs.knowledge
-        : zh.production.hubTitle;
+      : tab === "themes"
+        ? zh.production.tabs.themes
+        : tab === "tasks"
+          ? zh.production.tabs.tasks
+          : tab === "knowledge" || tab === "tech-assets"
+            ? zh.production.tabs.knowledge
+            : zh.production.hubTitle;
   const headerSubtitle =
     tab === "geo-eval"
       ? zh.strategy.geoEval.dualTrackTitle
-      : tab === "knowledge" || tab === "tech-assets"
-        ? zh.production.knowledge.hubDesc
-        : zh.production.hubSubtitle;
+        : tab === "themes"
+        ? "挖掘摘要确认 → 主题包规格 → 复合内容与门禁"
+        : tab === "tasks"
+          ? "配置模型与素材，自动生成内容；可按 Theme 筛选"
+          : tab === "knowledge" || tab === "tech-assets"
+            ? zh.production.knowledge.hubDesc
+            : zh.production.hubSubtitle;
 
   return (
     <div>
@@ -246,12 +347,29 @@ export default function ProductionPage() {
 
       {flash && <FlashAlert variant={flash.variant === "success" ? "success" : "error"}>{flash.message}</FlashAlert>}
       {loading && tab === "overview" && !stats && <FlashAlert variant="info">{zh.common.loading}</FlashAlert>}
-      {loading && (tab === "knowledge" || tab === "ai_config" || tab === "geo-eval") && (
+      {loading && (tab === "knowledge" || tab === "ai_config" || tab === "geo-eval" || tab === "tasks") && (
         <FlashAlert variant="info">{zh.common.loading}</FlashAlert>
       )}
 
       {tab === "overview" && stats && aiStats && (
         <ProductionOverview stats={stats} aiStats={aiStats} knowledgeHealth={knowledgeHealth} />
+      )}
+
+      {tab === "themes" && <ThemesPanel />}
+
+      {tab === "tasks" && (
+        <TasksPanel
+          tasks={tasks}
+          busyId={busyId}
+          basePath="/production/tasks"
+          themeFilter={themeFilter}
+          onThemeFilterChange={setThemeFilter}
+          onStart={(id) => runTaskAction(id, "start")}
+          onStop={(id) => runTaskAction(id, "stop")}
+          onEnqueue={(id) => runTaskAction(id, "enqueue")}
+          onDelete={deleteTask}
+          onBatchStart={batchStartTasks}
+        />
       )}
 
       {tab === "materials" && stats && <MaterialsPanel stats={stats} />}
@@ -280,8 +398,10 @@ export default function ProductionPage() {
           onBatchReevaluate={batchReevaluate}
           onSaveGate={saveGate}
           onSaveProbeStandards={saveProbeStandards}
+          onSimulate={simulateDraft}
           busyId={busyId}
           saving={savingSettings}
+          simulating={simulating}
         />
       )}
 

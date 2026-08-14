@@ -31,29 +31,48 @@ def _domain(url: str) -> str:
 async def _load_citations_for_probes(db: AsyncSession, probe_ids: list[int]) -> dict[int, list[dict]]:
     if not probe_ids or not await _table_exists(db, "geo_monitor_probe_citations"):
         return {}
-    rows = (
-        await db.execute(
-            text(
-                f"""
-                SELECT id, probe_result_id, title, url, position
-                FROM geo_monitor_probe_citations
-                WHERE probe_result_id IN ({",".join(str(i) for i in probe_ids)})
-                ORDER BY probe_result_id, position ASC, id ASC
-                """
-            ),
-        )
-    ).all()
+    try:
+        rows = (
+            await db.execute(
+                text(
+                    f"""
+                    SELECT id, probe_result_id, title, url, position, evidence_level, source
+                    FROM geo_monitor_probe_citations
+                    WHERE probe_result_id IN ({",".join(str(i) for i in probe_ids)})
+                    ORDER BY probe_result_id, position ASC, id ASC
+                    """
+                ),
+            )
+        ).all()
+        extended = True
+    except Exception:
+        rows = (
+            await db.execute(
+                text(
+                    f"""
+                    SELECT id, probe_result_id, title, url, position
+                    FROM geo_monitor_probe_citations
+                    WHERE probe_result_id IN ({",".join(str(i) for i in probe_ids)})
+                    ORDER BY probe_result_id, position ASC, id ASC
+                    """
+                ),
+            )
+        ).all()
+        extended = False
     grouped: dict[int, list[dict]] = {}
-    for cid, pid, title, url, pos in rows:
-        grouped.setdefault(int(pid), []).append(
-            {
-                "id": int(cid),
-                "title": str(title or ""),
-                "url": str(url or ""),
-                "position": int(pos or 0),
-                "domain": _domain(str(url or "")),
-            }
-        )
+    for row in rows:
+        cid, pid, title, url, pos = row[0], row[1], row[2], row[3], row[4]
+        item = {
+            "id": int(cid),
+            "title": str(title or ""),
+            "url": str(url or ""),
+            "position": int(pos or 0),
+            "domain": _domain(str(url or "")),
+        }
+        if extended and len(row) > 6:
+            item["evidence_level"] = str(row[5] or "L0")
+            item["source"] = str(row[6] or "unknown")
+        grouped.setdefault(int(pid), []).append(item)
     return grouped
 
 
@@ -80,27 +99,67 @@ async def get_question_citation_detail(db: AsyncSession, question_id: int) -> di
 
     probes: list[dict] = []
     if await _table_exists(db, "geo_monitor_probe_results"):
-        probe_rows = (
-            await db.execute(
-                text(
-                    """
-                    SELECT id, platform, brand_rank, mentioned, snippet, ranking_score
-                    FROM geo_monitor_probe_results
-                    WHERE question_id = :qid
-                    ORDER BY platform
-                    """
-                ),
-                {"qid": question_id},
-            )
-        ).all()
+        try:
+            probe_rows = (
+                await db.execute(
+                    text(
+                        """
+                        SELECT id, platform, brand_rank, mentioned, snippet, ranking_score,
+                               engine, thinking_text, thinking_ms, keywords, rank_blocks,
+                               decision_table, source_hosts, evidence_level, metric_kind, capture_artifact
+                        FROM geo_monitor_probe_results
+                        WHERE question_id = :qid
+                        ORDER BY id DESC
+                        """
+                    ),
+                    {"qid": question_id},
+                )
+            ).all()
+        except Exception:
+            probe_rows = (
+                await db.execute(
+                    text(
+                        """
+                        SELECT id, platform, brand_rank, mentioned, snippet, ranking_score
+                        FROM geo_monitor_probe_results
+                        WHERE question_id = :qid
+                        ORDER BY id DESC
+                        """
+                    ),
+                    {"qid": question_id},
+                )
+            ).all()
+        # 每平台取最新一条
+        latest_by_plat: dict[str, tuple] = {}
+        for r in probe_rows:
+            plat = str(r[1])
+            if plat not in latest_by_plat:
+                latest_by_plat[plat] = r
+        probe_rows = list(latest_by_plat.values())
         cite_map = await _load_citations_for_probes(db, [int(r[0]) for r in probe_rows])
-        for pid, platform, rank, mentioned, snippet, ranking_score in probe_rows:
-            citations = cite_map.get(int(pid), [])
+        for row in probe_rows:
+            pid = int(row[0])
+            platform = str(row[1])
+            rank = row[2]
+            mentioned = row[3]
+            snippet = row[4]
+            ranking_score = row[5]
+            engine = row[6] if len(row) > 6 else None
+            thinking_text = row[7] if len(row) > 7 else None
+            thinking_ms = row[8] if len(row) > 8 else None
+            keywords = row[9] if len(row) > 9 else []
+            rank_blocks = row[10] if len(row) > 10 else []
+            decision_table = row[11] if len(row) > 11 else []
+            source_hosts = row[12] if len(row) > 12 else []
+            evidence_level = row[13] if len(row) > 13 else None
+            metric_kind = row[14] if len(row) > 14 else None
+            capture_artifact = row[15] if len(row) > 15 else None
+            citations = cite_map.get(pid, [])
             probes.append(
                 {
-                    "probe_id": int(pid),
-                    "platform": str(platform),
-                    "label": PLATFORM_LABELS.get(str(platform), str(platform)),
+                    "probe_id": pid,
+                    "platform": platform,
+                    "label": PLATFORM_LABELS.get(platform, platform),
                     "mentioned": bool(mentioned),
                     "brand_rank": int(rank) if rank is not None else None,
                     "ranking_score": float(ranking_score) if ranking_score is not None else None,
@@ -108,6 +167,16 @@ async def get_question_citation_detail(db: AsyncSession, question_id: int) -> di
                     "snippet_preview": (str(snippet or "")[:280] + "…") if len(str(snippet or "")) > 280 else str(snippet or ""),
                     "citations": citations,
                     "citation_count": len(citations),
+                    "engine": engine,
+                    "thinking_text": thinking_text,
+                    "thinking_ms": thinking_ms,
+                    "keywords": keywords or [],
+                    "rank_blocks": rank_blocks or [],
+                    "decision_table": decision_table or [],
+                    "source_hosts": source_hosts or [],
+                    "evidence_level": evidence_level,
+                    "metric_kind": metric_kind,
+                    "capture_artifact": capture_artifact,
                 }
             )
 

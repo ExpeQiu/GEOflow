@@ -174,7 +174,7 @@ export function StrategyOverview({
           <Link href="/production/tech-assets" className="text-blue-600 hover:underline">
             技术 IP 资产
           </Link>
-          <Link href="/operations/tasks" className="text-blue-600 hover:underline">
+          <Link href="/production/tasks" className="text-blue-600 hover:underline">
             创建 Wiki 任务
           </Link>
           <span className="text-xs text-gray-400">分析文章 {analytics.total_articles}</span>

@@ -8,12 +8,10 @@ import { DashboardNavigationLanes } from "@/components/admin/DashboardAutomation
 import { DashboardHealthCards } from "@/components/admin/DashboardSections";
 import { FlashAlert } from "@/components/admin/FlashAlert";
 import { LayerCards } from "@/components/admin/LayerCards";
-import { AnalyticsPanel } from "@/components/strategy/AnalyticsPanel";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiGet, getToken } from "@/lib/api-client";
 import type { DashboardPayload } from "@/lib/dashboard-types";
 import { zh } from "@/lib/i18n/zh";
-import type { AnalyticsSnapshot, MonitorInsight, MonitorSnapshot, TrendPoint } from "@/lib/strategy-types";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -22,13 +20,6 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [welcomeDismissed, setWelcomeDismissed] = useState(true);
-  const [analyticsSnap, setAnalyticsSnap] = useState<AnalyticsSnapshot | null>(null);
-  const [publicationTrend, setPublicationTrend] = useState<TrendPoint[]>([]);
-  const [taskHealth, setTaskHealth] = useState({ running: 0, pending: 0, failed: 0 });
-  const [aiUsage, setAiUsage] = useState({ used_today: 0, total_used: 0, active_models: 0 });
-  const [topArticles, setTopArticles] = useState<{ id: number; title: string; view_count: number; status: string }[]>([]);
-  const [analyticsInsights, setAnalyticsInsights] = useState<MonitorInsight[]>([]);
-  const [visibilityTrends, setVisibilityTrends] = useState<MonitorSnapshot[]>([]);
 
   useEffect(() => {
     setWelcomeDismissed(localStorage.getItem("gf_welcome_dismissed") === "1");
@@ -40,26 +31,8 @@ export default function DashboardPage() {
     setLoading(true);
     setError("");
     try {
-      const [payload, analytics] = await Promise.all([
-        apiGet<DashboardPayload>("/api/admin/dashboard", t),
-        apiGet<{
-          snapshot: AnalyticsSnapshot;
-          publication_trend: TrendPoint[];
-          task_health: { running: number; pending: number; failed: number };
-          ai_usage: { used_today: number; total_used: number; active_models: number };
-          top_articles: { id: number; title: string; view_count: number; status: string }[];
-          insights?: MonitorInsight[];
-          visibility_trends?: MonitorSnapshot[];
-        }>("/api/admin/strategy/analytics", t),
-      ]);
+      const payload = await apiGet<DashboardPayload>("/api/admin/dashboard", t);
       setData(payload);
-      setAnalyticsSnap(analytics.snapshot);
-      setPublicationTrend(analytics.publication_trend);
-      setTaskHealth(analytics.task_health);
-      setAiUsage(analytics.ai_usage);
-      setTopArticles(analytics.top_articles);
-      setAnalyticsInsights(analytics.insights ?? []);
-      setVisibilityTrends(analytics.visibility_trends ?? []);
     } catch {
       setError("无法加载仪表盘数据");
       router.push("/login");
@@ -91,7 +64,7 @@ export default function DashboardPage() {
             {zh.dashboard.refresh}
           </button>
           <Link
-            href="/operations/tasks/new"
+            href="/production/tasks/new"
             className="inline-flex h-10 items-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
           >
             <Plus className="mr-2 h-4 w-4" />
@@ -121,19 +94,57 @@ export default function DashboardPage() {
 
       <LayerCards />
 
-      {analyticsSnap && (
-        <div className="mb-8">
-          <AnalyticsPanel
-            snapshot={analyticsSnap}
-            publicationTrend={publicationTrend}
-            taskHealth={taskHealth}
-            aiUsage={aiUsage}
-            topArticles={topArticles}
-            insights={analyticsInsights}
-            visibilityTrends={visibilityTrends}
-          />
+      {data?.theme_funnel && (
+        <div className="mb-8 rounded-lg border border-violet-100 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">Theme 主题漏斗</h2>
+              <p className="mt-1 text-sm text-gray-600">草稿 → 生产 → 门禁 → 发布 → 测量（主叙事）</p>
+            </div>
+            <Link href="/production/themes" className="text-sm font-medium text-violet-700 hover:underline">
+              管理主题包 →
+            </Link>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              { label: "草稿", value: data.theme_funnel.draft },
+              { label: "生产中", value: data.theme_funnel.producing },
+              { label: "已发布", value: data.theme_funnel.published },
+              { label: "测量中", value: data.theme_funnel.measuring },
+            ].map((c) => (
+              <div key={c.label} className="rounded-lg bg-violet-50 px-3 py-3 text-center">
+                <div className="text-2xl font-semibold text-violet-900">{c.value}</div>
+                <div className="text-xs text-violet-700">{c.label}</div>
+              </div>
+            ))}
+          </div>
+          {(data.theme_funnel.blockers || []).length > 0 && (
+            <ul className="mt-3 space-y-1 text-sm text-amber-800">
+              {data.theme_funnel.blockers.map((b) => (
+                <li key={b.code}>
+                  阻塞：{b.code}
+                  {b.hint ? (
+                    <>
+                      {" · "}
+                      <Link href={b.hint} className="underline">
+                        去处理
+                      </Link>
+                    </>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
+
+      <div className="mb-8 rounded-lg border border-blue-100 bg-white p-5 shadow-sm">
+        <h2 className="text-base font-semibold text-gray-900">运营数据</h2>
+        <p className="mt-1 text-sm text-gray-600">文章产量、访问、任务队列与可见性趋势已迁至「运营与分发」。</p>
+        <Link href="/operations/analytics" className="mt-3 inline-block text-sm font-medium text-blue-700 hover:underline">
+          打开运营数据 →
+        </Link>
+      </div>
 
       {data && (
         <>

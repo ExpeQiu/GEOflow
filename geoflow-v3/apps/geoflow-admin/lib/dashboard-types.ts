@@ -82,6 +82,16 @@ export type DashboardPayload = {
     today_views: number;
   };
   automation: DashboardAutomationPayload;
+  theme_funnel?: {
+    by_status: Record<string, number>;
+    total: number;
+    blockers: Array<{ code: string; hint?: string; count?: number }>;
+    draft: number;
+    producing: number;
+    published: number;
+    measuring: number;
+    gate_passed?: number;
+  };
 };
 
 export type SiteSettingsPayload = {

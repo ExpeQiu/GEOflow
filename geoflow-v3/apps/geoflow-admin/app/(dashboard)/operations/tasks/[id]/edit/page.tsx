@@ -1,12 +1,10 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { useParams } from "next/navigation";
-import { TaskCreateForm } from "@/components/operations/TaskCreateForm";
-import { useAuthGuard } from "@/hooks/use-auth-guard";
-
-export default function TaskEditPage() {
-  const token = useAuthGuard();
-  const { id } = useParams<{ id: string }>();
-  if (!token) return null;
-  return <TaskCreateForm taskId={Number(id)} />;
+export default async function OperationsTaskEditRedirect({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  redirect(`/production/tasks/${id}/edit`);
 }

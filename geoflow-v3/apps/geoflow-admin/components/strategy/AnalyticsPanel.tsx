@@ -15,6 +15,7 @@ export function AnalyticsPanel({
   topArticles,
   insights = [],
   visibilityTrends = [],
+  themes = [],
 }: {
   snapshot: AnalyticsSnapshot;
   publicationTrend: TrendPoint[];
@@ -23,6 +24,14 @@ export function AnalyticsPanel({
   topArticles: { id: number; title: string; view_count: number; status: string }[];
   insights?: MonitorInsight[];
   visibilityTrends?: MonitorSnapshot[];
+  themes?: Array<{
+    theme_id: number;
+    title: string;
+    status: string;
+    article_count: number;
+    gate_pass_rate_pct: number;
+    distribution_success_rate_pct: number;
+  }>;
 }) {
   const [tab, setTab] = useState<AnalyticsTab>("overview");
   const maxTrend = Math.max(1, ...publicationTrend.map((p) => p.count));
@@ -31,7 +40,7 @@ export function AnalyticsPanel({
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold text-gray-900">{zh.strategy.analytics.heading}</h2>
-        <p className="mt-1 text-sm text-gray-600">内容运营数据 · AIVIS 洞察 · 可见性趋势</p>
+        <p className="mt-1 text-sm text-gray-600">内容产量 · 任务健康 · 访问与可见性趋势</p>
       </div>
 
       <div className="flex flex-wrap gap-2 border-b border-gray-100 pb-2">
@@ -102,6 +111,24 @@ export function AnalyticsPanel({
                   <li key={a.id} className="flex items-center justify-between py-3 text-sm">
                     <span className="line-clamp-1 font-medium text-gray-900">{a.title}</span>
                     <span className="shrink-0 text-gray-500">{a.view_count} 次</span>
+                  </li>
+                ))
+              )}
+            </ul>
+          </section>
+
+          <section className={`${surfaceCardClass} p-5`}>
+            <h3 className="text-sm font-semibold text-gray-900">Theme 产量与门禁</h3>
+            <ul className="mt-4 divide-y divide-gray-100">
+              {themes.length === 0 ? (
+                <li className="py-4 text-sm text-gray-400">暂无主题包数据</li>
+              ) : (
+                themes.slice(0, 10).map((t) => (
+                  <li key={t.theme_id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
+                    <span className="font-medium text-gray-900">{t.title}</span>
+                    <span className="text-xs text-gray-500">
+                      {t.status} · 文章 {t.article_count} · 门禁 {t.gate_pass_rate_pct}% · 分发 {t.distribution_success_rate_pct}%
+                    </span>
                   </li>
                 ))
               )}

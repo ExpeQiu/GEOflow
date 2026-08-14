@@ -6,10 +6,10 @@ export function OperationsOverview({ stats }: { stats: OpsStats }) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
       <OverviewCard
-        label={zh.operations.tabs.tasks}
-        value={stats.total_tasks}
-        meta={zh.operations.overview.activeTasks(stats.active_tasks)}
-        href="/operations/tasks"
+        label={zh.distribution.tasksTab}
+        value={stats.distribution_pending}
+        meta={zh.operations.overview.distributionPending(stats.distribution_pending)}
+        href="/operations/distribution/tasks"
         tone="blue"
       />
       <OverviewCard
@@ -22,7 +22,7 @@ export function OperationsOverview({ stats }: { stats: OpsStats }) {
       <OverviewCard
         label={zh.operations.tabs.distribution}
         value={stats.channels_active}
-        meta={zh.operations.overview.distributionPending(stats.distribution_pending)}
+        meta={`${zh.operations.overview.channelsTotal} · ${zh.operations.overview.distributionFailed} ${stats.distribution_failed}`}
         href="/operations/distribution"
         tone="violet"
       />

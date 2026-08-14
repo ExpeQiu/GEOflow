@@ -33,6 +33,30 @@ def test_mock_simulation_produces_score():
     assert sim["confidence"] > 0
 
 
+def test_simulate_draft_probability_fields():
+    """草稿仿真应产出采纳/检索概率字段。"""
+    import asyncio
+    from unittest.mock import MagicMock
+
+    from app.services.geoeval.simulation_rag import SimulationRagService
+
+    svc = SimulationRagService(MagicMock())
+    svc.settings = MagicMock(ai_mock_mode=True)
+
+    result = asyncio.run(
+        svc.simulate_draft(
+            title="神盾电池安全技术",
+            content="神盾电池采用多层防护，覆盖热失控与结构安全。",
+            keyword="神盾电池",
+            kb_id=None,
+            model=None,
+        )
+    )
+    assert "adoption_probability" in result
+    assert "retrieval_probability" in result
+    assert 0 <= result["adoption_probability"] <= 1
+    assert result["query"]
+
 def test_mock_audit_passes_structured_article():
     article = _article()
     simulation = {

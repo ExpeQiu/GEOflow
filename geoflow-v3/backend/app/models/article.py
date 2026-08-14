@@ -17,6 +17,7 @@ class Article(Base):
     category_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("categories.id"), nullable=False)
     author_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("authors.id"), nullable=False)
     task_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
+    theme_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     original_keyword: Mapped[str] = mapped_column(String(200), default="")
     keywords: Mapped[str] = mapped_column(Text, default="")
     meta_description: Mapped[str] = mapped_column(Text, default="")

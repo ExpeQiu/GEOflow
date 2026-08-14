@@ -31,6 +31,12 @@ export function DistributionPanel({
             <Plus className="mr-2 h-4 w-4" />
             {zh.distribution.createButton}
           </Link>
+          <Link
+            href="/operations/distribution/tasks"
+            className="inline-flex h-9 items-center rounded-lg border border-blue-200 bg-blue-50 px-3 text-sm font-medium text-blue-700 hover:bg-blue-100"
+          >
+            {zh.distribution.tasksTab}
+          </Link>
         </div>
         {channels.length === 0 ? (
           <div className="px-6 py-10 text-center text-sm text-gray-500">
@@ -87,7 +93,7 @@ export function DistributionPanel({
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  {[zh.distribution.columnArticle, "渠道", zh.distribution.columnJobStatus, zh.distribution.columnError].map(
+                  {[zh.distribution.columnArticle, "Theme", "渠道", zh.distribution.columnJobStatus, zh.distribution.columnError].map(
                     (h) => (
                       <th key={h} className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">
                         {h}
@@ -100,6 +106,25 @@ export function DistributionPanel({
                 {recentJobs.map((job) => (
                   <tr key={job.id} className="hover:bg-gray-50">
                     <td className="px-6 py-3 text-sm text-gray-900">#{job.article_id}</td>
+                    <td className="px-6 py-3 text-sm">
+                      {job.theme_id ? (
+                        <div>
+                          <Link
+                            href={`/production/themes?id=${job.theme_id}`}
+                            className="text-blue-700 hover:underline"
+                          >
+                            {job.theme_title || `#${job.theme_id}`}
+                          </Link>
+                          {job.theme_gate_hint && (
+                            <span className="ml-2 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
+                              {job.theme_gate_hint}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
                     <td className="px-6 py-3 text-sm text-gray-600">#{job.channel_id}</td>
                     <td className="px-6 py-3 text-sm">
                       <span className={job.status === "failed" ? "text-red-600" : "text-gray-700"}>{job.status}</span>

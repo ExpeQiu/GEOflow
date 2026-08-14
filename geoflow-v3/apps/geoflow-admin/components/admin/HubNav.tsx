@@ -7,7 +7,6 @@ import { HUB_TONE_CLASS, type HubNavItem, type HubTone } from "@/lib/nav-config"
 
 function isItemActive(pathname: string, item: HubNavItem): boolean {
   if (item.matchPrefixes?.length) {
-    // 按更长前缀优先，避免 /production/knowledge 误匹配 /production/knowledge-settings
     const sorted = [...item.matchPrefixes].sort((a, b) => b.length - a.length);
     return sorted.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
   }
@@ -19,22 +18,36 @@ export function HubNav({ items, tone }: { items: HubNavItem[]; tone: HubTone }) 
   const styles = HUB_TONE_CLASS[tone];
 
   return (
-    <nav className="mb-6 flex flex-wrap gap-2 border-b border-gray-200 pb-3">
-      {items.map((item) => {
-        const active = isItemActive(pathname, item);
-        return (
-          <Link
-            key={item.key}
-            href={item.href}
-            className={cn(
-              "rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              active ? styles.active : styles.inactive,
-            )}
-          >
-            {item.label}
-          </Link>
-        );
-      })}
+    <nav className="mb-6 border-b border-gray-200 pb-3" aria-label="板块导航">
+      <div className="flex flex-wrap items-center gap-x-1 gap-y-2">
+        {items.map((item, index) => {
+          const active = isItemActive(pathname, item);
+          const prevGroup = index > 0 ? items[index - 1]?.group : undefined;
+          const showGroup = Boolean(item.group && item.group !== prevGroup);
+
+          return (
+            <span key={item.key} className="contents">
+              {showGroup && (
+                <>
+                  {index > 0 && <span className="mx-1 hidden h-4 w-px bg-gray-200 sm:inline" aria-hidden="true" />}
+                  <span className="mr-1 shrink-0 text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                    {item.group}
+                  </span>
+                </>
+              )}
+              <Link
+                href={item.href}
+                className={cn(
+                  "rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  active ? styles.active : styles.inactive,
+                )}
+              >
+                {item.label}
+              </Link>
+            </span>
+          );
+        })}
+      </div>
     </nav>
   );
 }

@@ -11,6 +11,7 @@ from app.models.geoeval import ArticleEvaluation, InsightTemplate
 from app.models.tech_ip import TechIpAsset
 from app.models.content_agent_request import ContentAgentRequest
 from app.models.idempotency import ApiIdempotencyKey
+from app.models.theme import GeoTheme
 
 __all__ = [
     "Admin",
@@ -31,4 +32,5 @@ __all__ = [
     "TechIpAsset",
     "ContentAgentRequest",
     "ApiIdempotencyKey",
+    "GeoTheme",
 ]

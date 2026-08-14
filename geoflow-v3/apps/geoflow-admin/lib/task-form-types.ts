@@ -91,7 +91,7 @@ export const DEFAULT_TASK_FORM: TaskCreatePayload = {
   content_format: "article",
   wiki_page_type: "concept",
   tech_ip_asset_id: null,
-  publish_scope: "local_and_distribution",
+  publish_scope: "local_only",
   distribution_channel_ids: [],
   need_review: false,
   is_loop: true,

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** 策略数据分析入口并入诊断总览（含 StrategyOverview） */
+/** 策略侧运营数据入口 → L3 运营与分发 */
 export default function StrategyAnalyticsLegacyRedirect() {
-  redirect("/strategy/diagnosis");
+  redirect("/operations/analytics");
 }

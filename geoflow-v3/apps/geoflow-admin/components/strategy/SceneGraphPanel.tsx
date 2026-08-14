@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { apiPost, getToken } from "@/lib/api-client";
 import type { MonitorScene, SceneFunnel, SceneFunnelIntent } from "@/lib/strategy-types";
@@ -18,6 +19,8 @@ export function SceneGraphPanel({
 }) {
   const [sceneForm, setSceneForm] = useState({ persona: "", scene_name: "", intent: "", weight_pct: 10 });
   const [selectedIntent, setSelectedIntent] = useState<SceneFunnelIntent | null>(null);
+  const [busySceneId, setBusySceneId] = useState<number | null>(null);
+  const [msg, setMsg] = useState("");
 
   async function createScene(e: FormEvent) {
     e.preventDefault();
@@ -31,12 +34,26 @@ export function SceneGraphPanel({
   async function createGapTask(sceneId: number) {
     const t = getToken();
     if (!t) return;
+    setBusySceneId(sceneId);
+    setMsg("");
     try {
-      await apiPost(`/api/admin/strategy/monitor/scenes/${sceneId}/create-task`, t, {});
-      alert("补缺 Task 已创建");
+      const res = await apiPost<{
+        mode?: string;
+        theme_id?: number;
+        theme?: { id: number };
+        next_step?: string;
+      }>(`/api/admin/strategy/monitor/scenes/${sceneId}/create-task`, t, {});
+      const themeId = res.theme_id || res.theme?.id;
+      setMsg(
+        themeId
+          ? `已生成主题草稿 #${themeId}（含挖掘摘要），请到「内容生产 → 主题包」确认`
+          : "已生成主题草稿（含挖掘摘要），请到内容生产→主题包确认",
+      );
       onRefresh?.();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "创建 Task 失败");
+      setMsg(e instanceof Error ? e.message : "创建主题草稿失败");
+    } finally {
+      setBusySceneId(null);
     }
   }
 
@@ -47,35 +64,92 @@ export function SceneGraphPanel({
       await apiPost(`/api/admin/strategy/monitor/scenes/${sceneId}/compute-gap`, t, {});
       onRefresh?.();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "计算缺口失败");
+      setMsg(e instanceof Error ? e.message : "计算缺口失败");
     }
   }
 
   return (
     <div className="space-y-6">
       <section className="rounded-lg border border-violet-200 bg-violet-50/40 p-5">
-        <h2 className="text-lg font-semibold text-gray-900">场景图谱</h2>
-        <p className="mt-1 text-sm text-gray-500">用户画像 → 场景 → 意图 → Query → 引用</p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">场景图谱</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              用户画像 → 场景 → 意图 → Query → 引用。有差距时点「生成主题草稿」进入内容战役。
+            </p>
+          </div>
+          <Link
+            href="/production/themes"
+            className="rounded-md border border-violet-300 bg-white px-3 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-50"
+          >
+            查看主题包 →
+          </Link>
+        </div>
         <div className="mt-4 flex flex-wrap gap-4 text-sm">
-          <span>画像 <strong>{funnel.stats.persona_count}</strong></span>
-          <span>场景 <strong>{funnel.stats.scene_count}</strong></span>
-          <span>意图 <strong>{funnel.stats.intent_count}</strong></span>
-          <span>Query <strong>{funnel.stats.query_count}</strong></span>
+          <span>
+            画像 <strong>{funnel.stats.persona_count}</strong>
+          </span>
+          <span>
+            场景 <strong>{funnel.stats.scene_count}</strong>
+          </span>
+          <span>
+            意图 <strong>{funnel.stats.intent_count}</strong>
+          </span>
+          <span>
+            Query <strong>{funnel.stats.query_count}</strong>
+          </span>
         </div>
       </section>
 
-      <LayerSection title="场景图谱分析" subtitle="人群画像 → 使用场景 → 用户意图 → 场景问题">
-        <SceneFunnelView funnel={funnel} onIntentSelect={setSelectedIntent} />
+      <LayerSection title="挖主题" subtitle="正式入口已独立为「策略 → 挖掘主题」Tab">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/strategy/theme-mining"
+            className="rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700"
+          >
+            打开挖掘主题 →
+          </Link>
+          <Link href="/production/themes" className="text-sm text-violet-700 hover:underline">
+            主题包确认 →
+          </Link>
+          {msg && <span className="text-sm text-violet-800">{msg}</span>}
+        </div>
+      </LayerSection>
+
+      <LayerSection title="场景图谱分析" subtitle="人群画像 → 使用场景 → 用户意图 → 场景问题；点选意图后可在右侧详情生成主题草稿">
+        <SceneFunnelView
+          funnel={funnel}
+          onIntentSelect={setSelectedIntent}
+          onGenerateTheme={createGapTask}
+          themeBusySceneId={busySceneId}
+        />
       </LayerSection>
 
       <QueryCitationExplorer sceneId={selectedIntent?.id ?? null} intentLabel={selectedIntent?.name} />
 
       <LayerSection title="场景管理" subtitle="维护画像、场景、意图与缺口优先级">
         <form onSubmit={createScene} className="mb-4 grid gap-2 md:grid-cols-4">
-          <input className={surfaceInputClass} placeholder="用户画像" value={sceneForm.persona} onChange={(e) => setSceneForm({ ...sceneForm, persona: e.target.value })} />
-          <input className={surfaceInputClass} placeholder="场景名称" value={sceneForm.scene_name} onChange={(e) => setSceneForm({ ...sceneForm, scene_name: e.target.value })} />
-          <input className={surfaceInputClass} placeholder="用户意图" value={sceneForm.intent} onChange={(e) => setSceneForm({ ...sceneForm, intent: e.target.value })} />
-          <button type="submit" className="rounded-md bg-violet-600 px-4 py-2 text-sm text-white">添加场景</button>
+          <input
+            className={surfaceInputClass}
+            placeholder="用户画像"
+            value={sceneForm.persona}
+            onChange={(e) => setSceneForm({ ...sceneForm, persona: e.target.value })}
+          />
+          <input
+            className={surfaceInputClass}
+            placeholder="场景名称"
+            value={sceneForm.scene_name}
+            onChange={(e) => setSceneForm({ ...sceneForm, scene_name: e.target.value })}
+          />
+          <input
+            className={surfaceInputClass}
+            placeholder="用户意图"
+            value={sceneForm.intent}
+            onChange={(e) => setSceneForm({ ...sceneForm, intent: e.target.value })}
+          />
+          <button type="submit" className="rounded-md bg-violet-600 px-4 py-2 text-sm text-white">
+            添加场景
+          </button>
         </form>
         {scenes.length === 0 ? (
           <p className="text-sm text-gray-400">暂无场景记录</p>
@@ -84,7 +158,9 @@ export function SceneGraphPanel({
             <thead className="bg-gray-50">
               <tr>
                 {["画像", "场景", "意图", "权重%", "缺口率", "优先级", "操作"].map((h) => (
-                  <th key={h} className="px-3 py-2 text-left text-xs">{h}</th>
+                  <th key={h} className="px-3 py-2 text-left text-xs">
+                    {h}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -96,14 +172,25 @@ export function SceneGraphPanel({
                   <td className="px-3 py-2">{s.intent}</td>
                   <td className="px-3 py-2">{s.weight_pct}</td>
                   <td className="px-3 py-2">{(s.gap_rate * 100).toFixed(1)}%</td>
-                  <td className="px-3 py-2"><GapPriorityBadge priority={s.gap_priority} /></td>
+                  <td className="px-3 py-2">
+                    <GapPriorityBadge priority={s.gap_priority} />
+                  </td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-2">
-                      <button type="button" className="text-violet-600 hover:underline" onClick={() => computeGap(s.id)}>
+                      <button
+                        type="button"
+                        className="text-violet-600 hover:underline"
+                        onClick={() => computeGap(s.id)}
+                      >
                         计算缺口
                       </button>
-                      <button type="button" className="text-violet-600 hover:underline" onClick={() => createGapTask(s.id)}>
-                        补缺 Task
+                      <button
+                        type="button"
+                        disabled={busySceneId === s.id}
+                        className="font-medium text-violet-700 hover:underline disabled:opacity-50"
+                        onClick={() => createGapTask(s.id)}
+                      >
+                        {busySceneId === s.id ? "挖掘中…" : "生成主题草稿"}
                       </button>
                     </div>
                   </td>

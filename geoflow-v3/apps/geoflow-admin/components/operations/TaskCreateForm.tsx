@@ -14,6 +14,8 @@ const inputClass =
   "mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
 const labelClass = "block text-sm font-medium text-gray-700";
 
+const TASKS_BASE = "/production/tasks";
+
 export function TaskCreateForm({ taskId }: { taskId?: number }) {
   const router = useRouter();
   const isEdit = Boolean(taskId);
@@ -31,13 +33,15 @@ export function TaskCreateForm({ taskId }: { taskId?: number }) {
     ];
     if (taskId) {
       loads.push(
-        apiGet<{ task: TaskCreatePayload & { task_name: string } }>(`/api/admin/tasks/${taskId}`, token).then((data) => {
+        apiGet<{ task: TaskCreatePayload & { task_name: string; name?: string } }>(`/api/admin/tasks/${taskId}`, token).then((data) => {
           const t = data.task;
           setForm({
             ...DEFAULT_TASK_FORM,
             ...t,
             task_name: t.task_name || t.name || "",
-            distribution_channel_ids: t.distribution_channel_ids || [],
+            // 内容任务不再在表单配置分发；保存时强制本站
+            publish_scope: "local_only",
+            distribution_channel_ids: [],
           });
         }),
       );
@@ -48,21 +52,10 @@ export function TaskCreateForm({ taskId }: { taskId?: number }) {
   }, [taskId]);
 
   const isWiki = form.content_format === "wiki_mdx";
-  const channelsDisabled = form.publish_scope === "local_only";
-
   const publishIntervalDisabled = useMemo(() => form.need_review, [form.need_review]);
 
   function patch<K extends keyof TaskCreatePayload>(key: K, value: TaskCreatePayload[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
-  }
-
-  function toggleChannel(id: number, checked: boolean) {
-    setForm((prev) => {
-      const ids = new Set(prev.distribution_channel_ids);
-      if (checked) ids.add(id);
-      else ids.delete(id);
-      return { ...prev, distribution_channel_ids: Array.from(ids) };
-    });
   }
 
   async function onSubmit(e: FormEvent) {
@@ -94,10 +87,6 @@ export function TaskCreateForm({ taskId }: { taskId?: number }) {
       setError(zh.taskCreate.errors.draftLimit);
       return;
     }
-    if (form.publish_scope === "distribution_only" && form.distribution_channel_ids.length === 0) {
-      setError(zh.taskCreate.errors.distributionChannel);
-      return;
-    }
     if (form.category_mode === "fixed" && !form.fixed_category_id) {
       setError(zh.taskCreate.errors.fixedCategory);
       return;
@@ -109,7 +98,8 @@ export function TaskCreateForm({ taskId }: { taskId?: number }) {
     const payload: TaskCreatePayload = {
       ...form,
       task_name: form.task_name.trim(),
-      publish_scope: isWiki ? "distribution_only" : form.publish_scope,
+      publish_scope: "local_only",
+      distribution_channel_ids: [],
       image_count: form.image_library_id ? form.image_count : 0,
       author_id: form.author_id && form.author_id > 0 ? form.author_id : null,
     };
@@ -121,7 +111,7 @@ export function TaskCreateForm({ taskId }: { taskId?: number }) {
       } else {
         await apiPost("/api/admin/tasks", token, payload);
       }
-      router.push("/operations/tasks");
+      router.push(TASKS_BASE);
       router.refresh();
     } catch {
       setError(isEdit ? zh.taskEdit.submitError : zh.taskCreate.submitError);
@@ -146,7 +136,7 @@ export function TaskCreateForm({ taskId }: { taskId?: number }) {
   return (
     <form onSubmit={onSubmit} className="grid grid-cols-1 gap-6 xl:grid-cols-12">
       <div className="mb-2 flex items-center gap-4 xl:col-span-12">
-        <Link href="/operations/tasks" className="text-gray-400 hover:text-gray-600">
+        <Link href={TASKS_BASE} className="text-gray-400 hover:text-gray-600">
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div>
@@ -345,7 +335,7 @@ export function TaskCreateForm({ taskId }: { taskId?: number }) {
             value={form.image_library_id ?? 0}
             onChange={(v) => {
               patch("image_library_id", v || null);
-              patch("image_count", v ? Math.max(1, form.image_count) : 0);
+              patch("image_count", v ? Math.max(1, form.image_count ?? 1) : 0);
             }}
             placeholder={zh.taskCreate.options.noImages}
             options={options.image_libraries}
@@ -397,70 +387,6 @@ export function TaskCreateForm({ taskId }: { taskId?: number }) {
             <p className="mt-1 text-sm text-gray-500">{zh.taskCreate.hints.publishInterval}</p>
           </div>
         </div>
-      </FormSection>
-
-      <FormSection title={zh.taskCreate.sections.distribution.title} desc={zh.taskCreate.sections.distribution.desc} className="xl:col-span-12">
-        <fieldset className="mb-5">
-          <legend className="text-sm font-medium text-gray-900">{zh.taskCreate.fields.publishScope}</legend>
-          <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
-            {(
-              [
-                ["local_and_distribution", zh.taskCreate.scopes.localAndDistribution, zh.taskCreate.scopes.localAndDistributionDesc],
-                ["distribution_only", zh.taskCreate.scopes.distributionOnly, zh.taskCreate.scopes.distributionOnlyDesc],
-                ["local_only", zh.taskCreate.scopes.localOnly, zh.taskCreate.scopes.localOnlyDesc],
-              ] as const
-            ).map(([value, title, desc]) => (
-              <label
-                key={value}
-                className={cn(
-                  "flex cursor-pointer gap-3 rounded-md border border-gray-200 px-4 py-3 text-sm hover:border-blue-300 hover:bg-blue-50",
-                  isWiki && value !== "distribution_only" && "cursor-not-allowed opacity-50",
-                )}
-              >
-                <input
-                  type="radio"
-                  name="publish_scope"
-                  value={value}
-                  checked={(isWiki ? "distribution_only" : form.publish_scope) === value}
-                  disabled={isWiki && value !== "distribution_only"}
-                  onChange={() => patch("publish_scope", value)}
-                  className="mt-1 h-4 w-4 border-gray-300 text-blue-600"
-                />
-                <span>
-                  <span className="block font-medium text-gray-900">{title}</span>
-                  <span className="block text-gray-500">{desc}</span>
-                </span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-        {options.distribution_channels.length === 0 ? (
-          <p className="rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-600">{zh.taskCreate.hints.noChannels}</p>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {options.distribution_channels.map((ch) => (
-              <label
-                key={ch.id}
-                className={cn(
-                  "flex items-start gap-3 rounded-md border border-gray-200 px-4 py-3 text-sm",
-                  channelsDisabled ? "cursor-not-allowed bg-gray-50 opacity-50" : "cursor-pointer hover:border-blue-300 hover:bg-blue-50",
-                )}
-              >
-                <input
-                  type="checkbox"
-                  disabled={channelsDisabled}
-                  checked={!channelsDisabled && form.distribution_channel_ids.includes(ch.id)}
-                  onChange={(e) => toggleChannel(ch.id, e.target.checked)}
-                  className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600"
-                />
-                <span>
-                  <span className="block font-medium text-gray-900">{ch.name}</span>
-                  <span className="block break-all text-gray-500">{ch.domain || ch.channel_type}</span>
-                </span>
-              </label>
-            ))}
-          </div>
-        )}
       </FormSection>
 
       <FormSection title={zh.taskCreate.sections.advanced.title} desc={zh.taskCreate.sections.advanced.desc} className="xl:col-span-12">
@@ -556,13 +482,13 @@ export function TaskCreateForm({ taskId }: { taskId?: number }) {
       </FormSection>
 
       <div className="flex justify-end gap-3 xl:col-span-12">
-        <Link href="/operations/tasks" className="rounded-md border border-gray-300 bg-white px-6 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+        <Link href={TASKS_BASE} className="rounded-md border border-gray-300 bg-white px-6 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
           {zh.taskCreate.cancel}
         </Link>
         <button
           type="submit"
           disabled={submitting}
-          className="rounded-md bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="rounded-md bg-emerald-600 px-6 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
         >
           {submitting ? zh.common.loading : isEdit ? zh.taskEdit.submit : zh.taskCreate.submit}
         </button>

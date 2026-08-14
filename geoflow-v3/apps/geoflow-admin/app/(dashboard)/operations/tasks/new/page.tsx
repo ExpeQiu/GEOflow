@@ -1,13 +1,5 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { TaskCreateForm } from "@/components/operations/TaskCreateForm";
-import { useAuthGuard } from "@/hooks/use-auth-guard";
-
-export default function NewTaskPage() {
-  useAuthGuard();
-  return (
-    <div>
-      <TaskCreateForm />
-    </div>
-  );
+export default function OperationsNewTaskRedirect() {
+  redirect("/production/tasks/new");
 }

@@ -21,6 +21,17 @@ GEOFlow Article 发布
   → /articles 或 Wiki 路由
 ```
 
+### Theme 复合主题包
+
+```
+Theme confirm → Task 生产多页（topic/concept/compare/guide…）
+  → geo-eval 门禁聚合
+  → 先 sync 子页，后 sync topic hub（related 指向子页）
+  → 或一次 POST /api/geoflow/sync-pack { theme_id, pages[] }
+```
+
+顺序：**子页先于 hub**。payload 带 `geo_theme_id`。
+
 ## 环境变量
 
 ```env

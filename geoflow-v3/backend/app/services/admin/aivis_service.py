@@ -365,7 +365,8 @@ async def build_diagnosis_panel(db: AsyncSession) -> dict:
             "top_platform": optimization["platform_recommendations"][0] if optimization["platform_recommendations"] else None,
             "priority_scenes": optimization["priority_scenes"][:3],
             "insights": optimization["insights"][:3],
-            "market_summary": optimization["market_opportunity"]["summary"],
+            "market_summary": (optimization.get("readiness") or {}).get("summary")
+            or optimization["market_opportunity"]["summary"],
         },
         "difficulty": {
             "regulatory_compliance": difficulty["regulatory_compliance"]["score"],

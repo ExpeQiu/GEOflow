@@ -52,7 +52,7 @@ class AdminTaskCreateBody(BaseModel):
     content_format: str | None = Field(default="article", pattern="^(article|wiki_mdx)$")
     wiki_page_type: str | None = Field(default="concept")
     tech_ip_asset_id: int | None = Field(default=None, ge=1)
-    publish_scope: str | None = Field(default="local_and_distribution", pattern="^(local_and_distribution|distribution_only|local_only)$")
+    publish_scope: str | None = Field(default="local_only", pattern="^(local_and_distribution|distribution_only|local_only)$")
     distribution_channel_ids: list[int] = Field(default_factory=list)
     need_review: bool = False
     is_loop: bool = True
@@ -183,13 +183,14 @@ def _validate_task_body(body: AdminTaskCreateBody) -> tuple[dict, list[int]]:
     if body.draft_limit and body.article_limit and body.draft_limit > body.article_limit:
         raise HTTPException(status_code=422, detail="draft_limit_too_large")
 
-    publish_scope = body.publish_scope or "local_and_distribution"
+    publish_scope = body.publish_scope or "local_only"
     channel_ids = [cid for cid in body.distribution_channel_ids if cid > 0]
     if publish_scope == "distribution_only" and not channel_ids:
         raise HTTPException(status_code=422, detail="distribution_only_requires_channel")
 
-    if body.content_format == "wiki_mdx" and publish_scope != "distribution_only":
-        publish_scope = "distribution_only"
+    # Wiki 不再强制 distribution_only：内容任务默认本站生成，分发走运营批量分发
+    if body.content_format == "wiki_mdx" and publish_scope == "local_and_distribution":
+        publish_scope = "local_only"
 
     category_mode = body.category_mode or "smart"
     if category_mode == "random":

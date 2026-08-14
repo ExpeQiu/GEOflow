@@ -55,6 +55,7 @@ async def create_remediation_for_gap(
     task_id: int,
     gap_rate: float,
     gap_priority: str | None = None,
+    theme_id: int | None = None,
 ) -> dict:
     if not await _table_exists(db, "geo_gap_remediation_runs"):
         logger.warning("remediation_table_missing scene_id=%s task_id=%s", scene_id, task_id)
@@ -63,12 +64,13 @@ async def create_remediation_for_gap(
     trusted_only = await _load_strict_api(db)
     baseline = await aggregate_scene_visibility(db, scene_id, trusted_only=trusted_only)
     meta = {
-        "source": "monitor_gap",
+        "source": "monitor_gap" if not theme_id else "theme",
         "gap_priority": gap_priority,
         "trusted_only": trusted_only,
         "baseline_probe_count": baseline.get("probe_count", 0),
         "baseline_engine_mix": baseline.get("engine_mix", []),
         "baseline_top3_pct": baseline.get("top3_pct"),
+        "theme_id": theme_id,
     }
     try:
         row = (
@@ -76,10 +78,10 @@ async def create_remediation_for_gap(
                 text(
                     """
                     INSERT INTO geo_gap_remediation_runs
-                        (scene_id, task_id, status, gap_rate_at_create,
+                        (scene_id, task_id, theme_id, status, gap_rate_at_create,
                          baseline_visibility_pct, baseline_top3_pct, baseline_run_id, meta)
                     VALUES
-                        (:scene_id, :task_id, :status, :gap_rate,
+                        (:scene_id, :task_id, :theme_id, :status, :gap_rate,
                          :baseline_vis, :baseline_top3, :baseline_run, CAST(:meta AS JSON))
                     RETURNING id
                     """
@@ -87,6 +89,7 @@ async def create_remediation_for_gap(
                 {
                     "scene_id": scene_id,
                     "task_id": task_id,
+                    "theme_id": theme_id,
                     "status": STATUS_PENDING,
                     "gap_rate": gap_rate,
                     "baseline_vis": baseline.get("visibility_pct"),
@@ -97,37 +100,66 @@ async def create_remediation_for_gap(
             )
         ).first()
     except Exception:
-        logger.warning("remediation_insert_top3_fallback", exc_info=True)
-        row = (
-            await db.execute(
-                text(
-                    """
-                    INSERT INTO geo_gap_remediation_runs
-                        (scene_id, task_id, status, gap_rate_at_create,
-                         baseline_visibility_pct, baseline_run_id, meta)
-                    VALUES
-                        (:scene_id, :task_id, :status, :gap_rate,
-                         :baseline_vis, :baseline_run, CAST(:meta AS JSON))
-                    RETURNING id
-                    """
-                ),
-                {
-                    "scene_id": scene_id,
-                    "task_id": task_id,
-                    "status": STATUS_PENDING,
-                    "gap_rate": gap_rate,
-                    "baseline_vis": baseline.get("visibility_pct"),
-                    "baseline_run": baseline.get("latest_run_id"),
-                    "meta": json.dumps(meta, ensure_ascii=False),
-                },
-            )
-        ).first()
+        logger.warning("remediation_insert_theme_fallback", exc_info=True)
+        try:
+            row = (
+                await db.execute(
+                    text(
+                        """
+                        INSERT INTO geo_gap_remediation_runs
+                            (scene_id, task_id, status, gap_rate_at_create,
+                             baseline_visibility_pct, baseline_top3_pct, baseline_run_id, meta)
+                        VALUES
+                            (:scene_id, :task_id, :status, :gap_rate,
+                             :baseline_vis, :baseline_top3, :baseline_run, CAST(:meta AS JSON))
+                        RETURNING id
+                        """
+                    ),
+                    {
+                        "scene_id": scene_id,
+                        "task_id": task_id,
+                        "status": STATUS_PENDING,
+                        "gap_rate": gap_rate,
+                        "baseline_vis": baseline.get("visibility_pct"),
+                        "baseline_top3": baseline.get("top3_pct"),
+                        "baseline_run": baseline.get("latest_run_id"),
+                        "meta": json.dumps(meta, ensure_ascii=False),
+                    },
+                )
+            ).first()
+        except Exception:
+            logger.warning("remediation_insert_top3_fallback", exc_info=True)
+            row = (
+                await db.execute(
+                    text(
+                        """
+                        INSERT INTO geo_gap_remediation_runs
+                            (scene_id, task_id, status, gap_rate_at_create,
+                             baseline_visibility_pct, baseline_run_id, meta)
+                        VALUES
+                            (:scene_id, :task_id, :status, :gap_rate,
+                             :baseline_vis, :baseline_run, CAST(:meta AS JSON))
+                        RETURNING id
+                        """
+                    ),
+                    {
+                        "scene_id": scene_id,
+                        "task_id": task_id,
+                        "status": STATUS_PENDING,
+                        "gap_rate": gap_rate,
+                        "baseline_vis": baseline.get("visibility_pct"),
+                        "baseline_run": baseline.get("latest_run_id"),
+                        "meta": json.dumps(meta, ensure_ascii=False),
+                    },
+                )
+            ).first()
     remediation_id = int(row[0]) if row else None
     logger.info(
-        "remediation_created id=%s scene_id=%s task_id=%s baseline_vis=%s baseline_top3=%s trusted_only=%s",
+        "remediation_created id=%s scene_id=%s task_id=%s theme_id=%s baseline_vis=%s baseline_top3=%s trusted_only=%s",
         remediation_id,
         scene_id,
         task_id,
+        theme_id,
         baseline.get("visibility_pct"),
         baseline.get("top3_pct"),
         trusted_only,
@@ -136,6 +168,7 @@ async def create_remediation_for_gap(
         "remediation_id": remediation_id,
         "scene_id": scene_id,
         "task_id": task_id,
+        "theme_id": theme_id,
         "status": STATUS_PENDING,
         "baseline_visibility_pct": baseline.get("visibility_pct"),
         "baseline_top3_pct": baseline.get("top3_pct"),
@@ -401,9 +434,11 @@ async def list_remediations(db: AsyncSession, limit: int = 30) -> dict:
                            r.baseline_visibility_pct, r.post_visibility_pct, r.delta_visibility_pct,
                            r.published_at, r.rescan_after, r.created_at,
                            s.scene_name,
-                           r.baseline_top3_pct, r.post_top3_pct, r.delta_top3_pp
+                           r.baseline_top3_pct, r.post_top3_pct, r.delta_top3_pp,
+                           r.theme_id, t.title AS theme_title
                     FROM geo_gap_remediation_runs r
                     LEFT JOIN geo_monitor_scenes s ON s.id = r.scene_id
+                    LEFT JOIN geo_themes t ON t.id = r.theme_id
                     ORDER BY r.id DESC
                     LIMIT :lim
                     """
@@ -412,25 +447,49 @@ async def list_remediations(db: AsyncSession, limit: int = 30) -> dict:
             )
         ).all()
         has_top3 = True
+        has_theme = True
     except Exception:
-        rows = (
-            await db.execute(
-                text(
-                    """
-                    SELECT r.id, r.scene_id, r.task_id, r.status, r.gap_rate_at_create,
-                           r.baseline_visibility_pct, r.post_visibility_pct, r.delta_visibility_pct,
-                           r.published_at, r.rescan_after, r.created_at,
-                           s.scene_name
-                    FROM geo_gap_remediation_runs r
-                    LEFT JOIN geo_monitor_scenes s ON s.id = r.scene_id
-                    ORDER BY r.id DESC
-                    LIMIT :lim
-                    """
-                ),
-                {"lim": limit},
-            )
-        ).all()
-        has_top3 = False
+        try:
+            rows = (
+                await db.execute(
+                    text(
+                        """
+                        SELECT r.id, r.scene_id, r.task_id, r.status, r.gap_rate_at_create,
+                               r.baseline_visibility_pct, r.post_visibility_pct, r.delta_visibility_pct,
+                               r.published_at, r.rescan_after, r.created_at,
+                               s.scene_name,
+                               r.baseline_top3_pct, r.post_top3_pct, r.delta_top3_pp
+                        FROM geo_gap_remediation_runs r
+                        LEFT JOIN geo_monitor_scenes s ON s.id = r.scene_id
+                        ORDER BY r.id DESC
+                        LIMIT :lim
+                        """
+                    ),
+                    {"lim": limit},
+                )
+            ).all()
+            has_top3 = True
+            has_theme = False
+        except Exception:
+            rows = (
+                await db.execute(
+                    text(
+                        """
+                        SELECT r.id, r.scene_id, r.task_id, r.status, r.gap_rate_at_create,
+                               r.baseline_visibility_pct, r.post_visibility_pct, r.delta_visibility_pct,
+                               r.published_at, r.rescan_after, r.created_at,
+                               s.scene_name
+                        FROM geo_gap_remediation_runs r
+                        LEFT JOIN geo_monitor_scenes s ON s.id = r.scene_id
+                        ORDER BY r.id DESC
+                        LIMIT :lim
+                        """
+                    ),
+                    {"lim": limit},
+                )
+            ).all()
+            has_top3 = False
+            has_theme = False
     items = []
     for row in rows:
         items.append(
@@ -447,9 +506,11 @@ async def list_remediations(db: AsyncSession, limit: int = 30) -> dict:
                 "rescan_after": row[9].isoformat() if row[9] else None,
                 "created_at": row[10].isoformat() if row[10] else None,
                 "scene_name": str(row[11] or ""),
-                "baseline_top3_pct": float(row[12]) if has_top3 and row[12] is not None else None,
-                "post_top3_pct": float(row[13]) if has_top3 and row[13] is not None else None,
-                "delta_top3_pp": float(row[14]) if has_top3 and row[14] is not None else None,
+                "baseline_top3_pct": float(row[12]) if has_top3 and len(row) > 12 and row[12] is not None else None,
+                "post_top3_pct": float(row[13]) if has_top3 and len(row) > 13 and row[13] is not None else None,
+                "delta_top3_pp": float(row[14]) if has_top3 and len(row) > 14 and row[14] is not None else None,
+                "theme_id": int(row[15]) if has_theme and len(row) > 15 and row[15] is not None else None,
+                "theme_title": str(row[16] or "") if has_theme and len(row) > 16 else "",
             }
         )
     return {"items": items}

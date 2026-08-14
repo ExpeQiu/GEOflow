@@ -71,11 +71,13 @@ from app.services.admin.distribution_citation_service import (
     refresh_distribution_citation_cache,
 )
 from app.services.admin.distribution_detail_service import (
+    AdminDistributionBatchBody,
     AdminDistributionUpdateBody,
     DistributionJobUpdateBody,
     build_channel_detail,
     build_distribution_jobs,
     check_channel_health,
+    create_distribution_batch,
     delete_admin_distribution_channel,
     delete_distribution_job,
     retry_distribution_job,
@@ -303,8 +305,13 @@ async def operations_overview(request: Request, db: DbSession, jwt=Depends(get_a
 
 
 @router.get("/tasks")
-async def list_tasks(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
-    return success(request, await build_tasks_panel(db))
+async def list_tasks(
+    request: Request,
+    db: DbSession,
+    jwt=Depends(get_admin_jwt),
+    theme_id: int | None = Query(default=None),
+):
+    return success(request, await build_tasks_panel(db, theme_id=theme_id))
 
 
 @router.get("/tasks/form-options")
@@ -426,8 +433,9 @@ async def list_articles(
     db: DbSession,
     jwt=Depends(get_admin_jwt),
     review_status: str | None = Query(default=None),
+    theme_id: int | None = Query(default=None),
 ):
-    return success(request, await build_articles_panel(db, review_status=review_status))
+    return success(request, await build_articles_panel(db, review_status=review_status, theme_id=theme_id))
 
 
 @router.get("/articles/form-options")
@@ -518,8 +526,13 @@ async def batch_articles_publish(body: BatchIdsBody, request: Request, db: DbSes
 
 
 @router.get("/distribution")
-async def distribution_overview(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
-    return success(request, await build_distribution_panel(db))
+async def distribution_overview(
+    request: Request,
+    db: DbSession,
+    jwt=Depends(get_admin_jwt),
+    theme_id: int | None = Query(default=None),
+):
+    return success(request, await build_distribution_panel(db, theme_id=theme_id))
 
 
 @router.get("/distribution/form-options")
@@ -573,8 +586,26 @@ async def distribution_jobs(
     jwt=Depends(get_admin_jwt),
     channel_id: int | None = Query(default=None),
     status: str | None = Query(default=None),
+    theme_id: int | None = Query(default=None),
 ):
-    return success(request, await build_distribution_jobs(db, channel_id=channel_id, status=status))
+    return success(
+        request,
+        await build_distribution_jobs(db, channel_id=channel_id, status=status, theme_id=theme_id),
+    )
+
+
+@router.post("/distribution/batch")
+async def distribution_batch(
+    body: AdminDistributionBatchBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)
+):
+    try:
+        payload = await create_distribution_batch(db, body)
+        return success(request, payload)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("admin_distribution_batch_failed")
+        raise HTTPException(status_code=500, detail="distribution_batch_failed") from exc
 
 
 @router.post("/distribution/jobs/{job_id}/retry")
@@ -780,6 +811,176 @@ async def strategy_monitor_scan(
     return success(request, {"queued": True, "scan_type": scan_type})
 
 
+class CendScanBody(BaseModel):
+    platforms: list[str] | None = None
+    limit: int = Field(default=5, ge=1, le=20)
+    min_priority: int = Field(default=80, ge=0, le=100)
+    sync: bool = False  # True 时进程内执行（联调/Mock）；默认入队
+
+
+class CendIngestBody(BaseModel):
+    """手工导入一条完整 C 端捕获（契约验收 / 无浏览器时）。"""
+
+    question_id: int
+    platform: str
+    answer_text: str = ""
+    thinking_text: str = ""
+    thinking_ms: int | None = None
+    citations: list[dict] | None = None  # [{title,url,position}]
+    keywords: list[str] | None = None
+    rank_blocks: list[dict] | None = None
+    decision_table: list[dict] | None = None
+    source_hosts: list[str] | None = None
+    brand_list: list[str] | None = None
+    competitor_brands: list[str] | None = None
+    capture_artifact: str | None = None
+    write_gold: bool = True
+
+
+@router.post("/strategy/cend/scan")
+async def strategy_cend_scan(body: CendScanBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.workers.celery_app import celery_app
+
+    if body.sync:
+        from app.services.geoeval.cend_scan import CendScanOrchestrator
+
+        result = await CendScanOrchestrator(db).run_scan(
+            platforms=body.platforms,
+            limit=body.limit,
+            min_priority=body.min_priority,
+        )
+        logger.info("admin_cend_scan_sync platforms=%s probes=%s", body.platforms, result.get("probes"))
+        return success(request, result)
+
+    celery_app.send_task(
+        "app.workers.tasks.run_cend_probe_scan",
+        kwargs={
+            "platforms": body.platforms,
+            "limit": body.limit,
+            "min_priority": body.min_priority,
+        },
+    )
+    logger.info("admin_cend_scan_queued platforms=%s limit=%s", body.platforms, body.limit)
+    return success(request, {"queued": True, "scan_type": "cend", "platforms": body.platforms, "limit": body.limit})
+
+
+@router.get("/strategy/cend/platforms")
+async def strategy_cend_platforms(request: Request, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.platform_connectors.cend.registry import list_cend_platforms
+    from app.services.geoeval.platform_connectors.base import CEND_PLATFORM_URLS
+
+    items = [
+        {"platform": p, "start_url": CEND_PLATFORM_URLS.get(p, ""), "label": p}
+        for p in list_cend_platforms()
+    ]
+    return success(request, {"platforms": items, "metric_kind": "cend_sample"})
+
+
+@router.get("/strategy/cend/profile-status")
+async def strategy_cend_profile_status(
+    request: Request,
+    jwt=Depends(get_admin_jwt),
+    platform: str = Query(default="yuanbao"),
+):
+    from app.services.geoeval.platform_connectors.cend.browser_session import check_profile_ready
+
+    return success(request, await check_profile_ready(platform))
+
+
+@router.post("/strategy/cend/ingest")
+async def strategy_cend_ingest(body: CendIngestBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    """手工写入一条 cend_browser 探针结果（Phase1 契约验收）。"""
+    from app.services.geoeval.answer_parser import PARSER_VERSION, parse_answer
+    from app.services.geoeval.monitor_probe import _persist_probe, load_brand_keywords
+    from app.services.geoeval.platform_connectors.base import ProbeOutcome, calc_ranking_score
+    from app.services.admin.production_service import _table_exists
+    from sqlalchemy import text as sa_text
+
+    brands = body.brand_list or await load_brand_keywords(db)
+    answer = body.answer_text or ""
+    parsed = parse_answer(answer, brand_list=brands, competitor_brands=body.competitor_brands)
+    cites = body.citations or []
+    cite_urls = [str(c.get("url") or "") for c in cites if c.get("url")]
+    cite_titles = [str(c.get("title") or "") for c in cites]
+
+    run_id = None
+    if await _table_exists(db, "geo_monitor_runs"):
+        row = (
+            await db.execute(
+                sa_text(
+                    """
+                    INSERT INTO geo_monitor_runs (status, platform, question_count, probe_count, started_at, completed_at)
+                    VALUES ('completed', :plat, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    RETURNING id
+                    """
+                ),
+                {"plat": f"cend-ingest:{body.platform}"[:200]},
+            )
+        ).first()
+        run_id = int(row[0]) if row else None
+
+    outcome = ProbeOutcome(
+        question_id=body.question_id,
+        platform=body.platform,
+        brand_rank=parsed.brand_rank if parsed.mentioned else None,
+        mentioned=parsed.mentioned,
+        snippet=answer[:240],
+        engine="cend_browser",
+        ranking_score=calc_ranking_score(parsed.brand_rank if parsed.mentioned else None),
+        competitor_mentions=list(parsed.competitor_mentions),
+        rank_method=parsed.rank_method,
+        evidence_level="L2" if cite_urls else "L0",
+        match_type=parsed.match_type,
+        parser_version=PARSER_VERSION,
+        urls=cite_urls or list(parsed.urls),
+        thinking_text=body.thinking_text or None,
+        thinking_ms=body.thinking_ms,
+        keywords=body.keywords or [],
+        entities=brands[:12],
+        rank_blocks=body.rank_blocks or [],
+        decision_table=body.decision_table or [],
+        citation_urls=cite_urls,
+        citation_titles=cite_titles,
+        source_hosts=body.source_hosts or [],
+        capture_artifact=body.capture_artifact,
+        metric_kind="cend_sample",
+        cend_meta={"ingest": True},
+    )
+    probe_id = None
+    if run_id:
+        probe_id = await _persist_probe(db, run_id=run_id, outcome=outcome)
+
+    if body.write_gold and await _table_exists(db, "geo_probe_gold_labels"):
+        from app.services.geoeval.cend_scan import CendScanOrchestrator
+
+        await CendScanOrchestrator(db)._upsert_gold(body.question_id, body.platform, outcome, probe_id)
+
+    from app.services.admin.distribution_citation_service import refresh_distribution_citation_cache
+
+    cache = await refresh_distribution_citation_cache(db)
+    logger.info(
+        "admin_cend_ingest platform=%s question_id=%s probe_id=%s citations=%s",
+        body.platform,
+        body.question_id,
+        probe_id,
+        len(cite_urls),
+    )
+    return success(
+        request,
+        {
+            "probe_id": probe_id,
+            "run_id": run_id,
+            "metric_kind": "cend_sample",
+            "evidence_level": outcome.evidence_level,
+            "mentioned": outcome.mentioned,
+            "brand_rank": outcome.brand_rank,
+            "citation_count": len(cite_urls),
+            "indexed_count": cache.get("indexed_count", 0),
+        },
+        status=201,
+    )
+
+
 @router.get("/strategy/monitor/scenes")
 async def strategy_monitor_scenes_list(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     return success(request, await list_monitor_scenes(db))
@@ -798,10 +999,111 @@ async def strategy_monitor_scene_gap(scene_id: int, request: Request, db: DbSess
 
 
 @router.post("/strategy/monitor/scenes/{scene_id}/create-task")
-async def strategy_monitor_scene_create_task(scene_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+async def strategy_monitor_scene_create_task(
+    scene_id: int,
+    request: Request,
+    db: DbSession,
+    jwt=Depends(get_admin_jwt),
+    legacy_direct_task: bool = Query(False),
+):
+    """默认创建 Theme 草稿；legacy_direct_task=true 保留旧「直接建 Task」（弃用）。"""
     from app.services.geoeval.gap_task_generator import create_task_from_scene_gap
 
-    return success(request, await create_task_from_scene_gap(db, scene_id), status=201)
+    return success(
+        request,
+        await create_task_from_scene_gap(db, scene_id, legacy_direct_task=legacy_direct_task),
+        status=201,
+    )
+
+
+@router.get("/themes")
+async def themes_list(
+    request: Request,
+    db: DbSession,
+    jwt=Depends(get_admin_jwt),
+    status: str | None = Query(None),
+):
+    from app.services.geoeval.theme_service import list_themes
+
+    return success(request, await list_themes(db, status=status))
+
+
+@router.get("/themes/funnel")
+async def themes_funnel(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.theme_service import theme_funnel_stats
+
+    return success(request, await theme_funnel_stats(db))
+
+
+@router.get("/themes/analytics")
+async def themes_analytics(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.theme_service import analytics_by_theme
+
+    return success(request, await analytics_by_theme(db))
+
+
+@router.post("/themes")
+async def themes_create(body: dict, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.theme_service import ThemeCreateBody, create_theme
+
+    payload = ThemeCreateBody.model_validate(body)
+    return success(request, await create_theme(db, payload), status=201)
+
+
+@router.post("/themes/from-scene/{scene_id}")
+async def themes_from_scene(scene_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.theme_service import create_theme_from_scene
+
+    return success(request, await create_theme_from_scene(db, scene_id), status=201)
+
+
+@router.get("/themes/{theme_id}")
+async def themes_get(theme_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.theme_service import get_theme
+
+    return success(request, await get_theme(db, theme_id))
+
+
+@router.patch("/themes/{theme_id}")
+async def themes_patch(theme_id: int, body: dict, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.theme_service import ThemePatchBody, patch_theme
+
+    payload = ThemePatchBody.model_validate(body)
+    return success(request, await patch_theme(db, theme_id, payload))
+
+
+@router.post("/themes/{theme_id}/confirm")
+async def themes_confirm(theme_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.theme_service import confirm_theme
+
+    return success(request, await confirm_theme(db, theme_id))
+
+
+@router.post("/themes/{theme_id}/start-produce")
+async def themes_start_produce(theme_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.theme_service import start_produce
+
+    return success(request, await start_produce(db, theme_id))
+
+
+@router.post("/themes/{theme_id}/spawn-candidate")
+async def themes_spawn_candidate(
+    theme_id: int,
+    request: Request,
+    db: DbSession,
+    jwt=Depends(get_admin_jwt),
+    candidate_index: int = Query(0, ge=0, le=9),
+):
+    from app.services.geoeval.theme_service import spawn_theme_candidate
+
+    return success(request, await spawn_theme_candidate(db, theme_id, candidate_index), status=201)
+
+
+@router.post("/themes/{theme_id}/refresh-gate")
+async def themes_refresh_gate(theme_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoeval.theme_service import refresh_theme_gate_summary
+
+    return success(request, await refresh_theme_gate_summary(db, theme_id))
 
 
 @router.get("/strategy/monitor/remediations")
@@ -819,7 +1121,9 @@ async def strategy_monitor_remediations_process_due(request: Request, db: DbSess
 
 
 @router.post("/strategy/monitor/remediations/{remediation_id}/rescan")
-async def strategy_monitor_remediation_rescan(remediation_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+async def strategy_monitor_remediation_rescan(
+    remediation_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)
+):
     from app.services.geoeval.remediation_service import complete_remediation_rescan
 
     return success(request, await complete_remediation_rescan(db, remediation_id))
@@ -1105,6 +1409,88 @@ async def strategy_reevaluate_article(article_id: int, request: Request, db: DbS
 
     celery_app.send_task("app.workers.tasks.evaluate_article", args=[article_id])
     return success(request, {"queued": True, "article_id": article_id})
+
+
+class GeoEvalSimulateBody(BaseModel):
+    title: str = Field(default="", max_length=300)
+    content: str = Field(default="", max_length=50000)
+    query: str | None = Field(default=None, max_length=200)
+    keyword: str | None = Field(default=None, max_length=200)
+    kb_id: int | None = None
+    article_id: int | None = None
+
+    def require_payload(self) -> None:
+        if self.article_id:
+            return
+        if not (self.title or "").strip() or not (self.content or "").strip():
+            raise HTTPException(status_code=400, detail="title_and_content_required")
+
+
+@router.post("/strategy/geo-eval/simulate")
+async def strategy_geo_eval_simulate(
+    body: GeoEvalSimulateBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)
+):
+    """虚拟 GEO 环境仿真：返回内容被 AI 检索/采纳的概率拆解（不落库）。"""
+    from app.services.admin.geo_eval_settings_service import get_geo_eval_gate_config
+    from app.services.geoeval.eval_context import load_default_kb_id, resolve_eval_model, resolve_kb_id
+    from app.services.geoeval.simulation_rag import SimulationRagService
+
+    body.require_payload()
+    gate = await get_geo_eval_gate_config(db)
+    pass_score = float(gate.get("simulation_pass_score") or 0.55)
+    model = None
+    kb_id = body.kb_id
+    title = body.title
+    content = body.content
+    keyword = body.keyword
+
+    if body.article_id:
+        article = await db.get(Article, body.article_id)
+        if article is None or article.deleted_at:
+            raise HTTPException(status_code=404, detail="article_not_found")
+        title = article.title or title
+        content = article.content or content
+        keyword = keyword or article.original_keyword or article.keywords
+        kb_id = kb_id or await resolve_kb_id(db, article)
+        model = await resolve_eval_model(db, article)
+    else:
+        kb_id = kb_id or await load_default_kb_id(db)
+        from app.services.geoflow.llm_client import get_active_chat_model
+
+        model = await get_active_chat_model(db)
+
+    if not (title or "").strip() or not (content or "").strip():
+        raise HTTPException(status_code=400, detail="title_and_content_required")
+
+    sim = await SimulationRagService(db).simulate_draft(
+        title=title,
+        content=content,
+        query=body.query,
+        keyword=keyword,
+        kb_id=kb_id,
+        model=model,
+    )
+    adoption = float(sim.get("adoption_probability") or sim.get("simulation_score") or 0)
+    payload = {
+        **sim,
+        "pass_threshold": pass_score,
+        "passes_threshold": adoption >= pass_score,
+        "probability_pct": round(adoption * 100, 1),
+        "breakdown": {
+            "retrieval": float(sim.get("retrieval_probability") or sim.get("retrieval_score") or 0),
+            "overlap": float(sim.get("overlap_score") or 0),
+            "confidence": float(sim.get("confidence") or 0),
+            "in_context": float(sim.get("in_context_probability") or 0),
+            "adoption": adoption,
+        },
+    }
+    logging.getLogger(__name__).info(
+        "geo_eval_simulate_api article_id=%s score=%s pass=%s",
+        body.article_id,
+        adoption,
+        payload["passes_threshold"],
+    )
+    return success(request, payload)
 
 
 @router.get("/strategy/analytics")

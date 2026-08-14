@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.admin.production_service import _table_exists
 from app.services.geoeval.competitive_analyzer import compute_optimization_potential
 from app.services.geoeval.monitor_probe import aggregate_probe_kpis
-from app.services.geoeval.platform_connectors.base import PLATFORMS_CN
 
 logger = logging.getLogger(__name__)
 
@@ -135,14 +134,15 @@ async def _load_market_settings(db: AsyncSession) -> dict:
 
 
 async def score_platforms(db: AsyncSession, query_type: str | None = None) -> list[dict]:
-    """平台选择建议：可见性 40% + 排名 30% + 好感度 30%。"""
+    """平台选择建议：可见性 40% + 排名 30% + 好感度 30%。
+
+    无探针样本时返回空列表（禁止用 0 分伪装「优先推荐」）。
+    """
     kpis = await aggregate_probe_kpis(db, query_type=query_type)
-    platform_rows = kpis.get("platform_summary") or []
+    platform_rows = [r for r in (kpis.get("platform_summary") or []) if (r.get("total") or 0) > 0]
     if not platform_rows:
-        return [
-            {"platform": p, "label": PLATFORM_LABELS.get(p, p), "score": 0, "visibility_pct": 0, "weighted_rank_score": None, "sentiment_score": None}
-            for p in PLATFORMS_CN
-        ]
+        logger.info("platform_scored skipped reason=no_probe_samples")
+        return []
 
     max_vis = max((r.get("visibility_pct") or 0) for r in platform_rows) or 1
     max_rank = max((r.get("weighted_rank_score") or 0) for r in platform_rows) or 1
@@ -150,19 +150,30 @@ async def score_platforms(db: AsyncSession, query_type: str | None = None) -> li
 
     scored: list[dict] = []
     for row in platform_rows:
-        vis_norm = (row.get("visibility_pct") or 0) / max_vis * 100
-        rank_norm = (row.get("weighted_rank_score") or 0) / max_rank * 100 if max_rank else 0
-        sent_norm = sentiment
+        vis = float(row.get("visibility_pct") or 0)
+        rank = float(row.get("weighted_rank_score") or 0)
+        top3 = row.get("top3_pct")
+        vis_norm = vis / max_vis * 100
+        rank_norm = rank / max_rank * 100 if max_rank else 0
+        sent_norm = float(sentiment)
         score = round(vis_norm * 0.4 + rank_norm * 0.3 + sent_norm * 0.3)
         plat = str(row["platform"])
+        reason_parts = [f"可见性 {vis:.0f}%"]
+        if top3 is not None:
+            reason_parts.append(f"Top3 {float(top3):.0f}%")
+        if rank:
+            reason_parts.append(f"加权排名 {rank:.1f}")
         scored.append(
             {
                 "platform": plat,
                 "label": PLATFORM_LABELS.get(plat, plat),
                 "score": score,
-                "visibility_pct": row.get("visibility_pct", 0),
+                "visibility_pct": vis,
+                "top3_pct": top3,
+                "sample_n": int(row.get("total") or 0),
                 "weighted_rank_score": row.get("weighted_rank_score"),
                 "sentiment_score": sentiment,
+                "reason": " · ".join(reason_parts),
             }
         )
     scored.sort(key=lambda x: x["score"], reverse=True)
@@ -414,16 +425,222 @@ async def build_scene_funnel_tree(db: AsyncSession) -> dict:
 
 
 async def build_optimization_panel(db: AsyncSession) -> dict:
+    """优化策略决策台：就绪度 + 可行动作 + 真实探针/缺口洞察。"""
     from app.services.admin.monitor_aivis_service import list_monitor_insights
+    from app.services.geoeval.competitive_analyzer import build_competitor_matrix
     from app.services.geoeval.scene_gap_analyzer import compute_all_scene_gaps
 
     market = await _load_market_settings(db)
+    kpis = await aggregate_probe_kpis(db, north_star=True)
     platform_scores = await score_platforms(db)
-    gaps = await compute_all_scene_gaps(db)
-    scenes = sorted(gaps.get("scenes") or [], key=lambda s: (s.get("gap_rate", 0) * s.get("weight_pct", 1)), reverse=True)
-    top_scenes = scenes[:3]
+    difficulty = await assess_difficulty(db)
+    matrix = await build_competitor_matrix(db)
+
+    question_count = 0
+    scene_count = 0
+    competitor_count = 0
+    stored_scenes: list[dict] = []
+
+    if await _table_exists(db, "geo_monitor_questions"):
+        question_count = int(
+            (
+                await db.execute(
+                    text("SELECT COUNT(*) FROM geo_monitor_questions WHERE status = 'active'")
+                )
+            ).scalar_one()
+            or 0
+        )
+    if await _table_exists(db, "geo_monitor_scenes"):
+        scene_rows = (
+            await db.execute(
+                text(
+                    """
+                    SELECT id, scene_name, persona, intent, weight_pct, gap_rate, gap_priority
+                    FROM geo_monitor_scenes
+                    WHERE status = 'active'
+                    ORDER BY COALESCE(gap_rate, 0) * COALESCE(weight_pct, 1) DESC, weight_pct DESC
+                    LIMIT 8
+                    """
+                )
+            )
+        ).all()
+        scene_count = int(
+            (await db.execute(text("SELECT COUNT(*) FROM geo_monitor_scenes WHERE status = 'active'"))).scalar_one()
+            or 0
+        )
+        stored_scenes = [
+            {
+                "scene_id": int(r[0]),
+                "scene_name": r[1],
+                "persona": r[2],
+                "intent": r[3],
+                "weight_pct": float(r[4] or 0),
+                "gap_rate": float(r[5] or 0),
+                "gap_priority": str(r[6] or "covered"),
+            }
+            for r in scene_rows
+        ]
+    if await _table_exists(db, "geo_monitor_competitors"):
+        competitor_count = int(
+            (
+                await db.execute(
+                    text("SELECT COUNT(*) FROM geo_monitor_competitors WHERE status = 'active'")
+                )
+            ).scalar_one_or_none()
+            or 0
+        )
+
+    probe_count = int(kpis.get("probe_count") or 0)
+    valid_n = kpis.get("valid_sample_n")
+    has_scan = probe_count > 0
+
+    # 有场景时才算缺口（避免空库全量扫描）
+    gaps: dict = {"scenes": [], "high_gap_count": 0}
+    if scene_count > 0:
+        try:
+            gaps = await compute_all_scene_gaps(db)
+        except Exception:
+            logger.exception("optimization_gap_compute_failed")
+
+    gap_scenes = sorted(
+        gaps.get("scenes") or [],
+        key=lambda s: (float(s.get("gap_rate") or 0) * float(s.get("weight_pct") or 1)),
+        reverse=True,
+    )
+    top_scenes = gap_scenes[:5] if gap_scenes else stored_scenes[:5]
+    priority_scenes = [
+        {
+            "scene_id": s.get("scene_id") or s.get("id"),
+            "scene_name": s.get("scene_name"),
+            "persona": s.get("persona"),
+            "intent": s.get("intent"),
+            "gap_rate": float(s.get("gap_rate") or 0),
+            "gap_priority": s.get("gap_priority") or "covered",
+            "weight_pct": float(s.get("weight_pct") or 0),
+            "question_count": s.get("question_count"),
+            "supported_count": s.get("supported_count"),
+            "unsupported_sample": s.get("unsupported_sample") or [],
+        }
+        for s in top_scenes
+    ]
+
+    blockers: list[str] = []
+    if question_count == 0:
+        blockers.append("尚未配置监控问题库")
+    if scene_count == 0:
+        blockers.append("尚未建立场景图谱")
+    if competitor_count == 0:
+        blockers.append("尚未配置竞品对照")
+    if not has_scan:
+        blockers.append("尚无有效探针样本（需先全量扫描）")
+
+    actions: list[dict] = []
+    if question_count == 0:
+        actions.append(
+            {
+                "id": "setup_questions",
+                "priority": "high",
+                "title": "配置监控问题库",
+                "body": "按对比/决策题型录入问题，作为探针与缺口分析入口。",
+                "href": "/strategy/question-bank",
+                "cta": "去问题库",
+            }
+        )
+    if scene_count == 0:
+        actions.append(
+            {
+                "id": "setup_scenes",
+                "priority": "high",
+                "title": "建立场景图谱",
+                "body": "画像→场景→意图→Query；也可导入 TJG 报告快速铺场景。",
+                "href": "/strategy/scene-graph",
+                "cta": "去场景图谱",
+            }
+        )
+    if competitor_count == 0:
+        actions.append(
+            {
+                "id": "setup_competitors",
+                "priority": "medium",
+                "title": "配置竞品品牌",
+                "body": "竞品对照决定「相对竞品 pp」与平台优先级解释。",
+                "href": "/strategy/brand",
+                "cta": "去品牌可见性",
+            }
+        )
+    if question_count > 0 and not has_scan:
+        actions.append(
+            {
+                "id": "run_scan",
+                "priority": "high",
+                "title": "执行全量探针扫描",
+                "body": "产出 Top3 / 提及率 / 平台可见性，才能生成平台投入建议。",
+                "href": "/strategy/collection",
+                "cta": "去数据采集",
+            }
+        )
+    high_gap = [s for s in priority_scenes if s.get("gap_priority") == "high"]
+    if high_gap:
+        top = high_gap[0]
+        actions.append(
+            {
+                "id": "close_gap",
+                "priority": "high",
+                "title": f"挖主题：{top.get('scene_name')}",
+                "body": f"缺口率 {float(top.get('gap_rate') or 0)*100:.0f}% · 权重 {top.get('weight_pct') or 0}% —— 生成主题草稿（含挖掘摘要），再到内容生产确认。",
+                "href": "/production/themes",
+                "cta": "去主题包",
+                "scene_id": top.get("scene_id"),
+            }
+        )
+    entity = difficulty.get("entity_foundation") or {}
+    if int(entity.get("score") or 0) >= 4:
+        actions.append(
+            {
+                "id": "strengthen_entity",
+                "priority": "medium",
+                "title": "夯实实体基础（Wiki / 技术 IP）",
+                "body": entity.get("description") or "Wiki/P0 覆盖偏低，会抬高可见性难度。",
+                "href": "/production/tech-assets",
+                "cta": "去技术 IP",
+            }
+        )
+    if not actions:
+        actions.append(
+            {
+                "id": "review_report",
+                "priority": "low",
+                "title": "复盘诊断报告",
+                "body": "主路径已就绪，查看北极星章与闭环验证，决定下一轮投入。",
+                "href": "/strategy/reports",
+                "cta": "看报告",
+            }
+        )
 
     insights = (await list_monitor_insights(db)).get("items", [])
+    if not insights and blockers:
+        insights = [
+            {
+                "id": f"ready-{i}",
+                "insight_type": "readiness",
+                "title": "策略就绪阻塞",
+                "body": b,
+            }
+            for i, b in enumerate(blockers[:3])
+        ]
+
+    gap_pp = matrix.get("gap_vs_leader")
+    opt_potential = await compute_optimization_potential(
+        float(kpis.get("top3_pct") or kpis.get("visibility_pct") or 0),
+        float(kpis.get("top3_pct") or kpis.get("visibility_pct") or 0) + float(gap_pp or 0),
+    )
+
+    ready = question_count > 0 and has_scan
+    summary = (
+        f"就绪：问题 {question_count} · 场景 {scene_count} · 探针 {probe_count}"
+        if ready
+        else f"未就绪：{blockers[0] if blockers else '缺少策略输入'}"
+    )
 
     return {
         "market_opportunity": {
@@ -431,15 +648,41 @@ async def build_optimization_panel(db: AsyncSession) -> dict:
             "ai_platform_mau": market["ai_platform_mau"],
             "summary": f"月搜索量 {market['monthly_search_volume']:,}+，AI 平台月活 {market['ai_platform_mau'] / 1e8:.1f} 亿",
         },
-        "platform_recommendations": platform_scores[:3],
-        "priority_scenes": [
-            {
-                "scene_name": s.get("scene_name"),
-                "gap_rate": s.get("gap_rate"),
-                "gap_priority": s.get("gap_priority"),
-                "weight_pct": s.get("weight_pct"),
-            }
-            for s in top_scenes
-        ],
-        "insights": insights[:5],
+        "platform_recommendations": platform_scores[:5],
+        "priority_scenes": priority_scenes,
+        "insights": insights[:8],
+        "north_star": {
+            "top3_pct": kpis.get("top3_pct"),
+            "gap_vs_leader_top3_pp": kpis.get("gap_vs_leader_top3_pp"),
+            "mention_rate_pct": kpis.get("mention_rate_pct")
+            or round(float(kpis.get("mention_rate") or 0) * 100, 1),
+            "valid_sample_n": valid_n,
+            "probe_count": probe_count,
+            "kpi_track": kpis.get("kpi_track") or "open_api",
+        },
+        "readiness": {
+            "question_count": question_count,
+            "scene_count": scene_count,
+            "probe_count": probe_count,
+            "competitor_count": competitor_count,
+            "high_gap_count": int(gaps.get("high_gap_count") or len(high_gap)),
+            "has_scan": has_scan,
+            "ready": ready,
+            "blockers": blockers,
+            "summary": summary,
+        },
+        "actions": actions,
+        "difficulty": {
+            "overall_score": difficulty.get("overall_score"),
+            "overall_label": difficulty.get("overall_label"),
+            "market_competition": difficulty.get("market_competition"),
+            "entity_foundation": difficulty.get("entity_foundation"),
+            "lift_needed_pct": difficulty.get("lift_needed_pct"),
+        },
+        "competitor_gap": {
+            "gap_vs_leader": gap_pp,
+            "self_visibility_pct": matrix.get("self_visibility_pct"),
+            "competitors": matrix.get("competitors") or [],
+            "lift_needed_pct": opt_potential.get("lift_needed"),
+        },
     }

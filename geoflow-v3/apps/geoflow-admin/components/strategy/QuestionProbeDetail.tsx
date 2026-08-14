@@ -7,7 +7,8 @@ import type { QuestionCitationDetail, QueryProbe } from "@/lib/strategy-types";
 import { platformLabel, surfaceCardClass } from "./shared/AivisPrimitives";
 
 function ProbeRow({ probe }: { probe: QueryProbe }) {
-  const [open, setOpen] = useState(probe.mentioned);
+  const [open, setOpen] = useState(probe.mentioned || probe.engine === "cend_browser");
+  const isCend = probe.engine === "cend_browser" || probe.metric_kind === "cend_sample";
   return (
     <div className="rounded-lg border border-gray-200 bg-white">
       <button
@@ -25,15 +26,58 @@ function ProbeRow({ probe }: { probe: QueryProbe }) {
             {probe.mentioned ? "已提及" : "未提及"}
           </span>
           {probe.brand_rank != null && <span className="text-xs text-gray-500">排名 {probe.brand_rank}</span>}
+          {isCend && (
+            <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-800">C端 · L2</span>
+          )}
+          {probe.engine && !isCend && (
+            <span className="rounded bg-slate-50 px-1.5 py-0.5 text-[11px] text-slate-600">{probe.engine}</span>
+          )}
+          {probe.evidence_level && (
+            <span className="text-[11px] text-gray-400">{probe.evidence_level}</span>
+          )}
         </div>
         <span className="text-xs text-violet-600">{probe.citation_count} 引用</span>
       </button>
       {open && (
-        <div className="border-t border-gray-100 px-3 py-2">
+        <div className="space-y-3 border-t border-gray-100 px-3 py-2">
+          {probe.thinking_text && (
+            <div>
+              <p className="mb-1 text-[11px] font-medium text-gray-500">
+                思考链路{probe.thinking_ms != null ? ` · ${Math.round(probe.thinking_ms / 1000)}s` : ""}
+              </p>
+              <p className="max-h-28 overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed text-gray-600">
+                {probe.thinking_text}
+              </p>
+            </div>
+          )}
+          {probe.keywords && probe.keywords.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {probe.keywords.map((kw) => (
+                <span key={kw} className="rounded bg-cyan-50 px-1.5 py-0.5 text-[11px] text-cyan-800">
+                  {kw}
+                </span>
+              ))}
+            </div>
+          )}
+          {probe.rank_blocks && probe.rank_blocks.length > 0 && (
+            <div>
+              <p className="mb-1 text-[11px] font-medium text-gray-500">排名结构</p>
+              <ul className="space-y-1 text-xs text-gray-700">
+                {probe.rank_blocks.map((b, i) => (
+                  <li key={i} className="rounded bg-gray-50 px-2 py-1">
+                    {String((b as { camp?: string }).camp || `块 ${i + 1}`)}
+                    {(b as { brand_rank?: number }).brand_rank != null && (
+                      <span className="ml-2 text-gray-500">rank={(b as { brand_rank?: number }).brand_rank}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {probe.snippet_preview ? (
-            <p className="mb-2 whitespace-pre-wrap text-xs leading-relaxed text-gray-600">{probe.snippet_preview}</p>
+            <p className="whitespace-pre-wrap text-xs leading-relaxed text-gray-600">{probe.snippet_preview}</p>
           ) : (
-            <p className="mb-2 text-xs text-gray-400">暂无回答摘要</p>
+            <p className="text-xs text-gray-400">暂无回答摘要</p>
           )}
           {probe.citations.length > 0 && (
             <ul className="space-y-1">
@@ -48,9 +92,17 @@ function ProbeRow({ probe }: { probe: QueryProbe }) {
                     <ExternalLink className="mt-0.5 h-3 w-3 shrink-0" />
                     <span className="line-clamp-2">{c.title || c.url}</span>
                   </a>
+                  {(c.evidence_level || c.source) && (
+                    <span className="mt-0.5 block text-[10px] text-gray-400">
+                      {[c.evidence_level, c.source].filter(Boolean).join(" · ")}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
+          )}
+          {probe.source_hosts && probe.source_hosts.length > 0 && (
+            <p className="text-[11px] text-gray-400">源：{probe.source_hosts.join(" · ")}</p>
           )}
         </div>
       )}
@@ -98,21 +150,17 @@ export function QuestionProbeDetail({
         <div className="space-y-3 p-4">
           {loading && <p className="text-sm text-gray-500">加载中…</p>}
           {error && <p className="text-sm text-red-600">{error}</p>}
-          {!loading && !error && data && (
+          {data && !loading && (
             <>
               <p className="text-xs text-gray-500">
-                {data.stats.probe_count} 探针 · {data.stats.citation_count} 引用
-                {data.stats.unique_domains > 0 ? ` · ${data.stats.unique_domains} 域名` : ""}
+                探针 {data.probes?.length ?? 0} · 引用合计{" "}
+                {data.probes?.reduce((s, p) => s + (p.citation_count || 0), 0) ?? 0}
               </p>
-              {data.probes.length === 0 ? (
-                <p className="text-sm text-gray-500">暂无探针记录，请先执行全量扫描</p>
-              ) : (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {data.probes.map((probe) => (
-                    <ProbeRow key={probe.probe_id} probe={probe} />
-                  ))}
-                </div>
-              )}
+              <div className="space-y-2">
+                {(data.probes || []).map((p) => (
+                  <ProbeRow key={p.probe_id} probe={p} />
+                ))}
+              </div>
             </>
           )}
         </div>

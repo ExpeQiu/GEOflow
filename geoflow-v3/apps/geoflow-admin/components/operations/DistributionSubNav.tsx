@@ -7,6 +7,7 @@ import { zh } from "@/lib/i18n/zh";
 
 const ITEMS = [
   { key: "overview", label: zh.distribution.overviewTab, href: "/operations/distribution" },
+  { key: "tasks", label: zh.distribution.tasksTab, href: "/operations/distribution/tasks" },
   { key: "jobs", label: zh.distribution.jobsTab, href: "/operations/distribution/jobs" },
 ];
 

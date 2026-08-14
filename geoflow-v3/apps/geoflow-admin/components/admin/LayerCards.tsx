@@ -3,20 +3,24 @@ import { zh } from "@/lib/i18n/zh";
 
 const LAYER_LINKS = {
   l1: [
-    { href: "/strategy/monitor", label: zh.strategy.tabs.monitor },
-    { href: "/strategy/web-intel", label: zh.strategy.tabs["web-intel"] },
-    { href: "/strategy/simulator", label: zh.strategy.tabs.simulator },
+    { href: "/strategy/diagnosis", label: zh.strategy.tabs.diagnosis },
+    { href: "/strategy/collection", label: zh.strategy.tabs.collection },
+    { href: "/strategy/scene-graph", label: zh.strategy.tabs.sceneGraph },
+    { href: "/strategy/theme-mining", label: zh.strategy.tabs.themeMining },
+    { href: "/strategy/reports", label: zh.strategy.tabs.reports },
   ],
   l2: [
+    { href: "/production/tasks", label: zh.production.tabs.tasks },
     { href: "/production/ai_config", label: zh.production.tabs.ai_config },
     { href: "/production/materials", label: zh.production.tabs.materials },
     { href: "/production/knowledge", label: zh.production.tabs.knowledge },
     { href: "/production/geo-eval", label: zh.production.tabs["geo-eval"] },
   ],
   l3: [
-    { href: "/operations/tasks", label: zh.operations.tabs.tasks },
     { href: "/operations/articles", label: zh.operations.tabs.articles },
+    { href: "/operations/distribution/tasks", label: zh.distribution.tasksTab },
     { href: "/operations/distribution", label: zh.operations.tabs.distribution },
+    { href: "/operations/analytics", label: zh.operations.tabs.analytics },
   ],
 };
 
@@ -24,7 +28,7 @@ export function LayerCards() {
   return (
     <section className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
       <LayerCard
-        href="/strategy/overview"
+        href="/strategy/diagnosis"
         label={zh.dashboard.layers.l1Label}
         title={zh.dashboard.layers.l1Title}
         desc={zh.dashboard.layers.l1Desc}

@@ -96,6 +96,26 @@ class WorkerExecutionService:
             from app.services.admin.geo_eval_settings_service import get_geo_eval_gate_config
 
             gate = await get_geo_eval_gate_config(self.db)
+            # Theme 绑定：按 task → theme，并按 pack_spec 序号分配 wiki type
+            theme_id = None
+            pack_type = task.wiki_page_type or "concept"
+            try:
+                from sqlalchemy import select as sa_select
+
+                from app.models.theme import GeoTheme
+
+                theme = (
+                    await self.db.execute(sa_select(GeoTheme).where(GeoTheme.task_id == task.id).limit(1))
+                ).scalar_one_or_none()
+                if theme:
+                    theme_id = theme.id
+                    pack = theme.pack_spec or []
+                    idx = max(0, int(task.created_count or 0))
+                    if idx < len(pack) and pack[idx].get("type"):
+                        pack_type = str(pack[idx]["type"])
+            except Exception:  # noqa: BLE001
+                logger.debug("theme_lookup_skipped task_id=%s", task.id, exc_info=True)
+
             article = Article(
                 title=article_title,
                 slug=f"{slug}-{run.id}",
@@ -104,6 +124,7 @@ class WorkerExecutionService:
                 category_id=category_id,
                 author_id=author_id,
                 task_id=task.id,
+                theme_id=theme_id,
                 is_ai_generated=1,
                 content_format=task.content_format or "article",
                 keywords=article_fields["keywords"],
@@ -113,7 +134,9 @@ class WorkerExecutionService:
             )
             if task.is_wiki_mdx():
                 wiki_meta = result.get("wiki_meta") if isinstance(result.get("wiki_meta"), dict) else {}
-                wiki_meta.setdefault("type", task.wiki_page_type or "concept")
+                wiki_meta.setdefault("type", pack_type)
+                if theme_id:
+                    wiki_meta.setdefault("theme_id", theme_id)
                 if ctx.tech_ip:
                     wiki_meta.setdefault("ip_id", ctx.tech_ip.get("ip_id"))
                     wiki_meta.setdefault("tech_name", ctx.tech_ip.get("name"))
@@ -134,11 +157,13 @@ class WorkerExecutionService:
             celery_app.send_task("app.workers.tasks.evaluate_article", args=[article.id, run.id])
 
             logger.info(
-                "worker_run_completed run_id=%s article_id=%s title_id=%s workflow=%s",
+                "worker_run_completed run_id=%s article_id=%s theme_id=%s title_id=%s workflow=%s pack_type=%s",
                 run_id,
                 article.id,
+                theme_id,
                 ctx.title_id,
                 workflow_type,
+                pack_type,
             )
         except Exception as exc:  # noqa: BLE001
             run.status = "failed"

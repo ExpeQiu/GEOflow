@@ -113,8 +113,13 @@ async def build_distribution_jobs(
     *,
     channel_id: int | None = None,
     status: str | None = None,
+    theme_id: int | None = None,
     limit: int = 50,
 ) -> dict:
+    from sqlalchemy import text
+
+    from app.services.admin.production_service import _table_exists
+
     query = select(ArticleDistribution).order_by(ArticleDistribution.id.desc()).limit(limit)
     if channel_id:
         query = query.where(ArticleDistribution.channel_id == channel_id)
@@ -133,12 +138,40 @@ async def build_distribution_jobs(
         for c in (await db.execute(select(DistributionChannel).where(DistributionChannel.id.in_(channel_ids)))).scalars().all():
             channels[c.id] = c
 
-    return {
-        "jobs": [
+    theme_meta: dict[int, tuple[str, str | None, bool | None]] = {}
+    theme_ids = {a.theme_id for a in articles.values() if a.theme_id}
+    if theme_ids and await _table_exists(db, "geo_themes"):
+        rows = (
+            await db.execute(
+                text(
+                    """
+                    SELECT id, title, gate_mode,
+                           COALESCE((gate_summary->>'pack_gate_ok')::text, '')
+                    FROM geo_themes WHERE id = ANY(:ids)
+                    """
+                ),
+                {"ids": list(theme_ids)},
+            )
+        ).all()
+        for r in rows:
+            pack_ok = True if r[3] == "true" else (False if r[3] == "false" else None)
+            theme_meta[int(r[0])] = (str(r[1] or ""), str(r[2] or "soft"), pack_ok)
+
+    items = []
+    for j in jobs:
+        art = articles.get(j.article_id)
+        tid = art.theme_id if art else None
+        if theme_id is not None and tid != theme_id:
+            continue
+        tmeta = theme_meta.get(tid) if tid else None
+        gate_mode = tmeta[1] if tmeta else None
+        pack_ok = tmeta[2] if tmeta else None
+        gate_hint = "待门禁" if (gate_mode or "soft") == "hard" and pack_ok is not True else None
+        items.append(
             {
                 "id": j.id,
                 "article_id": j.article_id,
-                "article_title": articles[j.article_id].title if j.article_id in articles else "",
+                "article_title": art.title if art else "",
                 "channel_id": j.channel_id,
                 "channel_name": channels[j.channel_id].name if j.channel_id in channels else "",
                 "status": j.status,
@@ -147,10 +180,15 @@ async def build_distribution_jobs(
                 "error_message": (j.error_message or "")[:200],
                 "attempt_count": j.attempt_count,
                 "updated_at": j.updated_at.isoformat() if j.updated_at else None,
+                "theme_id": tid,
+                "theme_title": tmeta[0] if tmeta else None,
+                "theme_gate_mode": gate_mode,
+                "theme_pack_gate_ok": pack_ok,
+                "theme_gate_hint": gate_hint,
             }
-            for j in jobs
-        ]
-    }
+        )
+
+    return {"jobs": items}
 
 
 class DistributionJobUpdateBody(BaseModel):
@@ -239,7 +277,127 @@ async def retry_distribution_job(db: AsyncSession, job_id: int) -> dict:
     try:
         from app.workers.celery_app import celery_app
 
-        celery_app.send_task("app.workers.tasks.process_article_distribution", args=[job.article_id])
+        celery_app.send_task(
+            "app.workers.tasks.process_article_distribution",
+            args=[job.article_id, [job.channel_id]],
+        )
     except Exception:
         logger.exception("distribution_retry_queue_failed job_id=%s", job.id)
     return {"job": {"id": job.id, "status": job.status}}
+
+
+class AdminDistributionBatchBody(BaseModel):
+    article_ids: list[int] = Field(min_length=1)
+    channel_ids: list[int] = Field(min_length=1)
+    interval_seconds: int = Field(default=0, ge=0, le=86400)
+
+
+async def create_distribution_batch(db: AsyncSession, body: AdminDistributionBatchBody) -> dict:
+    article_ids = sorted({int(i) for i in body.article_ids if int(i) > 0})
+    channel_ids = sorted({int(i) for i in body.channel_ids if int(i) > 0})
+    if not article_ids or not channel_ids:
+        raise HTTPException(status_code=422, detail="article_ids_and_channel_ids_required")
+
+    articles = list(
+        (
+            await db.execute(
+                select(Article).where(
+                    Article.id.in_(article_ids),
+                    Article.deleted_at.is_(None),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    found_article_ids = {int(a.id) for a in articles}
+    missing_articles = [aid for aid in article_ids if aid not in found_article_ids]
+    if missing_articles:
+        raise HTTPException(status_code=404, detail=f"articles_not_found:{missing_articles[:5]}")
+
+    channels = list(
+        (
+            await db.execute(
+                select(DistributionChannel).where(
+                    DistributionChannel.id.in_(channel_ids),
+                    DistributionChannel.status == "active",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    found_channel_ids = {int(c.id) for c in channels}
+    missing_channels = [cid for cid in channel_ids if cid not in found_channel_ids]
+    if missing_channels:
+        raise HTTPException(status_code=422, detail=f"active_channels_not_found:{missing_channels[:5]}")
+
+    created = 0
+    skipped = 0
+    queued_articles: list[int] = []
+    for article in articles:
+        for channel in channels:
+            existing = (
+                await db.execute(
+                    select(ArticleDistribution).where(
+                        ArticleDistribution.article_id == article.id,
+                        ArticleDistribution.channel_id == channel.id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if existing and existing.status in ("published", "synced", "success"):
+                skipped += 1
+                continue
+            if existing:
+                existing.status = "pending"
+                existing.error_message = ""
+            else:
+                db.add(
+                    ArticleDistribution(
+                        article_id=article.id,
+                        channel_id=channel.id,
+                        status="pending",
+                    )
+                )
+                created += 1
+        queued_articles.append(int(article.id))
+
+    await db.flush()
+
+    interval = int(body.interval_seconds or 0)
+    queued = 0
+    try:
+        from app.workers.celery_app import celery_app
+
+        for idx, article_id in enumerate(queued_articles):
+            countdown = idx * interval if interval > 0 else 0
+            celery_app.send_task(
+                "app.workers.tasks.process_article_distribution",
+                args=[article_id, channel_ids],
+                countdown=countdown,
+            )
+            queued += 1
+    except Exception:
+        logger.exception(
+            "admin_distribution_batch_queue_failed article_count=%s channel_count=%s",
+            len(article_ids),
+            len(channel_ids),
+        )
+
+    logger.info(
+        "admin_distribution_batch article_count=%s channel_count=%s created=%s skipped=%s queued=%s interval=%s",
+        len(article_ids),
+        len(channel_ids),
+        created,
+        skipped,
+        queued,
+        interval,
+    )
+    return {
+        "article_count": len(article_ids),
+        "channel_count": len(channel_ids),
+        "jobs_created": created,
+        "jobs_skipped": skipped,
+        "queued": queued,
+        "interval_seconds": interval,
+    }

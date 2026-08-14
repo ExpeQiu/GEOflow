@@ -27,15 +27,19 @@ function RunStatusBadge({ status }: { status: string }) {
 export function CollectionPanel({
   data,
   onScan,
+  onCendScan,
   onRefresh,
   scanning,
   scanStatus,
+  cendScanning,
 }: {
   data: CollectionPanelData;
   onScan: (scanType: "daily" | "market") => void;
+  onCendScan?: () => void;
   onRefresh?: () => void;
   scanning: boolean;
   scanStatus?: string;
+  cendScanning?: boolean;
 }) {
   const [seeding, setSeeding] = useState(false);
   const [seedMsg, setSeedMsg] = useState("");
@@ -167,6 +171,15 @@ export function CollectionPanel({
             className="rounded-md border border-violet-400 px-4 py-2 text-sm text-violet-700 disabled:opacity-50"
           >
             竞品扫描 (market)
+          </button>
+          <button
+            type="button"
+            disabled={scanning || cendScanning || !onCendScan}
+            onClick={() => onCendScan?.()}
+            className="rounded-md border border-amber-400 bg-amber-50 px-4 py-2 text-sm text-amber-900 disabled:opacity-50"
+            title="辅轨 cend_sample：思考链路 / 资料链 / 结构化排名；不覆盖 open_api KPI"
+          >
+            {cendScanning ? "C端金标扫描中…" : "C端金标扫描"}
           </button>
           <Link href="/strategy/question-bank" className="rounded-md border border-violet-300 px-4 py-2 text-sm text-violet-700">
             问题库

@@ -164,9 +164,18 @@ async def build_dashboard_payload(db: AsyncSession) -> dict:
     except Exception:
         logger.exception("dashboard_stats_query_failed")
 
+    theme_funnel = {"by_status": {}, "total": 0, "blockers": [], "draft": 0, "producing": 0, "published": 0, "measuring": 0}
+    try:
+        from app.services.geoeval.theme_service import theme_funnel_stats
+
+        theme_funnel = await theme_funnel_stats(db)
+    except Exception:
+        logger.exception("dashboard_theme_funnel_failed")
+
     return {
         "version": "3.0.0",
         "site_name": "GEOFlow",
         "stats": defaults,
         "automation": build_automation(defaults),
+        "theme_funnel": theme_funnel,
     }

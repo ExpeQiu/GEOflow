@@ -206,15 +206,19 @@ function IntentDetailPanel({
   intent,
   y,
   onSelectQuery,
+  onGenerateTheme,
+  themeBusy,
 }: {
   intent: SceneFunnelIntent;
   y: number;
   onSelectQuery?: (intent: SceneFunnelIntent) => void;
+  onGenerateTheme?: (sceneId: number) => void;
+  themeBusy?: boolean;
 }) {
   const optimize = needsOptimization(intent);
   return (
     <div
-      className="absolute z-10 w-[260px]"
+      className="absolute z-10 w-[280px]"
       style={{ left: COL.detail, top: Math.max(0, y - 8), transformOrigin: "left top" }}
     >
       <div
@@ -244,6 +248,23 @@ function IntentDetailPanel({
             <div className="mt-1 text-sm text-slate-500">引用数</div>
           </div>
         </div>
+        {onGenerateTheme && (
+          <button
+            type="button"
+            disabled={themeBusy}
+            onClick={(e) => {
+              e.stopPropagation();
+              onGenerateTheme(intent.id);
+            }}
+            className={`mt-3 w-full rounded-md px-3 py-2 text-xs font-medium disabled:opacity-50 ${
+              optimize
+                ? "bg-violet-600 text-white hover:bg-violet-700"
+                : "border border-violet-300 text-violet-700 hover:bg-violet-50"
+            }`}
+          >
+            {themeBusy ? "挖掘中…" : "生成主题草稿"}
+          </button>
+        )}
         {intent.queries?.length ? (
           <ul className="mt-3 space-y-1 border-t border-slate-100 pt-3">
             {intent.queries.slice(0, 3).map((q) => (
@@ -281,9 +302,13 @@ function clampScale(value: number) {
 export function TouchpointMindMap({
   funnel,
   onIntentSelect,
+  onGenerateTheme,
+  themeBusySceneId,
 }: {
   funnel: SceneFunnel;
   onIntentSelect?: (intent: SceneFunnelIntent) => void;
+  onGenerateTheme?: (sceneId: number) => void;
+  themeBusySceneId?: number | null;
 }) {
   const safeFunnel = useMemo(() => normalizeFunnel(funnel), [funnel]);
   const layout = useMemo(() => buildLayout(safeFunnel), [safeFunnel]);
@@ -409,6 +434,8 @@ export function TouchpointMindMap({
               intent={selectedIntent.intent}
               y={selectedIntent.y}
               onSelectQuery={onIntentSelect}
+              onGenerateTheme={onGenerateTheme}
+              themeBusy={themeBusySceneId === selectedIntent.intent.id}
             />
           )}
           </div>

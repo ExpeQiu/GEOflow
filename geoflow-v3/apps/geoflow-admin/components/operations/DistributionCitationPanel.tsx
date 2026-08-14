@@ -157,6 +157,9 @@ export function DistributionCitationPanel() {
       {!overview?.has_probe_data && (
         <FlashAlert variant="info">{zh.distributionCitations.noProbeData}</FlashAlert>
       )}
+      <p className="text-xs text-gray-500">
+        证据口径：L1 = open_api 答文抽链；L2 = C 端「相关资料」块（cend_ui）。corpus 伪引用为 L0，不计入可信索引。
+      </p>
 
       {notIndexedAlert && (
         <div className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">

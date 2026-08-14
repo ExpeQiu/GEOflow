@@ -31,6 +31,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+cend = [
+    "playwright>=1.49.0",
+]
 ocr = [
     "pymupdf>=1.24.0",
     "pytesseract>=0.3.13",

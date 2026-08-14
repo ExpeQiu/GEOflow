@@ -40,25 +40,71 @@ def process_geoflow_task(run_id: int) -> dict:
 def evaluate_article(article_id: int, task_run_id: int | None = None) -> dict:
     async def _inner():
         async with async_session_factory() as db:
+            from app.models.article import Article
+            from app.services.admin.geo_eval_settings_service import get_geo_eval_gate_config
             from app.services.geoeval.article_evaluation import ArticleEvaluationService
 
             svc = ArticleEvaluationService(db)
             ev = await svc.evaluate(article_id, task_run_id)
-            await db.commit()
-            from app.services.admin.geo_eval_settings_service import get_geo_eval_gate_config
 
             gate = await get_geo_eval_gate_config(db)
             hard = bool(gate["hard_gate"])
-            # soft：passed/advisory 均可自动发布；hard：仅 passed
             can_auto = ev.status == "passed" or (ev.status == "advisory" and not hard)
+
+            article = await db.get(Article, article_id)
+            theme_id = article.theme_id if article else None
+            pack_ok = False
+            if theme_id:
+                from app.services.geoeval.theme_service import refresh_theme_gate_summary
+
+                summary = await refresh_theme_gate_summary(db, int(theme_id))
+                pack_ok = bool((summary.get("gate_summary") or {}).get("pack_gate_ok"))
+                logger.info(
+                    "theme_gate_after_eval theme_id=%s article_id=%s pack_gate_ok=%s eval_status=%s",
+                    theme_id,
+                    article_id,
+                    pack_ok,
+                    ev.status,
+                )
+
+            await db.commit()
+
             if can_auto:
                 celery_app.send_task("app.workers.tasks.try_publish_after_eval", args=[article_id])
+
+            # 硬门禁整包通过后，补发此前暂缓分发的同 Theme 文章
+            if theme_id and pack_ok:
+                async with async_session_factory() as db2:
+                    from sqlalchemy import select
+
+                    from app.models.theme import GeoTheme
+
+                    theme = await db2.get(GeoTheme, theme_id)
+                    if theme and (theme.gate_mode or "soft") == "hard":
+                        arts = (
+                            await db2.execute(
+                                select(Article.id).where(
+                                    Article.theme_id == theme_id,
+                                    Article.status == "published",
+                                    Article.deleted_at.is_(None),
+                                )
+                            )
+                        ).scalars().all()
+                        for aid in arts:
+                            celery_app.send_task("app.workers.tasks.process_article_distribution", args=[int(aid)])
+                        logger.info(
+                            "theme_pack_gate_passed_flush_distribution theme_id=%s articles=%s",
+                            theme_id,
+                            len(arts),
+                        )
+
             logger.info(
-                "evaluate_article_done article_id=%s eval_status=%s hard_gate=%s auto_publish=%s",
+                "evaluate_article_done article_id=%s eval_status=%s hard_gate=%s auto_publish=%s theme_id=%s",
                 article_id,
                 ev.status,
                 hard,
                 can_auto,
+                theme_id,
             )
         return {"article_id": article_id, "status": "evaluated", "eval_status": ev.status}
 
@@ -96,15 +142,15 @@ def try_publish_after_eval(article_id: int) -> dict:
 
 
 @celery_app.task(name="app.workers.tasks.process_article_distribution")
-def process_article_distribution(article_id: int) -> dict:
+def process_article_distribution(article_id: int, channel_ids: list[int] | None = None) -> dict:
     async def _inner():
         async with async_session_factory() as db:
             from app.services.geoflow.distribution_orchestrator import DistributionOrchestrator
 
             svc = DistributionOrchestrator(db)
-            await svc.distribute_article(article_id)
+            await svc.distribute_article(article_id, channel_ids=channel_ids)
             await db.commit()
-        return {"article_id": article_id}
+        return {"article_id": article_id, "channel_ids": channel_ids}
 
     return _run_async(_inner())
 
@@ -135,6 +181,30 @@ def run_monitor_scan(scan_type: str = "daily") -> dict:
             return result
 
     logger.info("monitor_scan", scan_type=scan_type)
+    return _run_async(_inner())
+
+
+@celery_app.task(name="app.workers.tasks.run_cend_probe_scan")
+def run_cend_probe_scan(
+    platforms: list[str] | None = None,
+    limit: int = 5,
+    min_priority: int = 80,
+) -> dict:
+    """C 端金标扫描（辅轨），不进入 open_api 北极星口径。"""
+
+    async def _inner():
+        async with async_session_factory() as db:
+            from app.services.geoeval.cend_scan import CendScanOrchestrator
+
+            result = await CendScanOrchestrator(db).run_scan(
+                platforms=platforms,
+                limit=limit,
+                min_priority=min_priority,
+            )
+            await db.commit()
+            return result
+
+    logger.info("cend_probe_scan_queued", platforms=platforms, limit=limit)
     return _run_async(_inner())
 
 

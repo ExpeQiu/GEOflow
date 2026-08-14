@@ -18,6 +18,8 @@ export function ArticlesPanel({
   onBatchTrash,
   onBatchPublish,
   busyId,
+  themeFilter,
+  onThemeFilterChange,
 }: {
   articles: AdminArticle[];
   stats: ArticleStats;
@@ -29,6 +31,8 @@ export function ArticlesPanel({
   onBatchTrash?: (ids: number[]) => void;
   onBatchPublish?: (ids: number[]) => void;
   busyId: number | null;
+  themeFilter?: string;
+  onThemeFilterChange?: (value: string) => void;
 }) {
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
@@ -52,6 +56,19 @@ export function ArticlesPanel({
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <FilterChip active={filter === "all"} onClick={() => onFilterChange("all")} label={zh.articles.filterAll} />
         <FilterChip active={filter === "pending"} onClick={() => onFilterChange("pending")} label={zh.articles.filterPending} />
+        {onThemeFilterChange && (
+          <label className="flex items-center gap-2 text-sm text-gray-600">
+            Theme
+            <input
+              type="number"
+              min={1}
+              placeholder="ID"
+              value={themeFilter ?? ""}
+              onChange={(e) => onThemeFilterChange(e.target.value)}
+              className="w-24 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+            />
+          </label>
+        )}
         <Link href="/operations/articles/new" className="ml-auto rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
           {zh.articles.createButton}
         </Link>
@@ -90,13 +107,19 @@ export function ArticlesPanel({
                       }}
                     />
                   </th>
-                  {[zh.articles.columnTitle, zh.articles.columnStatus, zh.articles.columnReview, zh.articles.columnEval, zh.articles.columnViews, zh.articles.columnActions].map(
-                    (h) => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                        {h}
-                      </th>
-                    ),
-                  )}
+                  {[
+                    zh.articles.columnTitle,
+                    "Theme",
+                    zh.articles.columnStatus,
+                    zh.articles.columnReview,
+                    zh.articles.columnEval,
+                    zh.articles.columnViews,
+                    zh.articles.columnActions,
+                  ].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -113,6 +136,25 @@ export function ArticlesPanel({
                           <Pencil className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
                         </div>
                       </Link>
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {article.theme_id ? (
+                        <div>
+                          <Link
+                            href={`/production/themes?id=${article.theme_id}`}
+                            className="line-clamp-2 text-blue-700 hover:underline"
+                          >
+                            {article.theme_title || `#${article.theme_id}`}
+                          </Link>
+                          {article.theme_gate_hint && (
+                            <span className="mt-1 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
+                              {article.theme_gate_hint}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm">
                       <Badge value={article.status} />

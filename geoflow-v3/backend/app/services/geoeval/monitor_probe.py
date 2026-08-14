@@ -92,6 +92,48 @@ async def load_corpus(db: AsyncSession, limit: int = 80) -> list[dict]:
     return corpus
 
 
+async def _insert_citation_row(
+    db: AsyncSession,
+    *,
+    probe_id: int,
+    title: str,
+    url: str,
+    position: int,
+    evidence_level: str = "L0",
+    source: str = "corpus",
+) -> None:
+    """写入单条引用；兼容无 evidence_level/source 列的旧库。"""
+    params = {
+        "pid": probe_id,
+        "title": (title or "")[:500],
+        "url": (url or "")[:2000],
+        "pos": position,
+        "ev": evidence_level,
+        "src": source,
+    }
+    try:
+        await db.execute(
+            text(
+                """
+                INSERT INTO geo_monitor_probe_citations
+                    (probe_result_id, title, url, position, evidence_level, source)
+                VALUES (:pid, :title, :url, :pos, :ev, :src)
+                """
+            ),
+            params,
+        )
+    except Exception:
+        await db.execute(
+            text(
+                """
+                INSERT INTO geo_monitor_probe_citations (probe_result_id, title, url, position)
+                VALUES (:pid, :title, :url, :pos)
+                """
+            ),
+            {k: params[k] for k in ("pid", "title", "url", "pos")},
+        )
+
+
 async def _persist_corpus_citations(
     db: AsyncSession,
     *,
@@ -109,15 +151,64 @@ async def _persist_corpus_citations(
         title = str(doc.get("title") or "").strip()
         if not title:
             continue
-        await db.execute(
-            text(
-                """
-                INSERT INTO geo_monitor_probe_citations (probe_result_id, title, url, position)
-                VALUES (:pid, :title, :url, :pos)
-                """
-            ),
-            {"pid": probe_id, "title": title[:500], "url": str(doc.get("url") or "")[:500], "pos": pos},
+        # corpus 伪引用强制 L0，禁止冒充 AI 索引
+        await _insert_citation_row(
+            db,
+            probe_id=probe_id,
+            title=title,
+            url=str(doc.get("url") or ""),
+            position=pos,
+            evidence_level="L0",
+            source="corpus",
         )
+
+
+async def _persist_url_citations(
+    db: AsyncSession,
+    *,
+    probe_id: int,
+    urls: list[str],
+    evidence_level: str = "L1",
+    source: str = "api_extract",
+    titles: list[str] | None = None,
+) -> int:
+    """api/cend 答文或资料块 URL → probe_citations。"""
+    if not await _table_exists(db, "geo_monitor_probe_citations") or not urls:
+        return 0
+    from urllib.parse import urlparse
+
+    written = 0
+    for pos, raw in enumerate(urls, start=1):
+        url = str(raw or "").strip()
+        if not url:
+            continue
+        title = ""
+        if titles and pos - 1 < len(titles):
+            title = str(titles[pos - 1] or "").strip()
+        if not title:
+            try:
+                host = (urlparse(url).hostname or "").replace("www.", "")
+                title = host or url[:80]
+            except Exception:
+                title = url[:80]
+        await _insert_citation_row(
+            db,
+            probe_id=probe_id,
+            title=title,
+            url=url,
+            position=pos,
+            evidence_level=evidence_level,
+            source=source,
+        )
+        written += 1
+    logger.info(
+        "probe_url_citations_persisted probe_id=%s count=%s evidence_level=%s source=%s",
+        probe_id,
+        written,
+        evidence_level,
+        source,
+    )
+    return written
 
 
 async def _persist_probe(
@@ -147,63 +238,114 @@ async def _persist_probe(
         "evidence_level": outcome.evidence_level or "L0",
         "match_type": outcome.match_type or "none",
         "parser_version": outcome.parser_version,
+        "thinking_text": (outcome.thinking_text or "")[:8000] or None,
+        "thinking_ms": outcome.thinking_ms,
+        "keywords": json.dumps(outcome.keywords or [], ensure_ascii=False),
+        "entities": json.dumps(outcome.entities or [], ensure_ascii=False),
+        "rank_blocks": json.dumps(outcome.rank_blocks or [], ensure_ascii=False),
+        "decision_table": json.dumps(outcome.decision_table or [], ensure_ascii=False),
+        "source_hosts": json.dumps(outcome.source_hosts or [], ensure_ascii=False),
+        "capture_artifact": outcome.capture_artifact,
+        "metric_kind": outcome.metric_kind or ("cend_sample" if outcome.engine == "cend_browser" else "mixed"),
+        "cend_meta": json.dumps(outcome.cend_meta or {}, ensure_ascii=False),
     }
     probe_id: int | None = None
-    try:
-        row = (
-            await db.execute(
-                text(
-                    """
-                    INSERT INTO geo_monitor_probe_results
-                        (run_id, question_id, platform, brand_rank, mentioned, snippet, engine,
-                         ranking_score, sentiment, competitor_mentions,
-                         rank_method, evidence_level, match_type, parser_version)
-                    VALUES (:run_id, :qid, :platform, :rank, :mentioned, :snippet, :engine,
-                            :ranking_score, CAST(:sentiment AS JSON), CAST(:competitor_mentions AS JSON),
-                            :rank_method, :evidence_level, :match_type, :parser_version)
-                    RETURNING id
-                    """
-                ),
-                params,
-            )
-        ).first()
-        probe_id = int(row[0]) if row else None
-    except Exception:
+    # 优先写满 C 端扩展列，失败则逐级回退
+    insert_attempts = [
+        (
+            """
+            INSERT INTO geo_monitor_probe_results
+                (run_id, question_id, platform, brand_rank, mentioned, snippet, engine,
+                 ranking_score, sentiment, competitor_mentions,
+                 rank_method, evidence_level, match_type, parser_version,
+                 thinking_text, thinking_ms, keywords, entities, rank_blocks, decision_table,
+                 source_hosts, capture_artifact, metric_kind, cend_meta)
+            VALUES (:run_id, :qid, :platform, :rank, :mentioned, :snippet, :engine,
+                    :ranking_score, CAST(:sentiment AS JSON), CAST(:competitor_mentions AS JSON),
+                    :rank_method, :evidence_level, :match_type, :parser_version,
+                    :thinking_text, :thinking_ms,
+                    CAST(:keywords AS JSON), CAST(:entities AS JSON),
+                    CAST(:rank_blocks AS JSON), CAST(:decision_table AS JSON),
+                    CAST(:source_hosts AS JSON), :capture_artifact, :metric_kind,
+                    CAST(:cend_meta AS JSON))
+            RETURNING id
+            """,
+            params,
+        ),
+        (
+            """
+            INSERT INTO geo_monitor_probe_results
+                (run_id, question_id, platform, brand_rank, mentioned, snippet, engine,
+                 ranking_score, sentiment, competitor_mentions,
+                 rank_method, evidence_level, match_type, parser_version)
+            VALUES (:run_id, :qid, :platform, :rank, :mentioned, :snippet, :engine,
+                    :ranking_score, CAST(:sentiment AS JSON), CAST(:competitor_mentions AS JSON),
+                    :rank_method, :evidence_level, :match_type, :parser_version)
+            RETURNING id
+            """,
+            {k: v for k, v in params.items() if k in (
+                "run_id", "qid", "platform", "rank", "mentioned", "snippet", "engine",
+                "ranking_score", "sentiment", "competitor_mentions",
+                "rank_method", "evidence_level", "match_type", "parser_version",
+            )},
+        ),
+        (
+            """
+            INSERT INTO geo_monitor_probe_results
+                (run_id, question_id, platform, brand_rank, mentioned, snippet, engine,
+                 ranking_score, sentiment, competitor_mentions)
+            VALUES (:run_id, :qid, :platform, :rank, :mentioned, :snippet, :engine,
+                    :ranking_score, CAST(:sentiment AS JSON), CAST(:competitor_mentions AS JSON))
+            RETURNING id
+            """,
+            {k: v for k, v in params.items() if k in (
+                "run_id", "qid", "platform", "rank", "mentioned", "snippet", "engine",
+                "ranking_score", "sentiment", "competitor_mentions",
+            )},
+        ),
+        (
+            """
+            INSERT INTO geo_monitor_probe_results
+                (run_id, question_id, platform, brand_rank, mentioned, snippet, engine)
+            VALUES (:run_id, :qid, :platform, :rank, :mentioned, :snippet, :engine)
+            RETURNING id
+            """,
+            {k: v for k, v in params.items() if k in (
+                "run_id", "qid", "platform", "rank", "mentioned", "snippet", "engine",
+            )},
+        ),
+    ]
+    for sql, bind in insert_attempts:
         try:
-            row = (
-                await db.execute(
-                    text(
-                        """
-                        INSERT INTO geo_monitor_probe_results
-                            (run_id, question_id, platform, brand_rank, mentioned, snippet, engine,
-                             ranking_score, sentiment, competitor_mentions)
-                        VALUES (:run_id, :qid, :platform, :rank, :mentioned, :snippet, :engine,
-                                :ranking_score, CAST(:sentiment AS JSON), CAST(:competitor_mentions AS JSON))
-                        RETURNING id
-                        """
-                    ),
-                    {k: v for k, v in params.items() if k not in ("rank_method", "evidence_level", "match_type", "parser_version")},
-                )
-            ).first()
+            row = (await db.execute(text(sql), bind)).first()
             probe_id = int(row[0]) if row else None
+            if probe_id:
+                break
         except Exception:
-            row = (
-                await db.execute(
-                    text(
-                        """
-                        INSERT INTO geo_monitor_probe_results
-                            (run_id, question_id, platform, brand_rank, mentioned, snippet, engine)
-                        VALUES (:run_id, :qid, :platform, :rank, :mentioned, :snippet, :engine)
-                        RETURNING id
-                        """
-                    ),
-                    {k: v for k, v in params.items() if k in ("run_id", "qid", "platform", "rank", "mentioned", "snippet", "engine")},
-                )
-            ).first()
-            probe_id = int(row[0]) if row else None
+            continue
 
     if probe_id and corpus and question_text and outcome.engine == "corpus":
         await _persist_corpus_citations(db, probe_id=probe_id, question_text=question_text, corpus=corpus)
+    elif probe_id and outcome.engine == "api" and getattr(outcome, "urls", None):
+        await _persist_url_citations(
+            db,
+            probe_id=probe_id,
+            urls=list(outcome.urls or []),
+            evidence_level=outcome.evidence_level if outcome.evidence_level in ("L1", "L2") else "L1",
+            source="api_extract",
+        )
+    elif probe_id and outcome.engine == "cend_browser":
+        cite_urls = list(getattr(outcome, "citation_urls", None) or getattr(outcome, "urls", None) or [])
+        cite_titles = list(getattr(outcome, "citation_titles", None) or [])
+        if cite_urls:
+            await _persist_url_citations(
+                db,
+                probe_id=probe_id,
+                urls=cite_urls,
+                titles=cite_titles or None,
+                evidence_level="L2",
+                source="cend_ui",
+            )
     return probe_id
 
 

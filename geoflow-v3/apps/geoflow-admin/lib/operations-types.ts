@@ -33,6 +33,11 @@ export type AdminTask = {
   last_run_at: string | null;
   batch_status: string | null;
   batch_error_message: string;
+  theme_id?: number | null;
+  theme_title?: string | null;
+  theme_gate_mode?: string | null;
+  theme_pack_gate_ok?: boolean | null;
+  theme_gate_hint?: string | null;
 };
 
 export type AdminArticle = {
@@ -43,6 +48,11 @@ export type AdminArticle = {
   eval_status: string;
   content_format: string;
   task_id: number | null;
+  theme_id?: number | null;
+  theme_title?: string | null;
+  theme_gate_mode?: string | null;
+  theme_pack_gate_ok?: boolean | null;
+  theme_gate_hint?: string | null;
   view_count: number;
   published_at: string | null;
   created_at: string | null;
@@ -73,6 +83,11 @@ export type DistributionJobRow = {
   remote_url: string | null;
   error_message: string;
   updated_at: string | null;
+  theme_id?: number | null;
+  theme_title?: string | null;
+  theme_gate_mode?: string | null;
+  theme_pack_gate_ok?: boolean | null;
+  theme_gate_hint?: string | null;
 };
 
 export type DistributionStats = {

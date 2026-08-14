@@ -164,6 +164,8 @@ class GeowebPublisher:
                 frontmatter.get("schema_type") or meta.get("schema_type") or "TechArticle"
             ),
         }
+        if article.theme_id:
+            payload["geo_theme_id"] = str(article.theme_id)
         if domain:
             payload["domain"] = domain
         if quick_answer:
@@ -197,21 +199,20 @@ class GeowebPublisher:
             "wiki_page_type": page_type,
             "type": page_type,
             "slug": slug,
+            "theme_id": article.theme_id,
+            "geo_theme_id": str(article.theme_id) if article.theme_id else None,
+            "geo_content_hash": geo_content_hash,
             "geo_task_id": geo_task_id,
-            "content_hash": geo_content_hash,
             "geoweb_url": remote_url,
         }
-
         logger.info(
-            "geoweb_published",
-            article_id=article.id,
-            slug=slug,
-            page_type=page_type,
-            geo_flow_task=geo_task_id,
-            geo_content_hash=geo_content_hash,
-            remote_url=remote_url,
+            "geoweb_published article_id=%s theme_id=%s type=%s slug=%s geo_flow_task=%s",
+            article.id,
+            article.theme_id,
+            page_type,
+            slug,
+            geo_task_id,
         )
-
         return {
             "url": remote_url,
             "slug": slug,
