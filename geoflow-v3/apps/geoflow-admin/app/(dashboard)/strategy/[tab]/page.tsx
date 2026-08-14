@@ -5,22 +5,20 @@ import { useParams, useRouter } from "next/navigation";
 import { FlashAlert } from "@/components/admin/FlashAlert";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
-import { BrandVisibilityPanel } from "@/components/strategy/BrandVisibilityPanel";
-import { CollectionPanel } from "@/components/strategy/CollectionPanel";
 import { DiagnosisOverview } from "@/components/strategy/DiagnosisOverview";
 import { DifficultyPanelView, OptimizationPanelView } from "@/components/strategy/OptimizationDifficultyPanels";
-import { ProductVisibilityPanel } from "@/components/strategy/ProductVisibilityPanel";
+import { ProbesHub } from "@/components/strategy/ProbesHub";
 import { ReportsPanel } from "@/components/strategy/ReportsPanel";
-import { QuestionBankPanel } from "@/components/strategy/QuestionBankPanel";
 import { SalesCopyPanel } from "@/components/strategy/SalesCopyPanel";
 import { GoldLabelsPanel } from "@/components/strategy/GoldLabelsPanel";
 import { SceneGraphPanel } from "@/components/strategy/SceneGraphPanel";
 import { ThemeMiningPanel } from "@/components/strategy/ThemeMiningPanel";
+import { VisibilityHub } from "@/components/strategy/VisibilityHub";
 import { WebIntelPanel } from "@/components/strategy/WebIntelPanel";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiDelete, apiGet, apiPatch, apiPost, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
-import { STRATEGY_NAV } from "@/lib/nav-config";
+import { STRATEGY_MORE_NAV, STRATEGY_NAV } from "@/lib/nav-config";
 import type {
   BrandPanel,
   CollectionPanel as CollectionPanelData,
@@ -45,14 +43,18 @@ function errMsg(e: unknown, fallback: string) {
   return e instanceof Error && e.message ? e.message : fallback;
 }
 
-/** 旧入口 → 正确归属板块 */
+/** 旧入口 → 收敛后的主路径 / 合并页 */
 const LEGACY_TAB_REDIRECT: Record<string, string> = {
   overview: "/strategy/diagnosis",
-  monitor: "/strategy/collection",
+  monitor: "/strategy/probes",
   analytics: "/operations/analytics",
   simulator: "/production/geo-eval",
   "geo-eval": "/production/geo-eval",
-  settings: "/strategy/collection",
+  settings: "/strategy/probes",
+  collection: "/strategy/probes?view=scan",
+  "question-bank": "/strategy/probes?view=questions",
+  brand: "/strategy/visibility?view=brand",
+  product: "/strategy/visibility?view=product",
 };
 
 export default function StrategyPage() {
@@ -81,7 +83,6 @@ export default function StrategyPage() {
   const [webSources, setWebSources] = useState<WebSource[]>([]);
   const [webReports, setWebReports] = useState<{ id: number; title: string; status: string; created_at: string | null }[]>([]);
 
-  const [monitorKpis, setMonitorKpis] = useState<MonitorKpis | null>(null);
   const [monitorRuns, setMonitorRuns] = useState<MonitorRun[]>([]);
   const [monitorScenes, setMonitorScenes] = useState<MonitorScene[]>([]);
   const [monitorTemplates, setMonitorTemplates] = useState<QueryTemplate[]>([]);
@@ -120,15 +121,19 @@ export default function StrategyPage() {
         setGeoEval(ov.geo_eval);
         setTechBrand(ov.tech_brand);
         setGeowebAlignment(ov.geoweb_alignment ?? ov.gweb_alignment ?? null);
-      } else if (tab === "collection") {
-        const data = await apiGet<CollectionPanelData>("/api/admin/strategy/collection", t);
-        setCollection(data);
-      } else if (tab === "question-bank") {
-        await loadMonitorSettings(t);
-      } else if (tab === "brand") {
-        setBrandPanel(await apiGet<BrandPanel>("/api/admin/strategy/brand", t));
-      } else if (tab === "product") {
-        setProductPanel(await apiGet<ProductPanel>("/api/admin/strategy/product", t));
+      } else if (tab === "probes") {
+        const [coll] = await Promise.all([
+          apiGet<CollectionPanelData>("/api/admin/strategy/collection", t),
+          loadMonitorSettings(t),
+        ]);
+        setCollection(coll);
+      } else if (tab === "visibility") {
+        const [brand, product] = await Promise.all([
+          apiGet<BrandPanel>("/api/admin/strategy/brand", t),
+          apiGet<ProductPanel>("/api/admin/strategy/product", t),
+        ]);
+        setBrandPanel(brand);
+        setProductPanel(product);
       } else if (tab === "scene-graph") {
         const [product] = await Promise.all([
           apiGet<ProductPanel>("/api/admin/strategy/product", t),
@@ -174,7 +179,6 @@ export default function StrategyPage() {
       templates?: QueryTemplate[];
       competitors?: CompetitorBrand[];
     }>("/api/admin/strategy/monitor", t);
-    setMonitorKpis(data.dashboard);
     setMonitorBrandName(data.brand_name ?? "");
     setMonitorRuns(data.recent_runs ?? []);
     setMonitorScenes(data.scenes ?? []);
@@ -220,7 +224,7 @@ export default function StrategyPage() {
           setScanStatus("Worker 处理中…");
         }
       }
-      if (tab !== "collection") await reload();
+      if (tab !== "probes") await reload();
     } catch (e) {
       setFlash({ variant: "error", message: errMsg(e, "扫描入队失败") });
     } finally {
@@ -339,7 +343,7 @@ export default function StrategyPage() {
   return (
     <div>
       <HubHeader title={zh.strategy.hubTitle} subtitle={zh.strategy.hubSubtitle} />
-      <HubNav items={STRATEGY_NAV} tone="violet" />
+      <HubNav items={STRATEGY_NAV} moreItems={STRATEGY_MORE_NAV} tone="violet" />
 
       {flash && <FlashAlert variant={flash.variant === "success" ? "success" : "error"}>{flash.message}</FlashAlert>}
       {loading && tab !== "sales-copy" && tab !== "reports" && tab !== "gold-labels" && (
@@ -361,27 +365,36 @@ export default function StrategyPage() {
         />
       )}
 
-      {tab === "collection" && collection && (
-        <CollectionPanel
-          data={collection}
+      {tab === "probes" && (
+        <ProbesHub
+          collection={collection}
           onScan={runMonitorScan}
           onCendScan={runCendScan}
-          onRefresh={async () => {
+          onRefreshCollection={async () => {
             const t = getToken();
             if (t) await reloadCollection(t);
           }}
           scanning={scanning}
           scanStatus={scanStatus}
           cendScanning={cendScanning}
+          scenes={monitorScenes}
+          competitors={monitorCompetitors}
+          brandName={monitorBrandName}
+          templates={monitorTemplates}
+          recentRuns={monitorRuns}
+          onCreateQuestion={createMonitorQuestion}
+          onUpdateQuestion={updateMonitorQuestion}
+          onDeleteQuestion={deleteMonitorQuestion}
+          onRefreshQuestions={reload}
         />
       )}
 
-      {tab === "brand" && brandPanel && <BrandVisibilityPanel data={brandPanel} onRefresh={reload} />}
-
-      {tab === "product" && productPanel && <ProductVisibilityPanel data={productPanel} onRefresh={reload} />}
+      {tab === "visibility" && (
+        <VisibilityHub brand={brandPanel} product={productPanel} onRefresh={reload} />
+      )}
 
       {tab === "scene-graph" && productPanel && (
-        <SceneGraphPanel scenes={monitorScenes} funnel={productPanel.scene_funnel} onRefresh={reload} />
+        <SceneGraphPanel funnel={productPanel.scene_funnel} onRefresh={reload} />
       )}
 
       {tab === "theme-mining" && (
@@ -407,20 +420,6 @@ export default function StrategyPage() {
           onCreate={createWebSource}
           onDelete={deleteWebSource}
           onRefresh={refreshWebSource}
-        />
-      )}
-
-      {tab === "question-bank" && monitorKpis && (
-        <QuestionBankPanel
-          scenes={monitorScenes}
-          competitors={monitorCompetitors}
-          brandName={monitorBrandName}
-          templates={monitorTemplates}
-          recentRuns={monitorRuns}
-          onCreate={createMonitorQuestion}
-          onUpdate={updateMonitorQuestion}
-          onDelete={deleteMonitorQuestion}
-          onRefresh={reload}
         />
       )}
     </div>

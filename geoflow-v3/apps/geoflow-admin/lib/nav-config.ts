@@ -112,24 +112,36 @@ export const OPERATIONS_NAV: HubNavItem[] = [
 ];
 
 /**
- * L1 AIVIS 漏斗导航：
- * 诊断 → 采集配置 → 可见性分析 → 策略产出 → 校准工具
- * （运营数据 / 仿真门禁已迁出至运营与内容生产）
+ * L1 AIVIS 主路径（收敛）：
+ * 诊断总览 → 探针 → 可见性 → 场景图谱 → 挖掘主题 → 诊断报告
+ * 低频校准/决策工具收入「更多」。
  */
 export const STRATEGY_NAV: HubNavItem[] = [
-  { key: "diagnosis", label: zh.strategy.tabs.diagnosis, href: "/strategy/diagnosis", group: zh.strategy.navGroups.diagnose },
-  { key: "collection", label: zh.strategy.tabs.collection, href: "/strategy/collection", group: zh.strategy.navGroups.collect },
-  { key: "question-bank", label: zh.strategy.tabs.questionBank, href: "/strategy/question-bank", group: zh.strategy.navGroups.collect },
-  { key: "brand", label: zh.strategy.tabs.brand, href: "/strategy/brand", group: zh.strategy.navGroups.analyze },
-  { key: "product", label: zh.strategy.tabs.product, href: "/strategy/product", group: zh.strategy.navGroups.analyze },
-  { key: "scene-graph", label: zh.strategy.tabs.sceneGraph, href: "/strategy/scene-graph", group: zh.strategy.navGroups.analyze },
-  { key: "theme-mining", label: zh.strategy.tabs.themeMining, href: "/strategy/theme-mining", group: zh.strategy.navGroups.decide },
-  { key: "optimization", label: zh.strategy.tabs.optimization, href: "/strategy/optimization", group: zh.strategy.navGroups.decide },
-  { key: "difficulty", label: zh.strategy.tabs.difficulty, href: "/strategy/difficulty", group: zh.strategy.navGroups.decide },
-  { key: "reports", label: zh.strategy.tabs.reports, href: "/strategy/reports", group: zh.strategy.navGroups.decide },
-  { key: "gold-labels", label: zh.strategy.tabs.goldLabels, href: "/strategy/gold-labels", group: zh.strategy.navGroups.tools },
-  { key: "sales-copy", label: zh.strategy.tabs.salesCopy, href: "/strategy/sales-copy", group: zh.strategy.navGroups.tools },
-  { key: "web-intel", label: zh.strategy.tabs["web-intel"], href: "/strategy/web-intel", group: zh.strategy.navGroups.tools },
+  { key: "diagnosis", label: zh.strategy.tabs.diagnosis, href: "/strategy/diagnosis" },
+  {
+    key: "probes",
+    label: zh.strategy.tabs.probes,
+    href: "/strategy/probes",
+    matchPrefixes: ["/strategy/probes", "/strategy/collection", "/strategy/question-bank"],
+  },
+  {
+    key: "visibility",
+    label: zh.strategy.tabs.visibility,
+    href: "/strategy/visibility",
+    matchPrefixes: ["/strategy/visibility", "/strategy/brand", "/strategy/product"],
+  },
+  { key: "scene-graph", label: zh.strategy.tabs.sceneGraph, href: "/strategy/scene-graph" },
+  { key: "theme-mining", label: zh.strategy.tabs.themeMining, href: "/strategy/theme-mining" },
+  { key: "reports", label: zh.strategy.tabs.reports, href: "/strategy/reports" },
+];
+
+/** 策略 Hub「更多」：优化/难度/校准类低频入口 */
+export const STRATEGY_MORE_NAV: HubNavItem[] = [
+  { key: "optimization", label: zh.strategy.tabs.optimization, href: "/strategy/optimization" },
+  { key: "difficulty", label: zh.strategy.tabs.difficulty, href: "/strategy/difficulty" },
+  { key: "gold-labels", label: zh.strategy.tabs.goldLabels, href: "/strategy/gold-labels" },
+  { key: "sales-copy", label: zh.strategy.tabs.salesCopy, href: "/strategy/sales-copy" },
+  { key: "web-intel", label: zh.strategy.tabs["web-intel"], href: "/strategy/web-intel" },
 ];
 
 export const HUB_TONE_CLASS: Record<HubTone, { active: string; inactive: string }> = {

@@ -34,6 +34,19 @@ def _slugify(text_in: str) -> str:
     return (s or "theme")[:180]
 
 
+def _iso_ts(t: GeoTheme, attr: str) -> str | None:
+    """读取时间戳；flush 后 onupdate 列可能已 expire，勿触发同步 lazy load。"""
+    from sqlalchemy import inspect as sa_inspect
+
+    state = sa_inspect(t)
+    if attr in state.unloaded:
+        return None
+    val = state.dict.get(attr)
+    if val is None:
+        return None
+    return val.isoformat() if hasattr(val, "isoformat") else None
+
+
 def _theme_dict(t: GeoTheme) -> dict[str, Any]:
     return {
         "id": t.id,
@@ -55,8 +68,8 @@ def _theme_dict(t: GeoTheme) -> dict[str, Any]:
         "gate_summary": t.gate_summary or {},
         "geoweb_hub_slug": t.geoweb_hub_slug,
         "meta": t.meta or {},
-        "created_at": t.created_at.isoformat() if t.created_at else None,
-        "updated_at": t.updated_at.isoformat() if t.updated_at else None,
+        "created_at": _iso_ts(t, "created_at"),
+        "updated_at": _iso_ts(t, "updated_at"),
     }
 
 
@@ -432,6 +445,17 @@ async def confirm_theme(db: AsyncSession, theme_id: int) -> dict:
         raise HTTPException(status_code=422, detail=f"theme_status_invalid:{theme.status}")
 
     channel_ids = await resolve_default_geoweb_channel_ids(db)
+    # 幂等：已确认且已有任务则直接返回，避免重复建标题库/Task
+    if theme.status == "confirmed" and theme.task_id:
+        await db.refresh(theme)
+        return {
+            "theme": _theme_dict(theme),
+            "task_id": int(theme.task_id),
+            "distribution_channel_ids": channel_ids,
+            "remediation": {"remediation_id": theme.remediation_id} if theme.remediation_id else None,
+            "idempotent": True,
+        }
+
     if not channel_ids:
         raise HTTPException(
             status_code=422,
@@ -541,6 +565,8 @@ async def confirm_theme(db: AsyncSession, theme_id: int) -> dict:
                 {"meta": json.dumps(meta, ensure_ascii=False), "id": int(run_id)},
             )
 
+    # onupdate=func.now() 会在 flush 后 expire updated_at；先 refresh 再序列化
+    await db.refresh(theme)
     logger.info(
         "theme_confirmed theme_id=%s task_id=%s title_library_id=%s channels=%s remediation_id=%s",
         theme.id,

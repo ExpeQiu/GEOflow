@@ -1,6 +1,6 @@
 "use client";
 
-import { TaskCreateForm } from "@/components/operations/TaskCreateForm";
+import { ThemeFirstProduceEntry } from "@/components/production/ThemeFirstProduceEntry";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
@@ -11,9 +11,9 @@ export default function NewProductionTaskPage() {
   useAuthGuard();
   return (
     <div>
-      <HubHeader title={zh.production.hubTitle} subtitle={zh.taskCreate.subtitle} />
+      <HubHeader title={zh.production.hubTitle} subtitle="从主题包确认选题并启生产（主链路）" />
       <HubNav items={PRODUCTION_NAV} tone="emerald" />
-      <TaskCreateForm />
+      <ThemeFirstProduceEntry />
     </div>
   );
 }

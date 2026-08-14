@@ -192,9 +192,15 @@ export function ThemesPanel() {
       {flash && <FlashAlert variant={flash.variant}>{flash.message}</FlashAlert>}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">主题包（Theme）</h2>
+          <h2 className="text-lg font-semibold text-gray-900">主题包（内容选题入口）</h2>
           <p className="text-sm text-gray-600">
-            差距挖掘（思考链/信源/长尾）→ 确认规格 → 复合内容 → GEO 门禁 → 分发。监控题仅作证据，不作生产标题。
+            主链路：确认挖掘摘要与长尾选题 → 自动建标题库/任务 → 启生产 → GEO 门禁。勿用监控题或 Smoke 标题库替代。
+          </p>
+          <p className="mt-1 text-xs text-gray-500">
+            草稿来自{" "}
+            <Link href="/strategy/theme-mining" className="text-emerald-700 hover:underline">
+              策略 → 挖掘主题
+            </Link>
           </p>
         </div>
         <button
@@ -236,7 +242,11 @@ export function ThemesPanel() {
               {!loading && items.length === 0 && (
                 <tr>
                   <td colSpan={3} className="px-3 py-8 text-center text-gray-500">
-                    暂无主题。请从策略侧「生成主题草稿」开始。
+                    暂无主题。请从{" "}
+                    <Link href="/strategy/theme-mining" className="text-emerald-700 hover:underline">
+                      策略 → 挖掘主题
+                    </Link>{" "}
+                    生成草稿。
                   </td>
                 </tr>
               )}
@@ -270,7 +280,7 @@ export function ThemesPanel() {
                     onClick={() => confirmTheme(selected.id)}
                     className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                   >
-                    确认规格
+                    启动生产
                   </button>
                 )}
                 {(selected.status === "confirmed" || selected.status === "producing") && (

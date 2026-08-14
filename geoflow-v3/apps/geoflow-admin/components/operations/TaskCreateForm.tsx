@@ -151,6 +151,16 @@ export function TaskCreateForm({ taskId }: { taskId?: number }) {
         </div>
       )}
 
+      {!isEdit && (
+        <div className="xl:col-span-12 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          正式 GEO 内容请先到{" "}
+          <Link href="/production/themes" className="font-medium underline">
+            主题包
+          </Link>{" "}
+          确认挖掘选题（会自动生成标题库与任务）。本表单为旁路调试入口。
+        </div>
+      )}
+
       <FormSection title={zh.taskCreate.sections.basic.title} desc={zh.taskCreate.sections.basic.desc} className="xl:col-span-12">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-3">

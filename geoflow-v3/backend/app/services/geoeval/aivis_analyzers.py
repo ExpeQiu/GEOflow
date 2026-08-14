@@ -542,7 +542,7 @@ async def build_optimization_panel(db: AsyncSession) -> dict:
                 "priority": "high",
                 "title": "配置监控问题库",
                 "body": "按对比/决策题型录入问题，作为探针与缺口分析入口。",
-                "href": "/strategy/question-bank",
+                "href": "/strategy/probes?view=questions",
                 "cta": "去问题库",
             }
         )
@@ -564,7 +564,7 @@ async def build_optimization_panel(db: AsyncSession) -> dict:
                 "priority": "medium",
                 "title": "配置竞品品牌",
                 "body": "竞品对照决定「相对竞品 pp」与平台优先级解释。",
-                "href": "/strategy/brand",
+                "href": "/strategy/visibility?view=brand",
                 "cta": "去品牌可见性",
             }
         )
@@ -575,7 +575,7 @@ async def build_optimization_panel(db: AsyncSession) -> dict:
                 "priority": "high",
                 "title": "执行全量探针扫描",
                 "body": "产出 Top3 / 提及率 / 平台可见性，才能生成平台投入建议。",
-                "href": "/strategy/collection",
+                "href": "/strategy/probes?view=scan",
                 "cta": "去数据采集",
             }
         )

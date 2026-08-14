@@ -207,7 +207,7 @@ export function OptimizationPanelView({
             竞品：{(data.competitor_gap?.competitors || []).slice(0, 6).join("、") || "未配置"}
             {data.competitor_gap?.lift_needed_pct != null ? ` · 预估 lift ${data.competitor_gap.lift_needed_pct}%` : ""}
           </p>
-          <Link href="/strategy/brand" className="mt-2 inline-block text-sm text-violet-700 hover:underline">
+          <Link href="/strategy/visibility?view=brand" className="mt-2 inline-block text-sm text-violet-700 hover:underline">
             品牌竞品矩阵 →
           </Link>
         </LayerSection>
@@ -249,10 +249,10 @@ export function OptimizationPanelView({
           <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-gray-600">
             暂无平台评分。请先在问题库配置对比/决策题，再到数据采集执行全量扫描。
             <div className="mt-2 flex gap-3">
-              <Link href="/strategy/question-bank" className="text-violet-700 hover:underline">
+              <Link href="/strategy/probes?view=questions" className="text-violet-700 hover:underline">
                 问题库 →
               </Link>
-              <Link href="/strategy/collection" className="text-violet-700 hover:underline">
+              <Link href="/strategy/probes?view=scan" className="text-violet-700 hover:underline">
                 数据采集 →
               </Link>
             </div>

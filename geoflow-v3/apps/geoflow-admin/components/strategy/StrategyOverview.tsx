@@ -69,7 +69,7 @@ export function StrategyOverview({
           label="Top3 概率"
           value={fmtPct(top3)}
           meta={`Top5 ${fmtPct(monitor.top5_pct)} · 加权 ${monitor.weighted_rank_score ?? monitor.avg_brand_rank ?? "—"}`}
-          href="/strategy/brand"
+          href="/strategy/visibility?view=brand"
           tone="violet"
           badge={gatePass === false ? "否决参考" : undefined}
         />
@@ -77,7 +77,7 @@ export function StrategyOverview({
           label="相对竞品 pp"
           value={fmtPp(gap)}
           meta={`领先者 Top3 ${fmtPct(monitor.leader_top3_pct)}`}
-          href="/strategy/brand"
+          href="/strategy/visibility?view=brand"
           tone="cyan"
         />
         <MiniCard
@@ -91,7 +91,7 @@ export function StrategyOverview({
           label="提及率"
           value={fmtPct(mention, 0)}
           meta={`负向率 ${fmtPct(monitor.sentiment_negative_pct)} · 操作化 ≥40%`}
-          href="/strategy/question-bank"
+          href="/strategy/probes?view=questions"
           tone="cyan"
         />
       </div>

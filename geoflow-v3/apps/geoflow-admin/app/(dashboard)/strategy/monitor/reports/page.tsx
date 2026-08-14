@@ -30,7 +30,7 @@ export default function MonitorReportsPage() {
 
   return (
     <div className="p-6">
-      <Link href="/strategy/collection" className="mb-4 inline-block text-sm text-violet-700">← 返回数据采集</Link>
+      <Link href="/strategy/probes" className="mb-4 inline-block text-sm text-violet-700">← 返回数据采集</Link>
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold">AI 可见性诊断报告</h1>
         <button type="button" onClick={generate} className="rounded-md bg-violet-600 px-4 py-2 text-sm text-white">生成报告</button>

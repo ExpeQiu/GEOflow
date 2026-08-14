@@ -95,7 +95,7 @@ export function QuickStartPanel() {
           step="3"
           title={zh.dashboard.quickStart.taskTitle}
           desc={zh.dashboard.quickStart.taskDesc}
-          action={{ href: "/production/tasks/new", label: zh.dashboard.quickStart.taskButton, primary: true }}
+          action={{ href: "/production/themes", label: zh.dashboard.quickStart.taskButton, primary: true }}
         />
       </div>
     </section>

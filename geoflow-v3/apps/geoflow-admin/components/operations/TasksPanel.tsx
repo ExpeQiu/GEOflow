@@ -51,13 +51,21 @@ export function TasksPanel({
         <Inbox className="mx-auto mb-4 h-12 w-12 text-gray-400" />
         <h3 className="text-lg font-medium text-gray-900">{zh.tasks.emptyTitle}</h3>
         <p className="mt-2 text-sm text-gray-500">{zh.tasks.emptyDesc}</p>
-        <Link
-          href={`${basePath}/new`}
-          className="mt-6 inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          {zh.tasks.createButton}
-        </Link>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <Link
+            href="/production/themes"
+            className="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+          >
+            去主题包确认 →
+          </Link>
+          <Link
+            href={`${basePath}/new`}
+            className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            {zh.tasks.createButton}
+          </Link>
+        </div>
       </div>
     );
   }
@@ -94,7 +102,7 @@ export function TasksPanel({
           )}
           <Link
             href={`${basePath}/new`}
-            className="inline-flex h-9 items-center rounded-lg bg-emerald-600 px-3 text-sm font-semibold text-white hover:bg-emerald-700"
+            className="inline-flex h-9 items-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
           >
             <Plus className="mr-2 h-4 w-4" />
             {zh.tasks.createButton}

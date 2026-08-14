@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Briefcase, ChevronDown, MessageCircleWarning, RotateCcw, Sparkles, User, ZoomIn, ZoomOut } from "lucide-react";
 import type { SceneFunnel, SceneFunnelIntent } from "@/lib/strategy-types";
 
@@ -206,14 +207,10 @@ function IntentDetailPanel({
   intent,
   y,
   onSelectQuery,
-  onGenerateTheme,
-  themeBusy,
 }: {
   intent: SceneFunnelIntent;
   y: number;
   onSelectQuery?: (intent: SceneFunnelIntent) => void;
-  onGenerateTheme?: (sceneId: number) => void;
-  themeBusy?: boolean;
 }) {
   const optimize = needsOptimization(intent);
   return (
@@ -248,23 +245,17 @@ function IntentDetailPanel({
             <div className="mt-1 text-sm text-slate-500">引用数</div>
           </div>
         </div>
-        {onGenerateTheme && (
-          <button
-            type="button"
-            disabled={themeBusy}
-            onClick={(e) => {
-              e.stopPropagation();
-              onGenerateTheme(intent.id);
-            }}
-            className={`mt-3 w-full rounded-md px-3 py-2 text-xs font-medium disabled:opacity-50 ${
-              optimize
-                ? "bg-violet-600 text-white hover:bg-violet-700"
-                : "border border-violet-300 text-violet-700 hover:bg-violet-50"
-            }`}
-          >
-            {themeBusy ? "挖掘中…" : "生成主题草稿"}
-          </button>
-        )}
+        <Link
+          href={`/strategy/theme-mining?scene=${intent.id}`}
+          onClick={(e) => e.stopPropagation()}
+          className={`mt-3 block w-full rounded-md px-3 py-2 text-center text-xs font-medium ${
+            optimize
+              ? "bg-violet-600 text-white hover:bg-violet-700"
+              : "border border-violet-300 text-violet-700 hover:bg-violet-50"
+          }`}
+        >
+          挖掘主题包
+        </Link>
         {intent.queries?.length ? (
           <ul className="mt-3 space-y-1 border-t border-slate-100 pt-3">
             {intent.queries.slice(0, 3).map((q) => (
@@ -302,13 +293,9 @@ function clampScale(value: number) {
 export function TouchpointMindMap({
   funnel,
   onIntentSelect,
-  onGenerateTheme,
-  themeBusySceneId,
 }: {
   funnel: SceneFunnel;
   onIntentSelect?: (intent: SceneFunnelIntent) => void;
-  onGenerateTheme?: (sceneId: number) => void;
-  themeBusySceneId?: number | null;
 }) {
   const safeFunnel = useMemo(() => normalizeFunnel(funnel), [funnel]);
   const layout = useMemo(() => buildLayout(safeFunnel), [safeFunnel]);
@@ -323,7 +310,7 @@ export function TouchpointMindMap({
   const scaledHeight = layout.height * scale;
 
   if (safeFunnel.personas.length === 0) {
-    return <p className="text-sm text-gray-400">暂无场景图谱，请在下方的场景管理中新增</p>;
+    return <p className="text-sm text-gray-400">暂无场景图谱，请在上方的场景管理中新增</p>;
   }
 
   return (
@@ -434,8 +421,6 @@ export function TouchpointMindMap({
               intent={selectedIntent.intent}
               y={selectedIntent.y}
               onSelectQuery={onIntentSelect}
-              onGenerateTheme={onGenerateTheme}
-              themeBusy={themeBusySceneId === selectedIntent.intent.id}
             />
           )}
           </div>

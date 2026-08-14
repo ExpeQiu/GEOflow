@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { ProductPanel } from "@/lib/strategy-types";
 import { PlatformBreakdownTable } from "./PlatformBreakdownTable";
 import { ProductConfigPanel } from "./ProductConfigPanel";
@@ -27,14 +26,6 @@ export function ProductVisibilityPanel({ data, onRefresh }: { data: ProductPanel
           <PlatformBreakdownTable rows={data.platform_breakdown ?? []} />
         </LayerSection>
       )}
-
-      <LayerSection title="场景图谱" subtitle="用户画像 → 场景 → 意图 → Query">
-        <p className="text-sm text-gray-600">
-          场景漏斗与缺口管理已独立至
-          <Link href="/strategy/scene-graph" className="mx-1 text-violet-700 hover:underline">场景图谱</Link>
-          页，当前共 {data.scene_funnel.stats.scene_count} 个场景、{data.scene_funnel.stats.query_count} 条 Query。
-        </p>
-      </LayerSection>
     </div>
   );
 }

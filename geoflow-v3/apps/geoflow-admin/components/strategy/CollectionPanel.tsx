@@ -181,13 +181,13 @@ export function CollectionPanel({
           >
             {cendScanning ? "C端金标扫描中…" : "C端金标扫描"}
           </button>
-          <Link href="/strategy/question-bank" className="rounded-md border border-violet-300 px-4 py-2 text-sm text-violet-700">
+          <Link href="/strategy/probes?view=questions" className="rounded-md border border-violet-300 px-4 py-2 text-sm text-violet-700">
             问题库
           </Link>
-          <Link href="/strategy/brand" className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700">
+          <Link href="/strategy/visibility?view=brand" className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700">
             品牌分析
           </Link>
-          <Link href="/strategy/product" className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700">
+          <Link href="/strategy/visibility?view=product" className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700">
             产品分析
           </Link>
         </div>

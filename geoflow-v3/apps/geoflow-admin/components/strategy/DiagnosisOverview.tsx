@@ -74,10 +74,10 @@ export function DiagnosisOverview({
           />
           <AivisKpiCard label="平台数" value={String(collection.platform_count)} tone="amber" />
           <div className="flex flex-col justify-center gap-1 text-sm">
-            <Link href="/strategy/collection" className="text-violet-700 hover:underline">
+            <Link href="/strategy/probes?view=scan" className="text-violet-700 hover:underline">
               采集详情 →
             </Link>
-            <Link href="/strategy/question-bank" className="text-violet-700 hover:underline">
+            <Link href="/strategy/probes?view=questions" className="text-violet-700 hover:underline">
               问题库 →
             </Link>
           </div>
@@ -108,7 +108,7 @@ export function DiagnosisOverview({
               tone="amber"
             />
           </div>
-          <Link href="/strategy/brand" className="mt-3 inline-block text-sm text-violet-700 hover:underline">
+          <Link href="/strategy/visibility?view=brand" className="mt-3 inline-block text-sm text-violet-700 hover:underline">
             品牌竞品矩阵 →
           </Link>
         </LayerSection>
@@ -139,7 +139,7 @@ export function DiagnosisOverview({
             />
           </div>
           <div className="mt-3 flex flex-wrap gap-3 text-sm">
-            <Link href="/strategy/product" className="text-violet-700 hover:underline">
+            <Link href="/strategy/visibility?view=product" className="text-violet-700 hover:underline">
               产品详情 →
             </Link>
             <Link href="/strategy/scene-graph" className="text-violet-700 hover:underline">

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { HUB_TONE_CLASS, type HubNavItem, type HubTone } from "@/lib/nav-config";
 
@@ -13,9 +14,28 @@ function isItemActive(pathname: string, item: HubNavItem): boolean {
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
-export function HubNav({ items, tone }: { items: HubNavItem[]; tone: HubTone }) {
+export function HubNav({
+  items,
+  moreItems,
+  tone,
+}: {
+  items: HubNavItem[];
+  moreItems?: HubNavItem[];
+  tone: HubTone;
+}) {
   const pathname = usePathname();
   const styles = HUB_TONE_CLASS[tone];
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+  const moreActive = Boolean(moreItems?.some((item) => isItemActive(pathname, item)));
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (!moreRef.current?.contains(e.target as Node)) setMoreOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
 
   return (
     <nav className="mb-6 border-b border-gray-200 pb-3" aria-label="板块导航">
@@ -47,6 +67,47 @@ export function HubNav({ items, tone }: { items: HubNavItem[]; tone: HubTone }) 
             </span>
           );
         })}
+
+        {!!moreItems?.length && (
+          <div ref={moreRef} className="relative ml-1">
+            <button
+              type="button"
+              onClick={() => setMoreOpen((v) => !v)}
+              className={cn(
+                "rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                moreActive || moreOpen ? styles.active : styles.inactive,
+              )}
+              aria-expanded={moreOpen}
+              aria-haspopup="menu"
+            >
+              更多 ▾
+            </button>
+            {moreOpen && (
+              <div
+                role="menu"
+                className="absolute left-0 z-20 mt-1 min-w-[10rem] rounded-md border border-gray-200 bg-white py-1 shadow-lg"
+              >
+                {moreItems.map((item) => {
+                  const active = isItemActive(pathname, item);
+                  return (
+                    <Link
+                      key={item.key}
+                      href={item.href}
+                      role="menuitem"
+                      onClick={() => setMoreOpen(false)}
+                      className={cn(
+                        "block px-3 py-2 text-sm",
+                        active ? "bg-violet-50 font-medium text-violet-800" : "text-gray-700 hover:bg-gray-50",
+                      )}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </nav>
   );

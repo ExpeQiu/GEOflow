@@ -4,7 +4,8 @@ import { zh } from "@/lib/i18n/zh";
 const LAYER_LINKS = {
   l1: [
     { href: "/strategy/diagnosis", label: zh.strategy.tabs.diagnosis },
-    { href: "/strategy/collection", label: zh.strategy.tabs.collection },
+    { href: "/strategy/probes", label: zh.strategy.tabs.probes },
+    { href: "/strategy/visibility", label: zh.strategy.tabs.visibility },
     { href: "/strategy/scene-graph", label: zh.strategy.tabs.sceneGraph },
     { href: "/strategy/theme-mining", label: zh.strategy.tabs.themeMining },
     { href: "/strategy/reports", label: zh.strategy.tabs.reports },

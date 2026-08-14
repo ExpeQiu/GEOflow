@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { apiPost, getToken } from "@/lib/api-client";
 import type { MonitorScene } from "@/lib/strategy-types";
@@ -23,10 +24,16 @@ export function ThemeMiningPanel({
   draftThemes: DraftTheme[];
   onRefresh?: () => void;
 }) {
+  const searchParams = useSearchParams();
+  const focusSceneId = Number(searchParams.get("scene") || 0) || null;
   const [busySceneId, setBusySceneId] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
 
   const ranked = [...scenes].sort((a, b) => {
+    if (focusSceneId) {
+      if (a.id === focusSceneId) return -1;
+      if (b.id === focusSceneId) return 1;
+    }
     const pa = a.gap_priority === "high" ? 3 : a.gap_priority === "medium" ? 2 : 1;
     const pb = b.gap_priority === "high" ? 3 : b.gap_priority === "medium" ? 2 : 1;
     if (pb !== pa) return pb - pa;
@@ -74,31 +81,7 @@ export function ThemeMiningPanel({
 
   return (
     <div className="space-y-6">
-      <section className="rounded-lg border border-violet-200 bg-violet-50/40 p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">挖掘主题</h2>
-            <p className="mt-1 text-sm text-gray-600">
-              差距场景 → 思考链 / 信源 / 长尾 Query → 主题草稿。监控题只作证据，不作生产标题。
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href="/strategy/scene-graph"
-              className="rounded-md border border-violet-200 bg-white px-3 py-1.5 text-xs text-violet-700 hover:bg-violet-50"
-            >
-              场景图谱 →
-            </Link>
-            <Link
-              href="/production/themes"
-              className="rounded-md bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700"
-            >
-              主题包确认 →
-            </Link>
-          </div>
-        </div>
-        {msg && <p className="mt-3 text-sm text-violet-800">{msg}</p>}
-      </section>
+      {msg && <p className="text-sm text-violet-800">{msg}</p>}
 
       <LayerSection title="按缺口挖主题" subtitle="优先高/中缺口场景；生成后到主题包查看挖掘摘要并确认">
         {ranked.length === 0 ? (
@@ -111,7 +94,13 @@ export function ThemeMiningPanel({
         ) : (
           <ul className="space-y-2">
             {ranked.map((s) => (
-              <li key={s.id} className={`${surfaceCardClass} px-4 py-3`}>
+              <li
+                key={s.id}
+                id={`scene-${s.id}`}
+                className={`${surfaceCardClass} px-4 py-3 ${
+                  focusSceneId === s.id ? "ring-2 ring-violet-400" : ""
+                }`}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <p className="text-sm font-medium text-gray-900">{s.scene_name}</p>
@@ -136,7 +125,7 @@ export function ThemeMiningPanel({
                       onClick={() => createGapTask(s.id)}
                       className="rounded-md bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50"
                     >
-                      {busySceneId === s.id ? "挖掘中…" : "生成主题草稿"}
+                      {busySceneId === s.id ? "挖掘中…" : "挖掘主题包"}
                     </button>
                   </div>
                 </div>

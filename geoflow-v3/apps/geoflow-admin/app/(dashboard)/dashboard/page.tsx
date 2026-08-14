@@ -64,11 +64,11 @@ export default function DashboardPage() {
             {zh.dashboard.refresh}
           </button>
           <Link
-            href="/production/tasks/new"
+            href="/production/themes"
             className="inline-flex h-10 items-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
           >
             <Plus className="mr-2 h-4 w-4" />
-            {zh.dashboard.newTask}
+            主题包确认
           </Link>
         </div>
       </div>
