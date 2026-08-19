@@ -478,6 +478,8 @@ def _default_route_prefix(wiki_type: str) -> str:
         "data": "data",
         "thread": "threads",
         "topic": "topics",
+        "article": "articles",
+        "certification": "certifications",
     }
     return mapping.get(wiki_type, "concepts")
 ```

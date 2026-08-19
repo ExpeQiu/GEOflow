@@ -19,6 +19,7 @@ const LAYER_LINKS = {
   ],
   l3: [
     { href: "/operations/articles", label: zh.operations.tabs.articles },
+    { href: "/operations/wiki", label: zh.operations.tabs.wiki },
     { href: "/operations/distribution/tasks", label: zh.distribution.tasksTab },
     { href: "/operations/distribution", label: zh.operations.tabs.distribution },
     { href: "/operations/analytics", label: zh.operations.tabs.analytics },

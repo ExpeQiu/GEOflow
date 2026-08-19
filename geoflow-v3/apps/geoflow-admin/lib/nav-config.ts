@@ -91,6 +91,13 @@ export const OPERATIONS_NAV: HubNavItem[] = [
   { key: "overview", label: zh.operations.tabs.overview, href: "/operations/overview", group: zh.operations.navGroups.runtime },
   { key: "articles", label: zh.operations.tabs.articles, href: "/operations/articles", group: zh.operations.navGroups.runtime },
   {
+    key: "wiki",
+    label: zh.operations.tabs.wiki,
+    href: "/operations/wiki",
+    group: zh.operations.navGroups.runtime,
+    matchPrefixes: ["/operations/wiki"],
+  },
+  {
     key: "distribution",
     label: zh.operations.tabs.distribution,
     href: "/operations/distribution",

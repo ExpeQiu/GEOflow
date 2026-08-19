@@ -28,6 +28,7 @@ WIKI_PAGE_TYPES = [
     "thread",
     "topic",
     "article",
+    "certification",
 ]
 
 

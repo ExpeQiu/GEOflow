@@ -131,7 +131,7 @@ class TechIpAssetController extends Controller
             'user_language' => ['nullable', 'string'],
             'evidence_json' => ['nullable', 'string'],
             'models_text' => ['nullable', 'string'],
-            'wiki_type' => ['nullable', 'string', 'in:concept,compare,guide,glossary,data,thread,topic'],
+            'wiki_type' => ['nullable', 'string', 'in:concept,compare,guide,glossary,data,thread,topic,article,certification'],
             'wiki_slug' => ['nullable', 'string', 'max:120'],
             'status' => ['required', 'string', 'in:待封装,已发布,需更新'],
             'knowledge_base_id' => ['nullable', 'integer', 'min:1'],

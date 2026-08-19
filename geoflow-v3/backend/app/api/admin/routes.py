@@ -55,6 +55,14 @@ from app.services.admin.article_form_service import (
     restore_admin_article,
     update_admin_article,
 )
+from app.services.admin.wiki_editor_schema import WikiPageBody
+from app.services.admin.wiki_editor_service import (
+    build_wiki_detail,
+    build_wiki_panel,
+    create_wiki_page,
+    publish_wiki_page,
+    update_wiki_page,
+)
 from app.services.admin.task_form_service import (
     AdminTaskCreateBody,
     AdminTaskUpdateBody,
@@ -523,6 +531,68 @@ async def batch_articles_trash(body: BatchIdsBody, request: Request, db: DbSessi
 @router.post("/articles/batch/publish")
 async def batch_articles_publish(body: BatchIdsBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     return success(request, await batch_publish_articles(db, body))
+
+
+@router.get("/wiki")
+async def list_wiki_pages(
+    request: Request,
+    db: DbSession,
+    jwt=Depends(get_admin_jwt),
+    wiki_page_type: str | None = Query(default=None),
+    q: str | None = Query(default=None),
+    include_smoke: bool = Query(default=False),
+):
+    return success(
+        request,
+        await build_wiki_panel(db, page_type=wiki_page_type, q=q, include_smoke=include_smoke),
+    )
+
+
+@router.post("/wiki")
+async def create_wiki_admin_page(body: WikiPageBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    try:
+        payload = await create_wiki_page(db, body)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("admin_wiki_create_failed")
+        raise HTTPException(status_code=500, detail="wiki_create_failed") from exc
+    return success(request, payload, status=201)
+
+
+@router.get("/wiki/{article_id}")
+async def show_wiki_page(article_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await build_wiki_detail(db, article_id))
+
+
+@router.patch("/wiki/{article_id}")
+async def update_wiki_admin_page(
+    article_id: int,
+    body: WikiPageBody,
+    request: Request,
+    db: DbSession,
+    jwt=Depends(get_admin_jwt),
+):
+    try:
+        payload = await update_wiki_page(db, article_id, body)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("admin_wiki_update_failed article_id=%s", article_id)
+        raise HTTPException(status_code=500, detail="wiki_update_failed") from exc
+    return success(request, payload)
+
+
+@router.post("/wiki/{article_id}/publish")
+async def publish_wiki_admin_page(article_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    try:
+        payload = await publish_wiki_page(db, article_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("admin_wiki_publish_failed article_id=%s", article_id)
+        raise HTTPException(status_code=500, detail="wiki_publish_failed") from exc
+    return success(request, payload)
 
 
 @router.get("/distribution")

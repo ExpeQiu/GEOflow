@@ -63,6 +63,15 @@ PYTHONPATH=. python ../scripts/migrate_gweb_channels_to_geoweb.py --delete # 直
 
 `gweb_wiki` **已删除**，不可新建。
 
+## 技术 Wiki 与 GEOFlow 知识库（规划）
+
+当前 Wiki 由 Article / Theme 发布写入 MD。后续：
+
+1. **轻量编辑台（Wave 1 已落地）**：GEOFlow Admin `/operations/wiki` 定稿与一键 sync，见 [ADR-011](./ADR/ADR-011-GEOweb-Wiki轻量编辑台.md)
+2. 生产语料来自 GEOFlow **KnowledgeBase**，生成草稿后再进编辑台（Wave 2）
+
+不把 Techstore 知识地图树当成 Wiki 真源：地图是运营结构，Wiki 是 GEO 可引用文本。
+
 ## 契约
 
 见 GEOweb `guide/geoflow-sync.md`。e2e：`scripts/verify-geoweb-e2e.py`。

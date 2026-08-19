@@ -11,22 +11,10 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.article import Article
 from app.models.distribution import DistributionChannel
+from app.services.geoflow.wiki_types import GEOWEB_PAGE_TYPES, route_prefix_for_type
 
 settings = get_settings()
 logger = get_logger("geoflow.publishers.geoweb")
-
-GEOWEB_PAGE_TYPES = frozenset(
-    {
-        "concept",
-        "compare",
-        "guide",
-        "glossary",
-        "data",
-        "thread",
-        "topic",
-        "article",
-    }
-)
 
 
 def _cfg(channel: DistributionChannel | None) -> dict[str, Any]:
@@ -224,14 +212,4 @@ class GeowebPublisher:
 
 
 def _route_prefix(page_type: str) -> str:
-    mapping = {
-        "concept": "concepts",
-        "compare": "compare",
-        "guide": "guides",
-        "glossary": "glossary",
-        "data": "data",
-        "thread": "threads",
-        "topic": "topics",
-        "article": "articles",
-    }
-    return mapping.get(page_type, "articles")
+    return route_prefix_for_type(page_type)

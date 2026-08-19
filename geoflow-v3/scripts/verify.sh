@@ -30,6 +30,7 @@ if [ -n "${TOKEN:-}" ]; then
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/materials/keyword-libraries" -H "$AUTH_H" >/dev/null && log "Admin keyword-libraries OK" || log "WARN: keyword-libraries 未就绪"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor" -H "$AUTH_H" >/dev/null && log "Admin strategy monitor OK" || log "WARN: strategy monitor 未就绪"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/knowledge-settings" -H "$AUTH_H" >/dev/null && log "Admin knowledge-settings OK" || log "WARN: knowledge-settings 未就绪（需 alembic 004）"
+  curl -sf "http://127.0.0.1:${API_PORT}/api/admin/wiki" -H "$AUTH_H" | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert 'pages' in d and 'stats' in d" 2>/dev/null && log "Admin wiki editor OK" || log "WARN: wiki editor 未就绪"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor" -H "$AUTH_H" | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert 'recent_probes' in d" 2>/dev/null && log "Admin monitor probes OK" || log "WARN: monitor probes 未就绪（需 alembic 005）"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/settings" -H "$AUTH_H" | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert 'probe_mode' in d" 2>/dev/null && log "Admin monitor settings OK" || log "WARN: monitor settings 未就绪"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/runs" -H "$AUTH_H" >/dev/null && log "Admin monitor runs OK" || log "WARN: monitor runs 未就绪"

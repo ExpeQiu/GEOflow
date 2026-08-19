@@ -14,6 +14,7 @@ def _resolve_page_type(article, config: dict) -> str:
         "thread",
         "topic",
         "article",
+        "certification",
     }
     forced = str(config.get("default_page_type") or config.get("page_type") or "").strip()
     if forced in types:
@@ -41,6 +42,14 @@ def test_wiki_mdx_uses_wiki_page_type():
         wiki_meta={"wiki_page_type": "article"},
     )
     assert _resolve_page_type(article, {}) == "article"
+
+
+def test_wiki_mdx_certification_type():
+    article = SimpleNamespace(
+        content_format="wiki_mdx",
+        wiki_meta={"wiki_page_type": "certification"},
+    )
+    assert _resolve_page_type(article, {}) == "certification"
 
 
 def test_wiki_mdx_invalid_falls_back_to_concept():
