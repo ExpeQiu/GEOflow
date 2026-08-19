@@ -102,3 +102,53 @@ def build_wiki_meta(existing: dict[str, Any] | None, body: WikiPageBody, page_ty
         }
     )
     return meta
+
+
+COMPARE_GUIDE_TYPES = frozenset({"compare", "guide"})
+MIN_RELATED_FOR_GATE = 3
+MIN_FAQ_FOR_GATE = 3
+
+
+def wiki_publish_gate(
+    page_type: str,
+    related: list[str] | None,
+    faq: list | None,
+) -> dict[str, Any]:
+    """compare/guide 发布门禁：FAQ≥3 且 related≥3。草稿 PATCH 不走此函数。"""
+    errors: list[str] = []
+    required = page_type in COMPARE_GUIDE_TYPES
+    if not required:
+        return {"ok": True, "errors": [], "required": False, "related_count": 0, "faq_count": 0}
+
+    related_n = len([r for r in (related or []) if str(r).strip()])
+    if related_n < MIN_RELATED_FOR_GATE:
+        errors.append("related_min_3")
+
+    faq_n = 0
+    for item in faq or []:
+        if isinstance(item, dict):
+            q = str(item.get("q") or item.get("question") or "").strip()
+            a = str(item.get("a") or item.get("answer") or "").strip()
+        else:
+            q = str(getattr(item, "q", "") or "").strip()
+            a = str(getattr(item, "a", "") or "").strip()
+        if q and a:
+            faq_n += 1
+    if faq_n < MIN_FAQ_FOR_GATE:
+        errors.append("faq_min_3")
+
+    return {
+        "ok": not errors,
+        "errors": errors,
+        "required": True,
+        "related_count": related_n,
+        "faq_count": faq_n,
+    }
+
+
+class WikiGenerateDraftBody(BaseModel):
+    knowledge_base_id: int
+    title: str = Field(..., min_length=1, max_length=200)
+    wiki_page_type: str = "concept"
+    target_query: str = ""
+    domain: str = ""

@@ -1,6 +1,6 @@
 # ADR-011：GEOweb Wiki 轻量编辑台（GEOFlow Admin）
 
-- 状态：Accepted（Wave 1 已落地）
+- 状态：Accepted（Wave 1–3 已落地）
 - 日期：2026-08-19
 - 相关：[ADR-010 Theme](./ADR-010-Theme主题包主链路.md)、GEOweb [ADR-004](/Volumes/Lexar/git/03T/GEOweb/ADR/ADR-004-地图FAQ与Wiki真源.md)
 
@@ -79,6 +79,19 @@ Wave 1 入口：运营 Hub → **Wiki**。发布委托 `GeowebPublisher`；slug 
 - Admin：`http://127.0.0.1:13001/operations/wiki`
 - 新建 `concept` `wiki-editor-wave1` → 发布 → `http://127.0.0.1:3070/concepts/wiki-editor-wave1` 200，frontmatter `source: geoflow`
 - 单测：`backend/tests/test_wiki_editor.py`
+- 与 GEOweb `/wiki` 对齐：`POST /api/admin/wiki/import-geoweb` 导入种子页；GEOweb 目录隐藏 smoke/probe/interop。当前双方均为 19 页。
+
+## Wave 2 验收（2026-08-19）
+
+- related：`GET /api/admin/wiki/related-options`，编辑台检索已发布页并写入 `concepts/{slug}` 路径
+- compare/guide：FAQ≥3 且 related≥3 才可 `POST /wiki/{id}/publish`；PATCH 草稿仍可保存
+- 知识库：`POST /api/admin/wiki/generate-draft`，`AI_MOCK_MODE=true` 用 RAG 命中或 Mock 骨架填正文
+
+## Wave 3 验收（2026-08-19）
+
+- Theme 包看板：`/operations/wiki/packs`，子页先于 topic hub
+- `POST /api/admin/wiki/packs/{theme_id}/sync-pack` → GEOweb `POST /api/geoflow/sync-pack`；compare/guide 未过门禁则 422 整包不发
+- 对账：`GET /api/admin/wiki/reconcile` 对照 GEOweb `/api/pages.json`（geoflow / 非 smoke）；pages.json 带 `source`
 
 ## 反模式
 

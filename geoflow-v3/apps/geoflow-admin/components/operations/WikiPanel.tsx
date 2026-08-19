@@ -16,6 +16,8 @@ export function WikiPanel({
   query,
   onFilterChange,
   onQueryChange,
+  onImport,
+  importing,
 }: {
   pages: WikiPage[];
   stats: WikiStats;
@@ -24,6 +26,8 @@ export function WikiPanel({
   query: string;
   onFilterChange: (type: string) => void;
   onQueryChange: (q: string) => void;
+  onImport?: () => void;
+  importing?: boolean;
 }) {
   return (
     <div>
@@ -56,6 +60,16 @@ export function WikiPanel({
         >
           {zh.wiki.createButton}
         </Link>
+        {onImport && (
+          <button
+            type="button"
+            disabled={importing}
+            onClick={onImport}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {importing ? zh.common.loading : zh.wiki.importFromGeoweb}
+          </button>
+        )}
       </div>
       <p className="mb-3 text-xs text-gray-500">{zh.wiki.smokeHint}</p>
 

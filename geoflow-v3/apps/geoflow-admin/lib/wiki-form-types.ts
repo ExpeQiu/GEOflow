@@ -16,6 +16,33 @@ export const WIKI_DOMAINS = ["adas", "battery", "edrive", "cockpit", "safety"] a
 
 export type WikiFaqItem = { q: string; a: string };
 
+export type WikiPublishGate = {
+  ok: boolean;
+  errors: string[];
+  required: boolean;
+  related_count?: number;
+  faq_count?: number;
+};
+
+export type WikiRelatedOption = {
+  id: number;
+  path: string;
+  title: string;
+  type: string;
+  slug: string;
+};
+
+export type WikiKbItem = { id: number; name: string };
+
+export function wikiPublishGate(pageType: string, related: string[], faq: WikiFaqItem[]): WikiPublishGate {
+  const required = pageType === "compare" || pageType === "guide";
+  if (!required) return { ok: true, errors: [], required: false };
+  const errors: string[] = [];
+  if (related.filter((item) => item.trim()).length < 3) errors.push("related_min_3");
+  if (faq.filter((item) => item.q.trim() && item.a.trim()).length < 3) errors.push("faq_min_3");
+  return { ok: errors.length === 0, errors, required };
+}
+
 export type WikiPage = {
   id: number;
   title: string;
@@ -31,6 +58,7 @@ export type WikiPage = {
   target_query: string | null;
   related: string[];
   faq: WikiFaqItem[];
+  publish_gate?: WikiPublishGate;
   schema_type: string;
   geo_theme_id: string | null;
   tags: string[];

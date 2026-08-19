@@ -55,12 +55,18 @@ from app.services.admin.article_form_service import (
     restore_admin_article,
     update_admin_article,
 )
-from app.services.admin.wiki_editor_schema import WikiPageBody
+from app.services.admin.wiki_editor_schema import WikiGenerateDraftBody, WikiPageBody
 from app.services.admin.wiki_editor_service import (
     build_wiki_detail,
+    build_wiki_packs,
     build_wiki_panel,
     create_wiki_page,
+    generate_wiki_draft,
+    import_geoweb_wiki_pages,
+    list_wiki_related_options,
     publish_wiki_page,
+    reconcile_wiki_with_geoweb,
+    sync_wiki_pack,
     update_wiki_page,
 )
 from app.services.admin.task_form_service import (
@@ -546,6 +552,74 @@ async def list_wiki_pages(
         request,
         await build_wiki_panel(db, page_type=wiki_page_type, q=q, include_smoke=include_smoke),
     )
+
+
+@router.post("/wiki/import-geoweb")
+async def import_wiki_from_geoweb(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    try:
+        payload = await import_geoweb_wiki_pages(db)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("admin_wiki_import_failed")
+        raise HTTPException(status_code=500, detail="wiki_import_failed") from exc
+    return success(request, payload)
+
+
+@router.get("/wiki/related-options")
+async def wiki_related_options(
+    request: Request,
+    db: DbSession,
+    jwt=Depends(get_admin_jwt),
+    exclude_id: int | None = Query(default=None),
+):
+    return success(request, await list_wiki_related_options(db, exclude_id=exclude_id))
+
+
+@router.post("/wiki/generate-draft")
+async def wiki_generate_draft(
+    body: WikiGenerateDraftBody,
+    request: Request,
+    db: DbSession,
+    jwt=Depends(get_admin_jwt),
+):
+    try:
+        payload = await generate_wiki_draft(db, body)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("admin_wiki_generate_draft_failed")
+        raise HTTPException(status_code=500, detail="wiki_generate_draft_failed") from exc
+    return success(request, payload)
+
+
+@router.get("/wiki/packs")
+async def wiki_packs(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await build_wiki_packs(db))
+
+
+@router.post("/wiki/packs/{theme_id}/sync-pack")
+async def wiki_sync_pack(theme_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    try:
+        payload = await sync_wiki_pack(db, theme_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("admin_wiki_sync_pack_failed theme_id=%s", theme_id)
+        raise HTTPException(status_code=500, detail="wiki_sync_pack_failed") from exc
+    return success(request, payload)
+
+
+@router.get("/wiki/reconcile")
+async def wiki_reconcile(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    try:
+        payload = await reconcile_wiki_with_geoweb(db)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("admin_wiki_reconcile_failed")
+        raise HTTPException(status_code=500, detail="wiki_reconcile_failed") from exc
+    return success(request, payload)
 
 
 @router.post("/wiki")

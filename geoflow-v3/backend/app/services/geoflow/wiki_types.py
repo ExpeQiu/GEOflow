@@ -42,6 +42,10 @@ def is_smoke_slug(slug: str) -> bool:
     return bool(SMOKE_SLUG_RE.search(slug or ""))
 
 
+def related_path_for(page_type: str, slug: str) -> str:
+    return f"{route_prefix_for_type(page_type)}/{slug}"
+
+
 def wiki_preview_url(base_url: str, page_type: str, slug: str) -> str:
     base = (base_url or "").rstrip("/")
     prefix = route_prefix_for_type(page_type)

@@ -2,14 +2,18 @@
 
 from fastapi import HTTPException
 
+from app.services.admin.wiki_draft import render_wiki_draft
 from app.services.admin.wiki_editor_schema import (
     WikiFaqItem,
     WikiPageBody,
     build_wiki_meta,
     validate_wiki_slug,
     validate_wiki_type,
+    wiki_publish_gate,
 )
-from app.services.geoflow.wiki_types import is_smoke_slug, route_prefix_for_type, wiki_preview_url
+from app.services.admin.wiki_pack import sort_pack_pages
+from app.services.admin.wiki_reconcile import diff_wiki_inventories, is_geoflow_remote_page
+from app.services.geoflow.wiki_types import is_smoke_slug, related_path_for, route_prefix_for_type, wiki_preview_url
 
 
 def test_smoke_slug_filters_probe_pages():
@@ -63,3 +67,72 @@ def test_build_wiki_meta_keeps_sync_fields():
     assert meta["geo_content_hash"] == "abc"
     assert meta["geoweb_url"].endswith("/concepts/g-ads")
     assert meta["faq"][0]["q"] == "是什么"
+
+
+def test_related_path_uses_route_prefix():
+    assert related_path_for("concept", "g-ads") == "concepts/g-ads"
+    assert related_path_for("guide", "npr") == "guides/npr"
+
+
+def test_publish_gate_skips_concept():
+    gate = wiki_publish_gate("concept", [], [])
+    assert gate["ok"] is True
+    assert gate["required"] is False
+
+
+def test_publish_gate_blocks_compare_until_related_and_faq():
+    blocked = wiki_publish_gate("compare", ["concepts/a"], [{"q": "q1", "a": "a1"}])
+    assert blocked["ok"] is False
+    assert "related_min_3" in blocked["errors"]
+    assert "faq_min_3" in blocked["errors"]
+
+    related = ["concepts/a", "concepts/b", "guides/c"]
+    faq = [{"q": "q1", "a": "a1"}, {"q": "q2", "a": "a2"}, {"q": "q3", "a": "a3"}]
+    ok = wiki_publish_gate("guide", related, faq)
+    assert ok["ok"] is True
+
+
+def test_pack_sorts_topic_hub_last():
+    pages = [
+        {"id": 1, "wiki_page_type": "topic"},
+        {"id": 2, "wiki_page_type": "guide"},
+        {"id": 3, "wiki_page_type": "concept"},
+        {"id": 4, "wiki_page_type": "compare"},
+    ]
+    ordered = sort_pack_pages(pages)
+    assert [p["wiki_page_type"] for p in ordered] == ["concept", "compare", "guide", "topic"]
+
+
+def test_mock_draft_fills_body():
+    draft = render_wiki_draft(title="G-ADS", wiki_page_type="concept", hits=[], mock=True)
+    assert "G-ADS" in draft["body"]
+    assert draft["mock"] is True
+    draft2 = render_wiki_draft(
+        title="G-ADS",
+        wiki_page_type="concept",
+        hits=[{"content": "吉利智能驾驶辅助系统"}],
+        mock=True,
+    )
+    assert "吉利智能驾驶辅助系统" in draft2["body"]
+    assert draft2["hit_count"] == 1
+
+
+def test_reconcile_filters_smoke_and_seed():
+    local = [
+        {"slug": "g-ads", "title": "G-ADS", "wiki_page_type": "concept", "id": 1, "geo_content_hash": "aaa"},
+        {"slug": "local-only", "title": "仅本地", "wiki_page_type": "concept", "id": 2},
+        {"slug": "gads-smoke-check", "title": "探针", "wiki_page_type": "concept", "id": 3},
+    ]
+    remote = [
+        {"slug": "g-ads", "title": "G-ADS", "type": "concept", "source": "geoflow", "geoContentHash": "bbb"},
+        {"slug": "seed-page", "title": "种子", "type": "concept", "source": "seed"},
+        {"slug": "remote-only", "title": "仅远端", "type": "concept", "source": "geoflow"},
+        {"slug": "wiki-probe-1", "title": "探针", "type": "concept", "source": "geoflow"},
+    ]
+    assert is_geoflow_remote_page(remote[0]) is True
+    assert is_geoflow_remote_page(remote[1]) is False
+    diff = diff_wiki_inventories(local, remote)
+    assert [r["slug"] for r in diff["hash_mismatch"]] == ["g-ads"]
+    assert [r["slug"] for r in diff["local_only"]] == ["local-only"]
+    assert [r["slug"] for r in diff["remote_only"]] == ["remote-only"]
+    assert diff["stats"]["matched"] == 0

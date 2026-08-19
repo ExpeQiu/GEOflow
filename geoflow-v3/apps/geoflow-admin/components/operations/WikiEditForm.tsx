@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { ArrowLeft, Eye, EyeOff, Plus, Trash2 } from "lucide-react";
+import { WikiRelatedPicker } from "@/components/operations/WikiRelatedPicker";
+import { WikiSubNav } from "@/components/operations/WikiSubNav";
 import { FlashAlert } from "@/components/admin/FlashAlert";
 import { cn } from "@/lib/cn";
 import { apiGet, apiPatch, apiPost, getToken } from "@/lib/api-client";
@@ -12,10 +14,13 @@ import {
   emptyWikiPayload,
   suggestWikiSlug,
   wikiPayloadFromPage,
+  wikiPublishGate,
   WIKI_DOMAINS,
   WIKI_PAGE_TYPES,
   type WikiDetailPayload,
+  type WikiKbItem,
   type WikiPagePayload,
+  type WikiRelatedOption,
 } from "@/lib/wiki-form-types";
 
 const inputClass =
@@ -40,6 +45,10 @@ export function WikiEditForm({ articleId }: { articleId?: number }) {
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [relatedOptions, setRelatedOptions] = useState<WikiRelatedOption[]>([]);
+  const [kbs, setKbs] = useState<WikiKbItem[]>([]);
+  const [kbId, setKbId] = useState<number | "">("");
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     if (isNew || !articleId) return;
@@ -56,6 +65,22 @@ export function WikiEditForm({ articleId }: { articleId?: number }) {
       .catch(() => setError(zh.wiki.loadError))
       .finally(() => setLoading(false));
   }, [articleId, isNew]);
+
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+    const relatedQs = articleId ? `?exclude_id=${articleId}` : "";
+    apiGet<{ items: WikiRelatedOption[] }>(`/api/admin/wiki/related-options${relatedQs}`, token)
+      .then((data) => setRelatedOptions(data.items || []))
+      .catch(() => undefined);
+    apiGet<{ items: WikiKbItem[] }>("/api/admin/knowledge-bases", token)
+      .then((data) => {
+        const items = data.items || [];
+        setKbs(items);
+        if (items[0]) setKbId(items[0].id);
+      })
+      .catch(() => undefined);
+  }, [articleId]);
 
   function patch<K extends keyof WikiPagePayload>(key: K, value: WikiPagePayload[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -114,12 +139,50 @@ export function WikiEditForm({ articleId }: { articleId?: number }) {
     }
   }
 
+  async function onGenerateDraft() {
+    const token = getToken();
+    if (!token || !kbId || !form.title.trim()) return;
+    setGenerating(true);
+    setError("");
+    setSuccess("");
+    try {
+      const draft = await apiPost<{
+        body: string;
+        quick_answer: string;
+        core_takeaway: string;
+        target_query: string;
+        mock: boolean;
+      }>("/api/admin/wiki/generate-draft", token, {
+        knowledge_base_id: kbId,
+        title: form.title,
+        wiki_page_type: form.wiki_page_type,
+        target_query: form.target_query,
+        domain: form.domain,
+      });
+      setForm((prev) => ({
+        ...prev,
+        body: draft.body || prev.body,
+        quick_answer: draft.quick_answer || prev.quick_answer,
+        core_takeaway: draft.core_takeaway || prev.core_takeaway,
+        target_query: draft.target_query || prev.target_query,
+      }));
+      setSuccess(zh.wiki.draftSuccess);
+    } catch (err) {
+      setError(`${zh.wiki.draftError}${detailSuffix(err)}`);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   if (loading) return <FlashAlert variant="info">{zh.common.loading}</FlashAlert>;
 
   const openUrl = geowebUrl || previewUrl;
+  const gate = wikiPublishGate(form.wiki_page_type, form.related, form.faq);
+  const publishDisabled = publishing || (gate.required && !gate.ok);
 
   return (
     <form onSubmit={onSubmit}>
+      <WikiSubNav />
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-4">
           <Link href="/operations/wiki" className="text-gray-400 hover:text-gray-600">
@@ -144,7 +207,7 @@ export function WikiEditForm({ articleId }: { articleId?: number }) {
           {!isNew && (
             <button
               type="button"
-              disabled={publishing}
+              disabled={publishDisabled}
               onClick={onPublish}
               className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
@@ -158,6 +221,13 @@ export function WikiEditForm({ articleId }: { articleId?: number }) {
       {success && <FlashAlert variant="success">{success}</FlashAlert>}
       {!syncEnabled && !isNew && (
         <FlashAlert variant="info">GEOWEB_SYNC_ENABLED 未开启，发布将走 dry-run。</FlashAlert>
+      )}
+      {gate.required && (
+        <FlashAlert variant={gate.ok ? "info" : "error"}>
+          {zh.wiki.gateHint}
+          {!gate.ok && gate.errors.includes("related_min_3") ? ` · ${zh.wiki.gateRelated}` : ""}
+          {!gate.ok && gate.errors.includes("faq_min_3") ? ` · ${zh.wiki.gateFaq}` : ""}
+        </FlashAlert>
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
@@ -250,14 +320,36 @@ export function WikiEditForm({ articleId }: { articleId?: number }) {
           <Section
             title={zh.wiki.sections.content}
             action={
-              <button
-                type="button"
-                onClick={() => setPreviewMd((p) => !p)}
-                className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-              >
+              <div className="flex items-center gap-2">
+                <select
+                  value={kbId}
+                  onChange={(e) => setKbId(e.target.value ? Number(e.target.value) : "")}
+                  className="rounded-md border border-gray-300 px-2 py-1 text-xs"
+                >
+                  <option value="">{zh.wiki.selectKb}</option>
+                  {kbs.map((kb) => (
+                    <option key={kb.id} value={kb.id}>
+                      {kb.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={generating || !kbId || !form.title.trim()}
+                  onClick={onGenerateDraft}
+                  className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {generating ? zh.common.loading : zh.wiki.generateDraft}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewMd((p) => !p)}
+                  className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                >
                 {previewMd ? <EyeOff className="mr-1 h-4 w-4" /> : <Eye className="mr-1 h-4 w-4" />}
                 {previewMd ? zh.articleEdit.hidePreview : zh.articleEdit.showPreview}
-              </button>
+                </button>
+              </div>
             }
           >
             {previewMd ? (
@@ -278,20 +370,7 @@ export function WikiEditForm({ articleId }: { articleId?: number }) {
             <div className="space-y-4">
               <div>
                 <label className={labelClass}>{zh.wiki.fields.related}</label>
-                <textarea
-                  rows={4}
-                  value={form.related.join("\n")}
-                  onChange={(e) =>
-                    patch(
-                      "related",
-                      e.target.value
-                        .split("\n")
-                        .map((line) => line.trim())
-                        .filter(Boolean),
-                    )
-                  }
-                  className={cn(inputClass, "font-mono")}
-                />
+                <WikiRelatedPicker value={form.related} options={relatedOptions} onChange={(next) => patch("related", next)} />
               </div>
               <div className="space-y-3">
                 {form.faq.map((item, idx) => (
