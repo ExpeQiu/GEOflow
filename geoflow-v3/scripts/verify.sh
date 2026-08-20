@@ -44,14 +44,21 @@ if [ -n "${TOKEN:-}" ]; then
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/insights" -H "$AUTH_H" >/dev/null && log "Admin monitor insights OK" || log "WARN: AIVIS insights 未就绪"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/reports" -H "$AUTH_H" >/dev/null && log "Admin monitor reports OK" || log "WARN: AIVIS reports 未就绪"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/competitor-matrix" -H "$AUTH_H" >/dev/null && log "Admin competitor matrix OK" || log "WARN: competitor matrix 未就绪"
+  curl -sf -X POST "http://127.0.0.1:${API_PORT}/api/admin/strategy/framework/scan" -H "$AUTH_H" -H "Content-Type: application/json" \
+    -d '{"sync":true,"limit":1,"platforms":["deepseek"]}' | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert d.get('scan_type')=='framework_api'" 2>/dev/null && log "Admin framework scan OK" || log "WARN: framework scan 未就绪（需 alembic 018 + AI_MOCK_MODE）"
+  curl -sf -X POST "http://127.0.0.1:${API_PORT}/api/admin/strategy/citation/scan" -H "$AUTH_H" -H "Content-Type: application/json" \
+    -d '{"sync":true,"limit":1,"platforms":["kimi"]}' | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert d.get('scan_type')=='citation_grounded'" 2>/dev/null && log "Admin citation scan OK" || log "WARN: citation scan 未就绪（需 alembic 018 + AI_MOCK_MODE）"
+  curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/cross-track" -H "$AUTH_H" | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert 'items' in d and 'summary' in d" 2>/dev/null && log "Admin cross-track OK" || log "WARN: cross-track 未就绪"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/remediations" -H "$AUTH_H" >/dev/null && log "Admin remediations OK" || log "WARN: remediations 未就绪（需 alembic 012）"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/gweb-alignment" -H "$AUTH_H" >/dev/null && log "Admin gweb-alignment OK" || log "WARN: gweb-alignment 未就绪"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/settings" -H "$AUTH_H" | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert 'strict_api' in d and 'remediation_delay_hours' in d" 2>/dev/null && log "Admin closed-loop settings OK" || log "WARN: closed-loop settings 字段缺失"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/knowledge-bases/rag-sandbox" -H "$AUTH_H" -H "Content-Type: application/json" -d '{"knowledge_base_id":1,"query":"test","limit":3}' >/dev/null 2>&1 && log "Admin RAG sandbox OK" || log "WARN: RAG sandbox 跳过（需知识库数据）"
-  if pgrep -f "celery -A app.workers.celery_app worker" >/dev/null 2>&1; then
+  if pgrep -f "celery -A app.workers.celery_app worker" >/dev/null 2>&1 \
+    || docker ps --filter "name=geoflow-v3-worker" --filter "status=running" --format '{{.Names}}' 2>/dev/null | grep -q .; then
     python3 "${ROOT}/scripts/smoke_kb_content.py" && log "KB→内容小闭环 smoke OK" || log "WARN: KB→内容小闭环 smoke 失败"
   else
-    log "WARN: 跳过 smoke_kb_content（无 Celery worker）"
+    log "FAIL: Celery worker 未运行（本地 ./scripts/start-worker.sh 或 docker compose worker）"
+    exit 1
   fi
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/agents" -H "$AUTH_H" | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert len(d.get('items',[]))>=1" 2>/dev/null && log "Admin agents OK" || log "WARN: agents 配置未就绪"
 else

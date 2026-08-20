@@ -16,6 +16,7 @@ from app.services.geoeval.platform_connectors.registry import (
     load_strict_api,
     probe_platform,
 )
+from app.services.geoeval.probe_scheme import north_star_sql_filters
 
 logger = logging.getLogger(__name__)
 
@@ -248,10 +249,36 @@ async def _persist_probe(
         "capture_artifact": outcome.capture_artifact,
         "metric_kind": outcome.metric_kind or ("cend_sample" if outcome.engine == "cend_browser" else "mixed"),
         "cend_meta": json.dumps(outcome.cend_meta or {}, ensure_ascii=False),
+        "scheme": getattr(outcome, "scheme", None) or "open_api",
+        "tracks": json.dumps(getattr(outcome, "tracks", None) or ["C"], ensure_ascii=False),
+        "reasoning_grade": getattr(outcome, "reasoning_grade", None) or "none",
+        "framework": json.dumps(getattr(outcome, "framework", None) or {}, ensure_ascii=False),
     }
     probe_id: int | None = None
     # 优先写满 C 端扩展列，失败则逐级回退
     insert_attempts = [
+        (
+            """
+            INSERT INTO geo_monitor_probe_results
+                (run_id, question_id, platform, brand_rank, mentioned, snippet, engine,
+                 ranking_score, sentiment, competitor_mentions,
+                 rank_method, evidence_level, match_type, parser_version,
+                 thinking_text, thinking_ms, keywords, entities, rank_blocks, decision_table,
+                 source_hosts, capture_artifact, metric_kind, cend_meta,
+                 scheme, tracks, reasoning_grade, framework)
+            VALUES (:run_id, :qid, :platform, :rank, :mentioned, :snippet, :engine,
+                    :ranking_score, CAST(:sentiment AS JSON), CAST(:competitor_mentions AS JSON),
+                    :rank_method, :evidence_level, :match_type, :parser_version,
+                    :thinking_text, :thinking_ms,
+                    CAST(:keywords AS JSON), CAST(:entities AS JSON),
+                    CAST(:rank_blocks AS JSON), CAST(:decision_table AS JSON),
+                    CAST(:source_hosts AS JSON), :capture_artifact, :metric_kind,
+                    CAST(:cend_meta AS JSON),
+                    :scheme, CAST(:tracks AS JSON), :reasoning_grade, CAST(:framework AS JSON))
+            RETURNING id
+            """,
+            params,
+        ),
         (
             """
             INSERT INTO geo_monitor_probe_results
@@ -270,7 +297,9 @@ async def _persist_probe(
                     CAST(:cend_meta AS JSON))
             RETURNING id
             """,
-            params,
+            {k: v for k, v in params.items() if k not in (
+                "scheme", "tracks", "reasoning_grade", "framework",
+            )},
         ),
         (
             """
@@ -326,14 +355,21 @@ async def _persist_probe(
 
     if probe_id and corpus and question_text and outcome.engine == "corpus":
         await _persist_corpus_citations(db, probe_id=probe_id, question_text=question_text, corpus=corpus)
-    elif probe_id and outcome.engine == "api" and getattr(outcome, "urls", None):
-        await _persist_url_citations(
-            db,
-            probe_id=probe_id,
-            urls=list(outcome.urls or []),
-            evidence_level=outcome.evidence_level if outcome.evidence_level in ("L1", "L2") else "L1",
-            source="api_extract",
-        )
+    elif probe_id and outcome.engine == "api":
+        cite_urls = list(getattr(outcome, "citation_urls", None) or []) or list(outcome.urls or [])
+        if cite_urls:
+            src = (
+                "citation_grounded"
+                if getattr(outcome, "scheme", "") == "citation_grounded"
+                else "api_extract"
+            )
+            await _persist_url_citations(
+                db,
+                probe_id=probe_id,
+                urls=cite_urls,
+                evidence_level=outcome.evidence_level if outcome.evidence_level in ("L1", "L2") else "L1",
+                source=src,
+            )
     elif probe_id and outcome.engine == "cend_browser":
         cite_urls = list(getattr(outcome, "citation_urls", None) or getattr(outcome, "urls", None) or [])
         cite_titles = list(getattr(outcome, "citation_titles", None) or [])
@@ -355,6 +391,7 @@ async def run_probes_for_questions(
     run_id: int,
     questions: list[tuple[int, str, int, list[str] | None]],
     brands: list[str] | None = None,
+    scheme: str = "open_api",
 ) -> list[ProbeOutcome]:
     brand_list = brands or await load_brand_keywords(db)
     corpus = await load_corpus(db)
@@ -377,6 +414,7 @@ async def run_probes_for_questions(
                 probe_mode=probe_mode,
                 question_index=q_idx,
                 strict_api=strict_api,
+                scheme=scheme,
             )
             outcome.question_id = qid
             outcomes.append(outcome)
@@ -390,7 +428,7 @@ async def run_probes_for_questions(
             )
 
     logger.info(
-        "monitor_probes_completed run_id=%s questions=%s probes=%s mode=%s platforms=%s strict_api=%s engines=%s",
+        "monitor_probes_completed run_id=%s questions=%s probes=%s mode=%s platforms=%s strict_api=%s engines=%s scheme=%s",
         run_id,
         len(questions),
         len(outcomes),
@@ -398,8 +436,37 @@ async def run_probes_for_questions(
         len(platforms),
         strict_api,
         engine_counts,
+        scheme,
     )
     return outcomes
+
+
+def resolve_lift_question_ids(
+    *,
+    evidence_ids: list | None = None,
+    target_queries: list[str] | None = None,
+    questions: list[tuple[int, str]] | None = None,
+) -> list[int]:
+    """Theme lift 题集：优先 probe_evidence id，否则用 target_queries 子串匹配。"""
+    ids: list[int] = []
+    for item in evidence_ids or []:
+        raw = item.get("id") or item.get("question_id") if isinstance(item, dict) else item
+        try:
+            if raw is not None:
+                ids.append(int(raw))
+        except (TypeError, ValueError):
+            continue
+    if ids:
+        return list(dict.fromkeys(ids))
+    needles = [str(q).strip() for q in (target_queries or []) if str(q).strip()]
+    if not needles or not questions:
+        return []
+    matched: list[int] = []
+    for qid, text in questions:
+        blob = str(text or "")
+        if any(n in blob or blob in n for n in needles):
+            matched.append(int(qid))
+    return list(dict.fromkeys(matched))
 
 
 async def aggregate_probe_kpis(
@@ -411,6 +478,8 @@ async def aggregate_probe_kpis(
     trusted_only: bool = False,
     intent_subset: list[str] | None = None,
     north_star: bool = False,
+    question_ids: list[int] | None = None,
+    query_needles: list[str] | None = None,
 ) -> dict:
     from app.services.geoeval.north_star_kpi import (
         NORTH_STAR_INTENTS,
@@ -445,6 +514,8 @@ async def aggregate_probe_kpis(
         "run_id": run_id,
         "intent_subset": intent_subset,
         "kpi_track": "open_api" if trusted_only or north_star else "mixed",
+        "lift_scope": "scene",
+        "lift_question_ids": [],
     }
     if not await _table_exists(db, "geo_monitor_probe_results"):
         return empty
@@ -452,7 +523,10 @@ async def aggregate_probe_kpis(
     join_sql = ""
     where_extra = ""
     params: dict = {}
-    need_questions = bool(query_type or scene_id or intent_subset)
+    qids = [int(i) for i in (question_ids or []) if i]
+    needles = [str(n).strip() for n in (query_needles or []) if str(n).strip()]
+    lift_scope = "question_ids" if qids else ("query_needles" if needles else "scene")
+    need_questions = bool(query_type or scene_id or intent_subset or needles)
     has_intent_col = False
     if need_questions and await _table_exists(db, "geo_monitor_questions"):
         join_sql = "JOIN geo_monitor_questions mq ON mq.id = pr.question_id"
@@ -486,11 +560,44 @@ async def aggregate_probe_kpis(
                 where_extra += f" AND COALESCE(mq.intent_type, 'cognition') IN ({', '.join(placeholders)})"
             else:
                 logger.debug("intent_type_column_missing skip_subset_filter")
+    if qids:
+        placeholders = []
+        for i, qid in enumerate(qids[:80]):
+            key = f"lift_qid_{i}"
+            placeholders.append(f":{key}")
+            params[key] = qid
+        where_extra += f" AND pr.question_id IN ({', '.join(placeholders)})"
+    elif needles:
+        if join_sql:
+            ors = []
+            for i, needle in enumerate(needles[:20]):
+                key = f"lift_needle_{i}"
+                ors.append(f"mq.question_text LIKE :{key}")
+                params[key] = f"%{needle}%"
+            where_extra += f" AND ({' OR '.join(ors)})"
+        else:
+            lift_scope = "scene"
+            logger.debug("lift_needles_skipped_no_questions_join")
     if run_id is not None:
         where_extra += " AND pr.run_id = :rid"
         params["rid"] = run_id
     if trusted_only or north_star:
-        where_extra += " AND COALESCE(pr.engine, 'corpus') = 'api'"
+        has_scheme = False
+        try:
+            col = (
+                await db.execute(
+                    text(
+                        """
+                        SELECT column_name FROM information_schema.columns
+                        WHERE table_name = 'geo_monitor_probe_results' AND column_name = 'scheme'
+                        """
+                    )
+                )
+            ).first()
+            has_scheme = bool(col)
+        except Exception:
+            has_scheme = False
+        where_extra += north_star_sql_filters(alias="pr", has_scheme_col=has_scheme)
     else:
         where_extra += " AND COALESCE(pr.engine, 'corpus') <> 'skipped'"
 
@@ -723,6 +830,8 @@ async def aggregate_probe_kpis(
         "intent_subset": intent_subset,
         "kpi_track": kpi_track,
         "metric_meta": metric_meta,
+        "lift_scope": lift_scope,
+        "lift_question_ids": qids,
     }
 
 
@@ -732,6 +841,8 @@ async def aggregate_scene_visibility(
     *,
     run_id: int | None = None,
     trusted_only: bool = False,
+    question_ids: list[int] | None = None,
+    query_needles: list[str] | None = None,
 ) -> dict:
     """按场景聚合可见性与 Top3，供补缺实验 baseline/post 对比。"""
     kpis = await aggregate_probe_kpis(
@@ -740,6 +851,8 @@ async def aggregate_scene_visibility(
         run_id=run_id,
         trusted_only=trusted_only,
         north_star=False,
+        question_ids=question_ids,
+        query_needles=query_needles,
     )
     # 场景闭环优先 Top3；无 rank 时退回 visibility
     latest_run_id = run_id
@@ -758,12 +871,13 @@ async def aggregate_scene_visibility(
         )
     kpis["latest_run_id"] = int(latest_run_id) if latest_run_id else None
     logger.info(
-        "scene_visibility_aggregated scene_id=%s visibility=%s top3=%s probes=%s trusted_only=%s",
+        "scene_visibility_aggregated scene_id=%s visibility=%s top3=%s probes=%s trusted_only=%s lift_scope=%s",
         scene_id,
         kpis.get("visibility_pct"),
         kpis.get("top3_pct"),
         kpis.get("probe_count"),
         trusted_only,
+        kpis.get("lift_scope"),
     )
     return kpis
 

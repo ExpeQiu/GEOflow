@@ -16,13 +16,13 @@ def _resolve_page_type(article, config: dict) -> str:
         "article",
         "certification",
     }
+    meta = article.wiki_meta if isinstance(article.wiki_meta, dict) else {}
+    if (article.content_format or "article") == "wiki_mdx":
+        wiki_type = str(meta.get("type") or meta.get("wiki_page_type") or "concept").strip()
+        return wiki_type if wiki_type in types else "concept"
     forced = str(config.get("default_page_type") or config.get("page_type") or "").strip()
     if forced in types:
         return forced
-    meta = article.wiki_meta if isinstance(article.wiki_meta, dict) else {}
-    if (article.content_format or "article") == "wiki_mdx":
-        wiki_type = str(meta.get("wiki_page_type") or meta.get("type") or "concept").strip()
-        return wiki_type if wiki_type in types else "concept"
     return "article"
 
 
@@ -34,6 +34,14 @@ def test_article_format_defaults_to_article():
 def test_channel_default_page_type_override():
     article = SimpleNamespace(content_format="article", wiki_meta=None)
     assert _resolve_page_type(article, {"default_page_type": "concept"}) == "concept"
+
+
+def test_wiki_mdx_ignores_channel_default_page_type():
+    article = SimpleNamespace(
+        content_format="wiki_mdx",
+        wiki_meta={"type": "topic"},
+    )
+    assert _resolve_page_type(article, {"default_page_type": "article"}) == "topic"
 
 
 def test_wiki_mdx_uses_wiki_page_type():

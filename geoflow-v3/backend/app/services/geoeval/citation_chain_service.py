@@ -7,6 +7,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.admin.production_service import _table_exists
+from app.services.geoeval.domain_catalog import classify_owner, load_domain_catalog
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,24 @@ PLATFORM_LABELS = {
     "wenxin": "文心一言",
     "kimi": "Kimi",
 }
+
+
+def stamp_citation_owners(
+    items: list[dict],
+    *,
+    official: list[str] | None = None,
+    competitors: list[str] | None = None,
+    wiki: list[str] | None = None,
+) -> list[dict]:
+    """给引用条目打 owner，不改 URL 本身。"""
+    for item in items:
+        item["owner"] = classify_owner(
+            str(item.get("url") or item.get("domain") or ""),
+            official=official,
+            competitors=competitors,
+            wiki=wiki,
+        )
+    return items
 
 
 def _domain(url: str) -> str:
@@ -73,6 +92,19 @@ async def _load_citations_for_probes(db: AsyncSession, probe_ids: list[int]) -> 
             item["evidence_level"] = str(row[5] or "L0")
             item["source"] = str(row[6] or "unknown")
         grouped.setdefault(int(pid), []).append(item)
+
+    if grouped:
+        try:
+            catalog = await load_domain_catalog(db)
+            official = list(catalog.get("official") or [])
+            competitors = list(catalog.get("competitor") or [])
+            wiki = list(catalog.get("wiki") or [])
+            for items in grouped.values():
+                stamp_citation_owners(
+                    items, official=official, competitors=competitors, wiki=wiki
+                )
+        except Exception:
+            logger.debug("citation_owner_annotate_skip", exc_info=True)
     return grouped
 
 
@@ -106,7 +138,8 @@ async def get_question_citation_detail(db: AsyncSession, question_id: int) -> di
                         """
                         SELECT id, platform, brand_rank, mentioned, snippet, ranking_score,
                                engine, thinking_text, thinking_ms, keywords, rank_blocks,
-                               decision_table, source_hosts, evidence_level, metric_kind, capture_artifact
+                               decision_table, source_hosts, evidence_level, metric_kind, capture_artifact,
+                               scheme, tracks, reasoning_grade
                         FROM geo_monitor_probe_results
                         WHERE question_id = :qid
                         ORDER BY id DESC
@@ -154,6 +187,9 @@ async def get_question_citation_detail(db: AsyncSession, question_id: int) -> di
             evidence_level = row[13] if len(row) > 13 else None
             metric_kind = row[14] if len(row) > 14 else None
             capture_artifact = row[15] if len(row) > 15 else None
+            scheme = row[16] if len(row) > 16 else None
+            tracks = row[17] if len(row) > 17 else None
+            reasoning_grade = row[18] if len(row) > 18 else None
             citations = cite_map.get(pid, [])
             probes.append(
                 {
@@ -177,6 +213,9 @@ async def get_question_citation_detail(db: AsyncSession, question_id: int) -> di
                     "evidence_level": evidence_level,
                     "metric_kind": metric_kind,
                     "capture_artifact": capture_artifact,
+                    "scheme": scheme,
+                    "tracks": tracks or [],
+                    "reasoning_grade": reasoning_grade,
                 }
             )
 

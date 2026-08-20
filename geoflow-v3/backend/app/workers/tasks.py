@@ -208,6 +208,58 @@ def run_cend_probe_scan(
     return _run_async(_inner())
 
 
+@celery_app.task(name="app.workers.tasks.run_framework_probe_scan")
+def run_framework_probe_scan(
+    platforms: list[str] | None = None,
+    limit: int = 12,
+    min_priority: int = 80,
+    scene_id: int | None = None,
+) -> dict:
+    """框架轨扫描（A+C），不进入 open_api 北极星口径。"""
+
+    async def _inner():
+        async with async_session_factory() as db:
+            from app.services.geoeval.framework_scan import FrameworkScanOrchestrator
+
+            result = await FrameworkScanOrchestrator(db).run_scan(
+                platforms=platforms,
+                limit=limit,
+                min_priority=min_priority,
+                scene_id=scene_id,
+            )
+            await db.commit()
+            return result
+
+    logger.info("framework_probe_scan_queued", platforms=platforms, limit=limit)
+    return _run_async(_inner())
+
+
+@celery_app.task(name="app.workers.tasks.run_citation_probe_scan")
+def run_citation_probe_scan(
+    platforms: list[str] | None = None,
+    limit: int = 12,
+    min_priority: int = 80,
+    scene_id: int | None = None,
+) -> dict:
+    """引用轨扫描（B+C），不进入 open_api 北极星口径。"""
+
+    async def _inner():
+        async with async_session_factory() as db:
+            from app.services.geoeval.citation_scan import CitationScanOrchestrator
+
+            result = await CitationScanOrchestrator(db).run_scan(
+                platforms=platforms,
+                limit=limit,
+                min_priority=min_priority,
+                scene_id=scene_id,
+            )
+            await db.commit()
+            return result
+
+    logger.info("citation_probe_scan_queued", platforms=platforms, limit=limit)
+    return _run_async(_inner())
+
+
 @celery_app.task(name="app.workers.tasks.process_due_remediations")
 def process_due_remediations() -> dict:
     async def _inner():

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
+import { SchemeBadge } from "@/components/strategy/shared/AivisPrimitives";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiGet, getToken } from "@/lib/api-client";
 import { STRATEGY_NAV } from "@/lib/nav-config";
@@ -27,10 +28,10 @@ export default function MonitorRunDetailPage() {
 
   return (
     <div>
-      <HubHeader title={`Monitor 扫描 #${id}`} subtitle="探针明细与平台汇总" />
+      <HubHeader title={`Monitor 扫描 #${id}`} subtitle="探针明细与平台汇总；scheme 仅展示，不计入北极星" />
       <HubNav items={STRATEGY_NAV} tone="violet" />
-      <Link href="/strategy/monitor" className="mb-4 inline-block text-sm text-violet-700">
-        ← 返回监控
+      <Link href="/strategy/probes?view=scan" className="mb-4 inline-block text-sm text-violet-700">
+        ← 返回数据采集
       </Link>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -79,7 +80,7 @@ export default function MonitorRunDetailPage() {
               <table className="min-w-full divide-y text-sm">
                 <thead className="sticky top-0 bg-gray-50">
                   <tr>
-                    {["问题", "平台", "引擎", "提及", "排名", "摘录"].map((h) => (
+                    {["问题", "平台", "方案", "引擎", "提及", "排名", "摘录"].map((h) => (
                       <th key={h} className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{h}</th>
                     ))}
                   </tr>
@@ -89,6 +90,9 @@ export default function MonitorRunDetailPage() {
                     <tr key={p.id}>
                       <td className="max-w-xs px-3 py-2 text-gray-800">{p.question_text}</td>
                       <td className="px-3 py-2 text-violet-700">{p.platform}</td>
+                      <td className="px-3 py-2">
+                        <SchemeBadge scheme={p.scheme || "open_api"} />
+                      </td>
                       <td className="px-3 py-2 text-xs text-gray-500">{p.engine ?? "corpus"}</td>
                       <td className="px-3 py-2">{p.mentioned ? "是" : "否"}</td>
                       <td className="px-3 py-2">{p.brand_rank ?? "—"}</td>

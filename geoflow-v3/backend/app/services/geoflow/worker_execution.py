@@ -1,7 +1,6 @@
 """Worker 执行器 — L2 生产素材 → AI 生成 → 文章落库。"""
 
 import json
-import re
 import time
 from datetime import UTC, datetime
 
@@ -22,10 +21,60 @@ from app.services.geoflow.task_material_resolver import (
     resolve_task_materials,
     resolve_workflow_type,
 )
+from app.services.geoflow.wiki_types import ascii_slug
 from app.ai.workflow_runner import run_workflow_sync
 
 logger = get_logger("geoflow.worker")
 settings = get_settings()
+
+
+def mining_from_theme_meta(meta: dict | None) -> dict:
+    data = meta if isinstance(meta, dict) else {}
+    mining = data.get("mining")
+    return mining if isinstance(mining, dict) else {}
+
+
+def mining_prompt_block(mining: dict, pack_type: str) -> str:
+    """把 A 轨框架 / 信源缺口写进生产提示词。"""
+    if not mining:
+        return ""
+    parts: list[str] = []
+    digest = str(mining.get("thinking_digest") or "").strip()
+    if digest:
+        parts.append(f"思考摘要（正文必须覆盖这些决策路径）：{digest[:800]}")
+    fw = mining.get("framework") if isinstance(mining.get("framework"), dict) else {}
+    dims = [str(x).strip() for x in (fw.get("compare_dims") or []) if str(x).strip()]
+    bars = [str(x).strip() for x in (fw.get("evidence_bars") or []) if str(x).strip()]
+    constraints = [str(x).strip() for x in (fw.get("scene_constraints") or []) if str(x).strip()]
+    gaps = [str(x).strip() for x in (fw.get("open_gaps") or []) if str(x).strip()]
+    if pack_type == "compare" and dims:
+        parts.append("对比页必须用下列维度做表，禁止另起无关维度：\n- " + "\n- ".join(d[:80] for d in dims[:6]))
+    elif dims:
+        parts.append("覆盖这些对比维度：" + "；".join(d[:60] for d in dims[:6]))
+    if bars:
+        parts.append("证据门槛（写明要核验什么，不能只喊口号）：" + "；".join(b[:80] for b in bars[:6]))
+    if constraints:
+        parts.append("场景约束：" + "；".join(c[:80] for c in constraints[:4]))
+    if gaps:
+        parts.append("未决缺口（优先补位）：" + "；".join(g[:80] for g in gaps[:4]))
+    hints = mining.get("source_hints") if isinstance(mining.get("source_hints"), list) else []
+    ours: list[str] = []
+    others: list[str] = []
+    for hint in hints:
+        if not isinstance(hint, dict):
+            continue
+        label = str(hint.get("domain") or hint.get("title") or hint.get("url") or "").strip()
+        if not label:
+            continue
+        if str(hint.get("owner") or "") == "ours":
+            ours.append(label)
+        else:
+            others.append(label)
+    if ours:
+        parts.append("优先引用我方信源：" + "；".join(ours[:6]))
+    if others:
+        parts.append("当前答案常见外部信源（对照缺口）：" + "；".join(others[:6]))
+    return "\n\n".join(parts)
 
 
 class WorkerExecutionService:
@@ -56,7 +105,32 @@ class WorkerExecutionService:
 
             prompt_row = await self.db.get(Prompt, task.prompt_id)
             prompt_text = prompt_row.content if prompt_row else "请撰写一篇高质量 Markdown 文章。"
-            prompt_text = self._compose_prompt(prompt_text, ctx)
+
+            theme_id = None
+            pack_type = task.wiki_page_type or "concept"
+            mining: dict = {}
+            try:
+                from sqlalchemy import select as sa_select
+
+                from app.models.theme import GeoTheme
+                from app.services.geoeval.theme_service import pack_type_for_title
+
+                theme = (
+                    await self.db.execute(sa_select(GeoTheme).where(GeoTheme.task_id == task.id).limit(1))
+                ).scalar_one_or_none()
+                if theme:
+                    theme_id = theme.id
+                    pack_type = pack_type_for_title(
+                        theme.pack_spec or [],
+                        ctx.title,
+                        task.created_count,
+                        pack_type,
+                    )
+                    mining = mining_from_theme_meta(theme.meta)
+            except Exception:  # noqa: BLE001
+                logger.debug("theme_lookup_skipped task_id=%s", task.id, exc_info=True)
+
+            prompt_text = self._compose_prompt(prompt_text, ctx, mining=mining, pack_type=pack_type)
 
             rag_query = f"{ctx.title}\n{prompt_text[:400]}"
             evidence: list[dict] = []
@@ -74,6 +148,9 @@ class WorkerExecutionService:
                 "ai_model_id": ctx.ai_model_id,
                 "mock": settings.ai_mock_mode,
                 "tech_ip": ctx.tech_ip,
+                "pack_type": pack_type,
+                "mining": mining,
+                "framework": mining.get("framework") if mining else {},
             }
 
             if workflow_type == "content_pipeline":
@@ -89,32 +166,13 @@ class WorkerExecutionService:
             article_fields = await finalize_article_fields(self.db, task, ctx, raw_content)
 
             article_title = str(result.get("title") or ctx.title)
-            slug = self._slugify(article_title)
+            slug = ascii_slug(article_title, fallback="article")
             category_id = ctx.category_id or 1
             author_id = ctx.author_id or 1
 
             from app.services.admin.geo_eval_settings_service import get_geo_eval_gate_config
 
             gate = await get_geo_eval_gate_config(self.db)
-            # Theme 绑定：按 task → theme，并按 pack_spec 序号分配 wiki type
-            theme_id = None
-            pack_type = task.wiki_page_type or "concept"
-            try:
-                from sqlalchemy import select as sa_select
-
-                from app.models.theme import GeoTheme
-
-                theme = (
-                    await self.db.execute(sa_select(GeoTheme).where(GeoTheme.task_id == task.id).limit(1))
-                ).scalar_one_or_none()
-                if theme:
-                    theme_id = theme.id
-                    pack = theme.pack_spec or []
-                    idx = max(0, int(task.created_count or 0))
-                    if idx < len(pack) and pack[idx].get("type"):
-                        pack_type = str(pack[idx]["type"])
-            except Exception:  # noqa: BLE001
-                logger.debug("theme_lookup_skipped task_id=%s", task.id, exc_info=True)
 
             article = Article(
                 title=article_title,
@@ -134,7 +192,7 @@ class WorkerExecutionService:
             )
             if task.is_wiki_mdx():
                 wiki_meta = result.get("wiki_meta") if isinstance(result.get("wiki_meta"), dict) else {}
-                wiki_meta.setdefault("type", pack_type)
+                wiki_meta["type"] = pack_type
                 if theme_id:
                     wiki_meta.setdefault("theme_id", theme_id)
                 if ctx.tech_ip:
@@ -157,13 +215,14 @@ class WorkerExecutionService:
             celery_app.send_task("app.workers.tasks.evaluate_article", args=[article.id, run.id])
 
             logger.info(
-                "worker_run_completed run_id=%s article_id=%s theme_id=%s title_id=%s workflow=%s pack_type=%s",
+                "worker_run_completed run_id=%s article_id=%s theme_id=%s title_id=%s workflow=%s pack_type=%s mining=%s",
                 run_id,
                 article.id,
                 theme_id,
                 ctx.title_id,
                 workflow_type,
                 pack_type,
+                bool(mining),
             )
         except Exception as exc:  # noqa: BLE001
             run.status = "failed"
@@ -184,15 +243,19 @@ class WorkerExecutionService:
             )
 
     @staticmethod
-    def _compose_prompt(base: str, ctx: TaskMaterialContext) -> str:
+    def _compose_prompt(
+        base: str,
+        ctx: TaskMaterialContext,
+        *,
+        mining: dict | None = None,
+        pack_type: str = "concept",
+    ) -> str:
         parts = [base.strip(), f"文章标题：{ctx.title}"]
         if ctx.style_guide:
             parts.append(f"写作风格指南：\n{ctx.style_guide}")
         if ctx.tech_ip:
             parts.append(str(ctx.tech_ip.get("prompt_block") or ""))
+        mining_block = mining_prompt_block(mining or {}, pack_type)
+        if mining_block:
+            parts.append(mining_block)
         return "\n\n".join(p for p in parts if p)
-
-    @staticmethod
-    def _slugify(text: str) -> str:
-        slug = re.sub(r"[^\w\s-]", "", text.lower())
-        return re.sub(r"[\s_-]+", "-", slug).strip("-")[:80] or "article"

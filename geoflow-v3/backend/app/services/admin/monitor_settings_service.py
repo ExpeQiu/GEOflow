@@ -24,6 +24,9 @@ class MonitorSettingsBody(BaseModel):
     strict_api: bool = False
     remediation_delay_hours: int = Field(default=72, ge=0, le=720)
     gap_rag_score_threshold: float = Field(default=0.3, ge=0.05, le=0.95)
+    official_domains: str = ""
+    competitor_domains: str = ""
+    wiki_domains: str = ""
 
 
 def _as_bool(value: str | None) -> bool:
@@ -41,6 +44,9 @@ async def get_monitor_settings(db: AsyncSession) -> dict:
     strict_api = False
     remediation_delay_hours = 72
     gap_rag_score_threshold = 0.3
+    official_domains = ""
+    competitor_domains = ""
+    wiki_domains = ""
 
     if await _table_exists(db, "site_settings"):
         rows = (
@@ -51,7 +57,8 @@ async def get_monitor_settings(db: AsyncSession) -> dict:
                     WHERE setting_key IN (
                         'brand_name', 'brand_aliases', 'monitor_probe_mode',
                         'monitor_platforms', 'monitor_scan_limit', 'default_knowledge_base_id',
-                        'monitor_strict_api', 'remediation_delay_hours', 'gap_rag_score_threshold'
+                        'monitor_strict_api', 'remediation_delay_hours', 'gap_rag_score_threshold',
+                        'official_domains', 'competitor_domains', 'wiki_domains'
                     )
                     """
                 )
@@ -88,6 +95,12 @@ async def get_monitor_settings(db: AsyncSession) -> dict:
                     gap_rag_score_threshold = max(0.05, min(0.95, float(value)))
                 except (TypeError, ValueError):
                     pass
+            elif key == "official_domains":
+                official_domains = str(value or "")
+            elif key == "competitor_domains":
+                competitor_domains = str(value or "")
+            elif key == "wiki_domains":
+                wiki_domains = str(value or "")
 
     platforms = tuple(p.strip() for p in monitor_platforms.split(",") if p.strip()) or PLATFORMS_CN
 
@@ -103,6 +116,10 @@ async def get_monitor_settings(db: AsyncSession) -> dict:
         "strict_api": strict_api,
         "remediation_delay_hours": remediation_delay_hours,
         "gap_rag_score_threshold": gap_rag_score_threshold,
+        "official_domains": official_domains,
+        "competitor_domains": competitor_domains,
+        "wiki_domains": wiki_domains,
+        "geoweb_base_url": settings.geoweb_base_url,
     }
 
 
@@ -122,6 +139,9 @@ async def save_monitor_settings(db: AsyncSession, body: MonitorSettingsBody) -> 
         ("monitor_strict_api", "true" if body.strict_api else "false", "boolean", "monitor"),
         ("remediation_delay_hours", str(body.remediation_delay_hours), "integer", "monitor"),
         ("gap_rag_score_threshold", str(body.gap_rag_score_threshold), "float", "monitor"),
+        ("official_domains", body.official_domains.strip(), "string", "monitor"),
+        ("competitor_domains", body.competitor_domains.strip(), "string", "monitor"),
+        ("wiki_domains", body.wiki_domains.strip(), "string", "monitor"),
     ]
     for key, value, vtype, group in items:
         await upsert_site_setting(

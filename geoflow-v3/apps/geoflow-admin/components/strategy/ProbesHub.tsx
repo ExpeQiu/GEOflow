@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CollectionPanel } from "./CollectionPanel";
+import { CrossTrackPanel } from "./CrossTrackPanel";
+import { ProbeSettingsForm } from "./ProbeSettingsForm";
 import { QuestionBankPanel } from "./QuestionBankPanel";
 import type {
   CollectionPanel as CollectionPanelData,
@@ -11,16 +13,20 @@ import type {
   QueryTemplate,
 } from "@/lib/strategy-types";
 
-type ProbeView = "scan" | "questions";
+type ProbeView = "scan" | "questions" | "settings" | "cross";
 
 export function ProbesHub({
   collection,
   onScan,
   onCendScan,
+  onFrameworkScan,
+  onCitationScan,
   onRefreshCollection,
   scanning,
   scanStatus,
   cendScanning,
+  frameworkScanning,
+  citationScanning,
   scenes,
   competitors,
   brandName,
@@ -34,10 +40,14 @@ export function ProbesHub({
   collection: CollectionPanelData | null;
   onScan: (scanType?: "daily" | "market") => void;
   onCendScan: () => void;
+  onFrameworkScan: () => void;
+  onCitationScan: () => void;
   onRefreshCollection: () => Promise<void>;
   scanning: boolean;
   scanStatus: string;
   cendScanning: boolean;
+  frameworkScanning: boolean;
+  citationScanning: boolean;
   scenes: MonitorScene[];
   competitors: CompetitorBrand[];
   brandName: string;
@@ -52,7 +62,7 @@ export function ProbesHub({
 
   useEffect(() => {
     const v = new URLSearchParams(window.location.search).get("view");
-    if (v === "questions") setView("questions");
+    if (v === "questions" || v === "settings" || v === "cross") setView(v);
   }, []);
 
   const tabs = useMemo(
@@ -60,6 +70,8 @@ export function ProbesHub({
       [
         { key: "scan" as const, label: "数据采集" },
         { key: "questions" as const, label: "监控问题库" },
+        { key: "settings" as const, label: "探针设置" },
+        { key: "cross" as const, label: "交叉判定" },
       ] as const,
     [],
   );
@@ -86,10 +98,14 @@ export function ProbesHub({
           data={collection}
           onScan={onScan}
           onCendScan={onCendScan}
+          onFrameworkScan={onFrameworkScan}
+          onCitationScan={onCitationScan}
           onRefresh={onRefreshCollection}
           scanning={scanning}
           scanStatus={scanStatus}
           cendScanning={cendScanning}
+          frameworkScanning={frameworkScanning}
+          citationScanning={citationScanning}
         />
       )}
       {view === "scan" && !collection && <p className="text-sm text-gray-400">加载采集数据…</p>}
@@ -107,6 +123,10 @@ export function ProbesHub({
           onRefresh={onRefreshQuestions}
         />
       )}
+
+      {view === "settings" && <ProbeSettingsForm onSaved={onRefreshCollection} />}
+
+      {view === "cross" && <CrossTrackPanel />}
     </div>
   );
 }

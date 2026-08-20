@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { apiPost, getToken } from "@/lib/api-client";
 import type { CollectionPanel as CollectionPanelData, MonitorRun } from "@/lib/strategy-types";
-import { ProbeSettingsForm } from "./ProbeSettingsForm";
 import { AivisKpiCard, LayerSection, PlatformBadge } from "./shared/AivisPrimitives";
 
 const PROBE_MODE_LABEL: Record<string, string> = {
@@ -28,18 +27,26 @@ export function CollectionPanel({
   data,
   onScan,
   onCendScan,
+  onFrameworkScan,
+  onCitationScan,
   onRefresh,
   scanning,
   scanStatus,
   cendScanning,
+  frameworkScanning,
+  citationScanning,
 }: {
   data: CollectionPanelData;
   onScan: (scanType: "daily" | "market") => void;
   onCendScan?: () => void;
+  onFrameworkScan?: () => void;
+  onCitationScan?: () => void;
   onRefresh?: () => void;
   scanning: boolean;
   scanStatus?: string;
   cendScanning?: boolean;
+  frameworkScanning?: boolean;
+  citationScanning?: boolean;
 }) {
   const [seeding, setSeeding] = useState(false);
   const [seedMsg, setSeedMsg] = useState("");
@@ -174,12 +181,30 @@ export function CollectionPanel({
           </button>
           <button
             type="button"
-            disabled={scanning || cendScanning || !onCendScan}
+            disabled={scanning || cendScanning || frameworkScanning || citationScanning || !onCendScan}
             onClick={() => onCendScan?.()}
             className="rounded-md border border-amber-400 bg-amber-50 px-4 py-2 text-sm text-amber-900 disabled:opacity-50"
             title="辅轨 cend_sample：思考链路 / 资料链 / 结构化排名；不覆盖 open_api KPI"
           >
             {cendScanning ? "C端金标扫描中…" : "C端金标扫描"}
+          </button>
+          <button
+            type="button"
+            disabled={scanning || cendScanning || frameworkScanning || citationScanning || !onFrameworkScan}
+            onClick={() => onFrameworkScan?.()}
+            className="rounded-md border border-cyan-400 bg-cyan-50 px-4 py-2 text-sm text-cyan-900 disabled:opacity-50"
+            title="scheme=framework_api：明文思维链 A+C，不覆盖 visibility_open_api"
+          >
+            {frameworkScanning ? "框架轨扫描中…" : "框架轨扫描"}
+          </button>
+          <button
+            type="button"
+            disabled={scanning || cendScanning || frameworkScanning || citationScanning || !onCitationScan}
+            onClick={() => onCitationScan?.()}
+            className="rounded-md border border-emerald-400 bg-emerald-50 px-4 py-2 text-sm text-emerald-900 disabled:opacity-50"
+            title="B 轨 L1：默认答文抽 URL，不覆盖 visibility_open_api。CITATION_WEB_SEARCH=true 时 Kimi 尝试 $web_search，失败回退抽 URL"
+          >
+            {citationScanning ? "引用轨扫描中…" : "引用轨扫描（B-L1）"}
           </button>
           <Link href="/strategy/probes?view=questions" className="rounded-md border border-violet-300 px-4 py-2 text-sm text-violet-700">
             问题库
@@ -213,8 +238,6 @@ export function CollectionPanel({
           </ul>
         </LayerSection>
       )}
-
-      <ProbeSettingsForm onSaved={onRefresh} />
 
       <LayerSection title="最近扫描任务">
         {data.recent_runs.length === 0 ? (

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ExternalLink, Link2, MessageSquareQuote } from "lucide-react";
 import { apiGet, getToken } from "@/lib/api-client";
 import type { CitationChain, CitationChainQuery, QueryProbe } from "@/lib/strategy-types";
-import { LayerSection, platformLabel } from "./shared/AivisPrimitives";
+import { LayerSection, OwnerBadge, platformLabel, SchemeBadge } from "./shared/AivisPrimitives";
 
 function ProbeCard({ probe }: { probe: QueryProbe }) {
   const [open, setOpen] = useState(probe.mentioned || probe.citation_count > 0);
@@ -15,7 +15,7 @@ function ProbeCard({ probe }: { probe: QueryProbe }) {
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
       >
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-slate-900">{probe.label || platformLabel(probe.platform)}</span>
           <span
             className={`rounded-full px-2 py-0.5 text-[11px] ${
@@ -25,6 +25,7 @@ function ProbeCard({ probe }: { probe: QueryProbe }) {
             {probe.mentioned ? "已提及" : "未提及"}
           </span>
           {probe.brand_rank != null && <span className="text-xs text-slate-500">排名 {probe.brand_rank}</span>}
+          <SchemeBadge scheme={probe.scheme} />
         </div>
         <span className="text-xs text-violet-700">{probe.citation_count} 引用</span>
       </button>
@@ -48,7 +49,10 @@ function ProbeCard({ probe }: { probe: QueryProbe }) {
                     <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     <span className="line-clamp-2">{c.title || c.url}</span>
                   </a>
-                  <p className="mt-1 truncate text-slate-500">{c.domain || c.url}</p>
+                  <p className="mt-1 flex flex-wrap items-center gap-1 truncate text-slate-500">
+                    <OwnerBadge owner={c.owner} />
+                    <span>{c.domain || c.url}</span>
+                  </p>
                 </li>
               ))}
             </ul>

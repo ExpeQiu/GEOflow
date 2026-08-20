@@ -55,44 +55,10 @@ def classify_domain(url_or_domain: str, target_domains: list[str] | None = None)
 
 
 async def _load_target_domains(db: AsyncSession) -> list[str]:
-    from app.services.admin.production_service import _table_exists
+    from app.services.geoeval.domain_catalog import load_domain_catalog
 
-    domains: list[str] = []
-    if await _table_exists(db, "site_settings"):
-        row = (
-            await db.execute(
-                text(
-                    "SELECT setting_value FROM site_settings WHERE setting_key = 'official_domains' LIMIT 1"
-                )
-            )
-        ).scalar_one_or_none()
-        if row:
-            domains.extend([x.strip() for x in str(row).split(",") if x.strip()])
-    if await _table_exists(db, "distribution_channels"):
-        try:
-            rows = (
-                await db.execute(
-                    text(
-                        """
-                        SELECT COALESCE(config->>'geoweb_base_url', endpoint_url, '')
-                        FROM distribution_channels
-                        WHERE channel_type = 'geoweb' AND status = 'active'
-                        LIMIT 10
-                        """
-                    )
-                )
-            ).all()
-            for r in rows:
-                if r[0]:
-                    try:
-                        host = urlparse(str(r[0])).netloc
-                        if host:
-                            domains.append(host)
-                    except Exception:
-                        pass
-        except Exception:
-            logger.debug("target_domains_channels_failed", exc_info=True)
-    return list(dict.fromkeys(domains))
+    catalog = await load_domain_catalog(db)
+    return list(catalog.get("official") or [])
 
 
 async def compute_source_shares(db: AsyncSession, *, min_evidence_level: str = "L1") -> dict:

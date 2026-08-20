@@ -11,7 +11,7 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.article import Article
 from app.models.distribution import DistributionChannel
-from app.services.geoflow.wiki_types import GEOWEB_PAGE_TYPES, route_prefix_for_type
+from app.services.geoflow.wiki_types import GEOWEB_PAGE_TYPES, ascii_slug, fill_sibling_related, route_prefix_for_type
 
 settings = get_settings()
 logger = get_logger("geoflow.publishers.geoweb")
@@ -50,18 +50,15 @@ def _as_faq(value: Any) -> list[dict[str, str]]:
 
 
 def _resolve_page_type(article: Article, config: dict[str, Any]) -> str:
-    """普通文章默认 article；Wiki MDX 按 wiki_page_type；渠道可强制覆盖。"""
+    """Wiki MDX 用 pack 页型；普通文章才吃渠道 default_page_type。"""
+    meta = article.wiki_meta if isinstance(article.wiki_meta, dict) else {}
+    if (article.content_format or "article") == "wiki_mdx":
+        wiki_type = str(meta.get("type") or meta.get("wiki_page_type") or "concept").strip()
+        return wiki_type if wiki_type in GEOWEB_PAGE_TYPES else "concept"
+
     forced = str(config.get("default_page_type") or config.get("page_type") or "").strip()
     if forced in GEOWEB_PAGE_TYPES:
         return forced
-
-    meta = article.wiki_meta if isinstance(article.wiki_meta, dict) else {}
-    if (article.content_format or "article") == "wiki_mdx":
-        wiki_type = str(
-            meta.get("wiki_page_type") or meta.get("type") or "concept"
-        ).strip()
-        return wiki_type if wiki_type in GEOWEB_PAGE_TYPES else "concept"
-
     return "article"
 
 
@@ -93,7 +90,7 @@ class GeowebPublisher:
         meta = article.wiki_meta if isinstance(article.wiki_meta, dict) else {}
         frontmatter = meta.get("frontmatter") if isinstance(meta.get("frontmatter"), dict) else {}
         page_type = _resolve_page_type(article, config)
-        slug = str(meta.get("slug") or article.slug).strip() or article.slug
+        slug = ascii_slug(str(meta.get("slug") or article.slug).strip() or article.slug, fallback="page")
         geo_task_id = geo_flow_task or _resolve_geo_task_id(article)
         body = _extract_body(article)
         if not body:
@@ -124,7 +121,7 @@ class GeowebPublisher:
             str(frontmatter.get("last_updated") or meta.get("last_updated") or "").strip()
             or datetime.now(UTC).date().isoformat()
         )
-        theme_id = geo_theme_id or (str(article.theme_id) if article.theme_id else None)
+        theme_id = str(geo_theme_id or article.theme_id or "").strip() or None
 
         payload: dict[str, Any] = {
             "slug": slug,
@@ -165,10 +162,13 @@ class GeowebPublisher:
         geo_content_hash: str | None,
     ) -> None:
         meta = article.wiki_meta if isinstance(article.wiki_meta, dict) else {}
+        pack_type = str(meta.get("type") or "").strip()
+        sync_type = payload["type"]
         article.wiki_meta = {
             **meta,
-            "wiki_page_type": payload["type"],
-            "type": payload["type"],
+            "type": pack_type or sync_type,
+            "wiki_page_type": pack_type or sync_type,
+            "geoweb_sync_type": sync_type,
             "slug": payload["slug"],
             "theme_id": article.theme_id,
             "geo_theme_id": payload.get("geo_theme_id") or (str(article.theme_id) if article.theme_id else None),
@@ -248,15 +248,19 @@ class GeowebPublisher:
         geo_flow_task: str | None = None,
     ) -> dict:
         base_url, secret, timeout, sync_enabled = self._endpoint_cfg(channel)
-        pages = [
-            self.build_sync_payload(
-                article,
-                channel,
-                geo_theme_id=theme_id,
-                geo_flow_task=geo_flow_task or theme_id,
-            )
-            for article in articles
-        ]
+        pages = fill_sibling_related(
+            [
+                self.build_sync_payload(
+                    article,
+                    channel,
+                    geo_theme_id=str(theme_id),
+                    geo_flow_task=geo_flow_task or str(theme_id),
+                )
+                for article in articles
+            ]
+        )
+        for page in pages:
+            page["geo_theme_id"] = str(theme_id)
         pack_body = {
             "theme_id": theme_id,
             "geo_flow_task": geo_flow_task or theme_id,

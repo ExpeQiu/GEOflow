@@ -115,6 +115,8 @@ def _keyword_combos(scene_name: str, intent: str, probe_texts: list[str], keywor
 
 
 def _digest_thinking(texts: list[str]) -> str:
+    if not texts:
+        return "暂无框架样本；请先跑 framework_api 扫描采集明文思维链。"
     chunks: list[str] = []
     for t in texts:
         t = (t or "").strip()
@@ -124,7 +126,7 @@ def _digest_thinking(texts: list[str]) -> str:
         lines = [ln.strip() for ln in re.split(r"[\n。；;]", t) if ln.strip()]
         chunks.extend(lines[:4])
     if not chunks:
-        return "暂无思考链样本；请结合场景意图人工补全对比维度与决策门槛。"
+        return "暂无框架样本；请先跑 framework_api 扫描采集明文思维链。"
     # 去重截断
     seen: set[str] = set()
     uniq: list[str] = []
@@ -136,12 +138,13 @@ def _digest_thinking(texts: list[str]) -> str:
 
 
 async def _load_scene_probe_context(db: AsyncSession, scene_id: int) -> dict[str, Any]:
-    """同场景问题 → 最近探针 thinking / keywords / citations。"""
+    """同场景问题 → 仅 raw 思维链 / keywords / citations。禁止 snippet 冒充 A 轨。"""
     thinking_texts: list[str] = []
     keywords: list[str] = []
     source_hints: list[dict[str, str]] = []
+    frameworks: list[dict[str, Any]] = []
     if not await _table_exists(db, "geo_monitor_questions"):
-        return {"thinking_texts": [], "keywords": [], "source_hints": []}
+        return {"thinking_texts": [], "keywords": [], "source_hints": [], "frameworks": []}
 
     qids = (
         await db.execute(
@@ -157,47 +160,55 @@ async def _load_scene_probe_context(db: AsyncSession, scene_id: int) -> dict[str
     ).all()
     question_ids = [int(r[0]) for r in qids]
     if not question_ids or not await _table_exists(db, "geo_monitor_probe_results"):
-        return {"thinking_texts": thinking_texts, "keywords": keywords, "source_hints": source_hints}
+        return {"thinking_texts": thinking_texts, "keywords": keywords, "source_hints": source_hints, "frameworks": frameworks}
 
     id_list = ",".join(str(i) for i in question_ids)
+    rows = []
     try:
-        rows = (
-            await db.execute(
-                text(
-                    f"""
-                    SELECT id, thinking_text, keywords, source_hosts
+        async with db.begin_nested():
+            rows = (
+                await db.execute(
+                    text(
+                        f"""
+                    SELECT id, thinking_text, keywords, source_hosts, reasoning_grade, scheme, framework
                     FROM geo_monitor_probe_results
                     WHERE question_id IN ({id_list})
                     ORDER BY id DESC
                     LIMIT 30
                     """
+                    )
                 )
-            )
-        ).all()
+            ).all()
     except Exception:
-        rows = (
-            await db.execute(
-                text(
-                    f"""
-                    SELECT id, snippet
-                    FROM geo_monitor_probe_results
-                    WHERE question_id IN ({id_list})
-                    ORDER BY id DESC
-                    LIMIT 20
-                    """
-                )
-            )
-        ).all()
-        for r in rows:
-            if r[1]:
-                thinking_texts.append(str(r[1])[:500])
-        return {"thinking_texts": thinking_texts, "keywords": keywords, "source_hints": source_hints}
+        try:
+            async with db.begin_nested():
+                rows = (
+                    await db.execute(
+                        text(
+                            f"""
+                        SELECT id, thinking_text, keywords, source_hosts
+                        FROM geo_monitor_probe_results
+                        WHERE question_id IN ({id_list})
+                        ORDER BY id DESC
+                        LIMIT 30
+                        """
+                        )
+                    )
+                ).all()
+        except Exception:
+            logger.info("theme_mining_no_thinking_cols scene_id=%s", scene_id)
+            rows = []
 
     probe_ids: list[int] = []
     for r in rows:
         probe_ids.append(int(r[0]))
-        if len(r) > 1 and r[1]:
-            thinking_texts.append(str(r[1])[:2000])
+        grade = str(r[4]).strip().lower() if len(r) > 4 and r[4] is not None else ""
+        scheme = str(r[5]).strip() if len(r) > 5 and r[5] is not None else ""
+        thinking = str(r[1] or "").strip() if len(r) > 1 else ""
+        # 只收明文 A 轨；无 grade 列时仅 framework_api 且 thinking 非空可作 raw
+        is_raw = grade == "raw" or (not grade and scheme == "framework_api" and len(thinking) >= 20)
+        if is_raw and thinking:
+            thinking_texts.append(thinking[:4000])
         if len(r) > 2 and r[2]:
             kw = r[2]
             if isinstance(kw, list):
@@ -214,22 +225,32 @@ async def _load_scene_probe_context(db: AsyncSession, scene_id: int) -> dict[str
             if isinstance(hosts, list):
                 for h in hosts[:5]:
                     source_hints.append({"title": str(h), "url": "", "domain": str(h)})
+        if len(r) > 6 and r[6]:
+            fw = r[6]
+            if isinstance(fw, str):
+                try:
+                    fw = json.loads(fw)
+                except Exception:
+                    fw = None
+            if isinstance(fw, dict) and any(fw.get(k) for k in ("compare_dims", "open_gaps", "sub_questions")):
+                frameworks.append(fw)
 
     # citations
     if probe_ids and await _table_exists(db, "geo_monitor_probe_citations"):
         try:
-            cite_rows = (
-                await db.execute(
-                    text(
-                        f"""
+            async with db.begin_nested():
+                cite_rows = (
+                    await db.execute(
+                        text(
+                            f"""
                         SELECT title, url FROM geo_monitor_probe_citations
                         WHERE probe_result_id IN ({",".join(str(i) for i in probe_ids[:20])})
                         ORDER BY position ASC, id ASC
                         LIMIT 20
                         """
+                        )
                     )
-                )
-            ).all()
+                ).all()
             for title, url in cite_rows:
                 source_hints.append(
                     {
@@ -241,19 +262,29 @@ async def _load_scene_probe_context(db: AsyncSession, scene_id: int) -> dict[str
         except Exception:
             logger.debug("theme_mining_citations_skip", exc_info=True)
 
-    # 信源去重
+    # 信源去重 + 归属
+    from app.services.geoeval.domain_catalog import classify_owner, load_domain_catalog
+
+    catalog = await load_domain_catalog(db)
     seen_src: set[str] = set()
     uniq_src: list[dict[str, str]] = []
     for s in source_hints:
         key = s.get("domain") or s.get("url") or s.get("title") or ""
         if key and key not in seen_src:
             seen_src.add(key)
-            uniq_src.append(s)
+            owner = classify_owner(
+                s.get("url") or s.get("domain") or "",
+                official=list(catalog.get("official") or []),
+                competitors=list(catalog.get("competitor") or []),
+                wiki=list(catalog.get("wiki") or []),
+            )
+            uniq_src.append({**s, "owner": owner})
 
     return {
         "thinking_texts": thinking_texts[:8],
         "keywords": list(dict.fromkeys(keywords))[:20],
         "source_hints": uniq_src[:12],
+        "frameworks": frameworks[:4],
     }
 
 
@@ -361,8 +392,25 @@ async def mine_theme_from_gap(
     probe_texts = [p["question_text"] for p in probe_evidence]
 
     ctx = await _load_scene_probe_context(db, scene_id)
-    thinking_digest = _digest_thinking(ctx["thinking_texts"])
-    longtail = _rewrite_longtail(
+    from app.services.geoeval.framework_extractor import digest_framework, extract_framework, longtail_from_framework
+
+    merged_fw = {}
+    if ctx.get("frameworks"):
+        merged_fw = ctx["frameworks"][0]
+    elif ctx.get("thinking_texts"):
+        merged_fw = extract_framework(
+            "\n".join(ctx["thinking_texts"][:3]),
+            scene_name=str(scene_name or ""),
+            intent=str(intent or ""),
+        )
+    thinking_digest = digest_framework(merged_fw) if merged_fw else _digest_thinking(ctx["thinking_texts"])
+    fw_longtail = longtail_from_framework(
+        merged_fw,
+        scene_name=str(scene_name or ""),
+        intent=str(intent or ""),
+        probe_texts=probe_texts,
+    )
+    longtail = fw_longtail or _rewrite_longtail(
         persona=str(persona or ""),
         scene_name=str(scene_name or ""),
         intent=str(intent or ""),
@@ -379,6 +427,7 @@ async def mine_theme_from_gap(
         "keyword_combos": combos,
         "pack_hint": ["topic", "concept", "compare", "guide"],
         "campaign_title": campaign_title,
+        "framework": merged_fw or None,
         "candidate_titles": [
             f"{scene_name or '场景'}：对比决策内容战役",
             f"{intent or '意图'}长尾覆盖：用户场景展开",

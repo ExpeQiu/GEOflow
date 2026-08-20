@@ -288,6 +288,9 @@ export type MonitorProbe = {
   snippet: string;
   question_text: string;
   engine?: string;
+  scheme?: string | null;
+  metric_kind?: string | null;
+  match_type?: string | null;
 };
 
 export type MonitorSettings = {
@@ -302,6 +305,10 @@ export type MonitorSettings = {
   strict_api?: boolean;
   remediation_delay_hours?: number;
   gap_rag_score_threshold?: number;
+  official_domains?: string;
+  competitor_domains?: string;
+  wiki_domains?: string;
+  geoweb_base_url?: string;
 };
 
 export type MonitorRunDetail = {
@@ -505,6 +512,7 @@ export type ProbeCitation = {
   domain?: string;
   evidence_level?: string;
   source?: string;
+  owner?: string;
 };
 
 export type QueryProbe = {
@@ -528,6 +536,9 @@ export type QueryProbe = {
   evidence_level?: string | null;
   metric_kind?: string | null;
   capture_artifact?: string | null;
+  scheme?: string | null;
+  tracks?: string[];
+  reasoning_grade?: string | null;
 };
 
 export type CitationChainQuery = {

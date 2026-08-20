@@ -69,8 +69,14 @@ class ProbeOutcome:
     citation_titles: list = field(default_factory=list)
     source_hosts: list = field(default_factory=list)
     capture_artifact: str | None = None
-    metric_kind: str = "mixed"  # open_api | cend_sample | corpus | llm_sim | mixed
+    metric_kind: str = "mixed"  # open_api | framework_sample | cend_sample | citation_sample | mixed
+    citation_method: str = "url_extract"  # url_extract | web_search | mock
     cend_meta: dict[str, Any] = field(default_factory=dict)
+    # ADR-012 三层探针口径
+    scheme: str = "open_api"  # open_api | framework_api | citation_grounded | cend_sample | dev_sim
+    tracks: list = field(default_factory=lambda: ["C"])
+    reasoning_grade: str = "none"  # raw | summary | none
+    framework: dict[str, Any] = field(default_factory=dict)
 
 
 class PlatformConnector(Protocol):

@@ -8,10 +8,18 @@ import { apiGet, apiPatch, apiPost, getToken } from "@/lib/api-client";
 type MiningMeta = {
   probe_evidence?: Array<{ id?: number; question_text?: string }>;
   thinking_digest?: string;
-  source_hints?: Array<{ title?: string; url?: string; domain?: string }>;
+  source_hints?: Array<{ title?: string; url?: string; domain?: string; owner?: string }>;
   longtail_queries?: string[];
   keyword_combos?: string[];
   llm_enhanced?: boolean;
+  framework?: {
+    sub_questions?: string[];
+    compare_dims?: string[];
+    evidence_bars?: string[];
+    scene_constraints?: string[];
+    open_gaps?: string[];
+    adjacent_queries?: string[];
+  };
 };
 
 type ThemeCandidate = {
@@ -280,7 +288,7 @@ export function ThemesPanel() {
                     onClick={() => confirmTheme(selected.id)}
                     className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                   >
-                    启动生产
+                    确认主题
                   </button>
                 )}
                 {(selected.status === "confirmed" || selected.status === "producing") && (
@@ -311,6 +319,25 @@ export function ThemesPanel() {
                       <p className="text-sm text-gray-800">{mining.thinking_digest}</p>
                     </div>
                   )}
+                  {mining?.framework && (
+                    <div className="grid gap-1 text-xs text-gray-700">
+                      {[
+                        ["拆解", mining.framework.sub_questions],
+                        ["维度", mining.framework.compare_dims],
+                        ["证据门槛", mining.framework.evidence_bars],
+                        ["场景约束", mining.framework.scene_constraints],
+                        ["未决缺口", mining.framework.open_gaps],
+                        ["相邻问法", mining.framework.adjacent_queries],
+                      ].map(([label, items]) =>
+                        Array.isArray(items) && items.length > 0 ? (
+                          <div key={String(label)}>
+                            <span className="font-medium text-gray-600">{label}：</span>
+                            {(items as string[]).slice(0, 3).join(" / ")}
+                          </div>
+                        ) : null,
+                      )}
+                    </div>
+                  )}
                   {evidence.length > 0 && (
                     <div>
                       <div className="text-xs font-medium text-gray-600">探针证据（不作生产标题）</div>
@@ -327,6 +354,7 @@ export function ThemesPanel() {
                       <ul className="mt-1 space-y-0.5 text-xs text-gray-600">
                         {(mining?.source_hints || []).slice(0, 6).map((s, i) => (
                           <li key={i}>
+                            {s.owner ? ` [${s.owner}]` : ""}
                             {s.domain || s.title || s.url}
                             {s.url ? (
                               <>

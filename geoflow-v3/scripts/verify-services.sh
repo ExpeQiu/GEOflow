@@ -59,4 +59,12 @@ else
   log "WARN: Admin 未运行 (http://127.0.0.1:${ADMIN_PORT})，跳过前端代理验证"
 fi
 
+if pgrep -f "celery -A app.workers.celery_app worker" >/dev/null 2>&1 \
+  || docker ps --filter "name=geoflow-v3-worker" --filter "status=running" --format '{{.Names}}' 2>/dev/null | grep -q .; then
+  log "Celery worker OK"
+else
+  log "FAIL: Celery worker 未运行（./scripts/start-worker.sh）"
+  exit 1
+fi
+
 log "验证完成 ✓"

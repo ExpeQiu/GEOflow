@@ -10,7 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.admin.production_service import _table_exists
-from app.services.geoeval.monitor_probe import aggregate_scene_visibility
+from app.services.geoeval.monitor_probe import aggregate_scene_visibility, resolve_lift_question_ids
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +18,98 @@ STATUS_PENDING = "pending_publish"
 STATUS_AWAITING = "awaiting_rescan"
 STATUS_COMPLETED = "completed"
 STATUS_CANCELLED = "cancelled"
+
+
+async def _complete_theme_after_lift(db: AsyncSession, remediation_id: int) -> None:
+    """再扫完成后把关联 Theme 从 measuring 收到 completed。"""
+    if not await _table_exists(db, "geo_themes"):
+        return
+    try:
+        result = await db.execute(
+            text(
+                """
+                UPDATE geo_themes
+                SET status = 'completed', updated_at = CURRENT_TIMESTAMP
+                WHERE status IN ('measuring', 'published', 'distributing')
+                  AND (
+                    remediation_id = :rid
+                    OR id = (
+                        SELECT theme_id FROM geo_gap_remediation_runs
+                        WHERE id = :rid AND theme_id IS NOT NULL
+                    )
+                  )
+                """
+            ),
+            {"rid": remediation_id},
+        )
+        logger.info(
+            "theme_completed_after_lift remediation_id=%s updated=%s",
+            remediation_id,
+            result.rowcount,
+        )
+    except Exception:
+        logger.warning("theme_complete_after_lift_failed remediation_id=%s", remediation_id, exc_info=True)
+
+
+async def _theme_lift_filter(
+    db: AsyncSession,
+    *,
+    theme_id: int | None,
+    scene_id: int,
+    meta: dict | None = None,
+) -> tuple[list[int] | None, list[str] | None, str]:
+    """Theme 级 lift：冻结题集；无题集时回退全场景。"""
+    blob = meta if isinstance(meta, dict) else {}
+    qids = [int(i) for i in (blob.get("lift_question_ids") or []) if str(i).isdigit() or isinstance(i, int)]
+    queries = [str(q).strip() for q in (blob.get("lift_queries") or []) if str(q).strip()]
+    if theme_id and await _table_exists(db, "geo_themes"):
+        try:
+            row = (
+                await db.execute(
+                    text("SELECT target_queries, meta FROM geo_themes WHERE id = :id"),
+                    {"id": theme_id},
+                )
+            ).first()
+        except Exception:
+            row = None
+        if row:
+            tq = row[0]
+            if isinstance(tq, str):
+                try:
+                    tq = json.loads(tq)
+                except json.JSONDecodeError:
+                    tq = []
+            tmeta = row[1] if isinstance(row[1], dict) else {}
+            if isinstance(row[1], str):
+                try:
+                    tmeta = json.loads(row[1])
+                except json.JSONDecodeError:
+                    tmeta = {}
+            evidence = (tmeta.get("mining") or {}).get("probe_evidence") or tmeta.get("probe_evidence") or []
+            if not queries:
+                queries = [str(q).strip() for q in (tq or []) if str(q).strip()]
+            if not qids:
+                qids = resolve_lift_question_ids(evidence_ids=evidence, target_queries=queries)
+            if not qids and queries:
+                qrows = (
+                    await db.execute(
+                        text(
+                            "SELECT id, question_text FROM geo_monitor_questions WHERE scene_id = :sid"
+                        ),
+                        {"sid": scene_id},
+                    )
+                ).all()
+                qids = resolve_lift_question_ids(
+                    evidence_ids=[],
+                    target_queries=queries,
+                    questions=[(int(r[0]), str(r[1] or "")) for r in qrows],
+                )
+    qids = list(dict.fromkeys(int(i) for i in qids if i))
+    if qids:
+        return qids, None, "question_ids"
+    if queries:
+        return None, queries, "query_needles"
+    return None, None, "scene"
 
 
 async def _load_remediation_delay_hours(db: AsyncSession) -> int:
@@ -62,7 +154,16 @@ async def create_remediation_for_gap(
         return {"status": "skipped", "reason": "remediation_table_missing"}
 
     trusted_only = await _load_strict_api(db)
-    baseline = await aggregate_scene_visibility(db, scene_id, trusted_only=trusted_only)
+    qids, needles, lift_scope = await _theme_lift_filter(
+        db, theme_id=theme_id, scene_id=scene_id, meta={}
+    )
+    baseline = await aggregate_scene_visibility(
+        db,
+        scene_id,
+        trusted_only=trusted_only,
+        question_ids=qids,
+        query_needles=needles,
+    )
     meta = {
         "source": "monitor_gap" if not theme_id else "theme",
         "gap_priority": gap_priority,
@@ -71,6 +172,9 @@ async def create_remediation_for_gap(
         "baseline_engine_mix": baseline.get("engine_mix", []),
         "baseline_top3_pct": baseline.get("top3_pct"),
         "theme_id": theme_id,
+        "lift_scope": lift_scope,
+        "lift_question_ids": qids or [],
+        "lift_queries": needles or [],
     }
     try:
         row = (
@@ -155,7 +259,7 @@ async def create_remediation_for_gap(
             ).first()
     remediation_id = int(row[0]) if row else None
     logger.info(
-        "remediation_created id=%s scene_id=%s task_id=%s theme_id=%s baseline_vis=%s baseline_top3=%s trusted_only=%s",
+        "remediation_created id=%s scene_id=%s task_id=%s theme_id=%s baseline_vis=%s baseline_top3=%s trusted_only=%s lift_scope=%s",
         remediation_id,
         scene_id,
         task_id,
@@ -163,6 +267,7 @@ async def create_remediation_for_gap(
         baseline.get("visibility_pct"),
         baseline.get("top3_pct"),
         trusted_only,
+        lift_scope,
     )
     return {
         "remediation_id": remediation_id,
@@ -302,6 +407,14 @@ async def complete_remediation_rescan(db: AsyncSession, remediation_id: int) -> 
         except (TypeError, ValueError):
             baseline_top3 = None
     trusted_only = bool(meta.get("trusted_only")) or await _load_strict_api(db)
+    theme_id = meta.get("theme_id")
+    try:
+        theme_id = int(theme_id) if theme_id else None
+    except (TypeError, ValueError):
+        theme_id = None
+    qids, needles, lift_scope = await _theme_lift_filter(
+        db, theme_id=theme_id, scene_id=scene_id, meta=meta
+    )
 
     scan = await MonitorScanOrchestrator(db).run_scan("remediation", scene_id=scene_id)
     post = await aggregate_scene_visibility(
@@ -309,6 +422,8 @@ async def complete_remediation_rescan(db: AsyncSession, remediation_id: int) -> 
         scene_id,
         run_id=scan.get("run_id"),
         trusted_only=trusted_only,
+        question_ids=qids,
+        query_needles=needles,
     )
     baseline = float(row[3]) if row[3] is not None else None
     post_vis = post.get("visibility_pct")
@@ -369,7 +484,7 @@ async def complete_remediation_rescan(db: AsyncSession, remediation_id: int) -> 
             },
         )
     logger.info(
-        "remediation_completed id=%s scene_id=%s baseline=%s post=%s delta=%s delta_top3=%s run_id=%s",
+        "remediation_completed id=%s scene_id=%s baseline=%s post=%s delta=%s delta_top3=%s run_id=%s lift_scope=%s",
         remediation_id,
         scene_id,
         baseline,
@@ -377,7 +492,9 @@ async def complete_remediation_rescan(db: AsyncSession, remediation_id: int) -> 
         delta,
         delta_top3,
         scan.get("run_id"),
+        lift_scope,
     )
+    await _complete_theme_after_lift(db, remediation_id)
     return {
         "status": STATUS_COMPLETED,
         "remediation_id": remediation_id,

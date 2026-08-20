@@ -1,5 +1,7 @@
 """Wiki 轻量编辑台纯函数单测（不依赖 ORM / pgvector）。"""
 
+import re
+
 from fastapi import HTTPException
 
 from app.services.admin.wiki_draft import render_wiki_draft
@@ -13,7 +15,14 @@ from app.services.admin.wiki_editor_schema import (
 )
 from app.services.admin.wiki_pack import sort_pack_pages
 from app.services.admin.wiki_reconcile import diff_wiki_inventories, is_geoflow_remote_page
-from app.services.geoflow.wiki_types import is_smoke_slug, related_path_for, route_prefix_for_type, wiki_preview_url
+from app.services.geoflow.wiki_types import (
+    ascii_slug,
+    fill_sibling_related,
+    is_smoke_slug,
+    related_path_for,
+    route_prefix_for_type,
+    wiki_preview_url,
+)
 
 
 def test_smoke_slug_filters_probe_pages():
@@ -31,6 +40,34 @@ def test_wiki_slug_validation():
     except HTTPException as exc:
         assert exc.status_code == 422
         assert exc.detail == "wiki_slug_invalid"
+
+
+def test_ascii_slug_strips_cjk():
+    assert ascii_slug("G-ADS 选型") == "g-ads"
+    hashed = ascii_slug("家用纯电选型", fallback="theme")
+    assert hashed.startswith("theme-")
+    assert hashed.replace("-", "").isalnum()
+    assert "家" not in hashed
+    mixed = ascii_slug("家用纯电选型补齐-ai-决策链内容-16", fallback="theme")
+    assert mixed != "ai-16"
+    assert "家" not in mixed
+    assert re.search(r"[a-z0-9]{6,}", mixed)
+
+
+def test_fill_sibling_related_completes_pack():
+    pages = [
+        {"slug": "hub", "type": "topic", "related": []},
+        {"slug": "def", "type": "concept"},
+        {"slug": "vs", "type": "compare", "related": ["glossary/odd"]},
+        {"slug": "howto", "type": "guide"},
+    ]
+    filled = fill_sibling_related(pages)
+    hub_related = filled[0]["related"]
+    assert "concepts/def" in hub_related
+    assert "compare/vs" in hub_related
+    assert "guides/howto" in hub_related
+    assert "topics/hub" not in hub_related
+    assert "glossary/odd" in filled[2]["related"]
 
 
 def test_wiki_type_validation():

@@ -632,6 +632,18 @@ async def sync_wiki_pack(db: AsyncSession, theme_id: int) -> dict[str, Any]:
     if not members:
         raise HTTPException(status_code=422, detail="wiki_pack_empty")
 
+    if (theme.gate_mode or "soft") == "hard":
+        from app.services.geoeval.theme_service import refresh_theme_gate_summary
+
+        gate = await refresh_theme_gate_summary(db, theme.id)
+        pack_ok = bool((gate.get("gate_summary") or {}).get("pack_gate_ok"))
+        if not pack_ok:
+            logger.info("wiki_pack_theme_gate_blocked theme_id=%s", theme.id)
+            raise HTTPException(
+                status_code=422,
+                detail={"code": "theme_pack_gate_blocked", "theme_id": theme.id},
+            )
+
     serialized = [
         {"id": a.id, "wiki_page_type": resolve_wiki_page_type(a), "type": resolve_wiki_page_type(a)}
         for a in members

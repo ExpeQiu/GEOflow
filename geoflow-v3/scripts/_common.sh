@@ -16,9 +16,11 @@
 : "${GEOFLOW_API_PID:=/tmp/geoflow-v3-api.pid}"
 : "${GEOFLOW_ADMIN_PID:=/tmp/geoflow-v3-admin.pid}"
 : "${GEOFLOW_WORKER_PID:=/tmp/geoflow-v3-worker.pid}"
+: "${GEOFLOW_BEAT_PID:=/tmp/geoflow-v3-beat.pid}"
 : "${GEOFLOW_API_LOG:=/tmp/geoflow-v3-api.log}"
 : "${GEOFLOW_ADMIN_LOG:=/tmp/geoflow-v3-admin.log}"
 : "${GEOFLOW_WORKER_LOG:=/tmp/geoflow-v3-worker.log}"
+: "${GEOFLOW_BEAT_LOG:=/tmp/geoflow-v3-beat.log}"
 : "${GEOFLOW_START_LOG:=/tmp/geoflow-v3-start.log}"
 
 log() {
@@ -162,5 +164,15 @@ ensure_daemon() {
 print_endpoints() {
   log "API   → http://127.0.0.1:${API_PORT}/health"
   log "Admin → http://127.0.0.1:${ADMIN_PORT}/login  (admin / password)"
-  log "日志  → API:${GEOFLOW_API_LOG} Admin:${GEOFLOW_ADMIN_LOG} start:${GEOFLOW_START_LOG}"
+  if pgrep -f "celery -A app.workers.celery_app worker" >/dev/null 2>&1; then
+    log "Worker → 运行中（生产/评估/再扫队列）"
+  else
+    log "WARN Worker 未运行。本地请 ./scripts/start-worker.sh"
+  fi
+  if pgrep -f "celery -A app.workers.celery_app beat" >/dev/null 2>&1; then
+    log "Beat   → 运行中（日扫/周扫/再扫）"
+  else
+    log "WARN Beat 未运行。本地请 ./scripts/start-beat.sh"
+  fi
+  log "日志  → API:${GEOFLOW_API_LOG} Admin:${GEOFLOW_ADMIN_LOG} Worker:${GEOFLOW_WORKER_LOG} Beat:${GEOFLOW_BEAT_LOG}"
 }

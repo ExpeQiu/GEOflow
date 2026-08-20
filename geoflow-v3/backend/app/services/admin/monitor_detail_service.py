@@ -63,21 +63,41 @@ async def build_monitor_run_detail(db: AsyncSession, run_id: int) -> dict:
 
     probes: list[dict] = []
     if await _table_exists(db, "geo_monitor_probe_results"):
-        rows = (
-            await db.execute(
-                text(
-                    """
-                    SELECT pr.id, pr.question_id, pr.platform, pr.brand_rank, pr.mentioned,
-                           pr.snippet, pr.engine, mq.question_text
-                    FROM geo_monitor_probe_results pr
-                    JOIN geo_monitor_questions mq ON mq.id = pr.question_id
-                    WHERE pr.run_id = :rid
-                    ORDER BY pr.question_id, pr.platform
-                    """
-                ),
-                {"rid": run_id},
-            )
-        ).all()
+        rows = None
+        try:
+            rows = (
+                await db.execute(
+                    text(
+                        """
+                        SELECT pr.id, pr.question_id, pr.platform, pr.brand_rank, pr.mentioned,
+                               pr.snippet, pr.engine, mq.question_text,
+                               pr.scheme, pr.metric_kind, pr.match_type
+                        FROM geo_monitor_probe_results pr
+                        JOIN geo_monitor_questions mq ON mq.id = pr.question_id
+                        WHERE pr.run_id = :rid
+                        ORDER BY pr.question_id, pr.platform
+                        """
+                    ),
+                    {"rid": run_id},
+                )
+            ).all()
+        except Exception:
+            logger.debug("monitor_run_detail_scheme_fallback", exc_info=True)
+            rows = (
+                await db.execute(
+                    text(
+                        """
+                        SELECT pr.id, pr.question_id, pr.platform, pr.brand_rank, pr.mentioned,
+                               pr.snippet, pr.engine, mq.question_text
+                        FROM geo_monitor_probe_results pr
+                        JOIN geo_monitor_questions mq ON mq.id = pr.question_id
+                        WHERE pr.run_id = :rid
+                        ORDER BY pr.question_id, pr.platform
+                        """
+                    ),
+                    {"rid": run_id},
+                )
+            ).all()
         probes = [
             {
                 "id": int(r[0]),
@@ -88,6 +108,9 @@ async def build_monitor_run_detail(db: AsyncSession, run_id: int) -> dict:
                 "snippet": r[5] or "",
                 "engine": r[6] or "corpus",
                 "question_text": r[7] or "",
+                "scheme": str(r[8]) if len(r) > 8 and r[8] else "open_api",
+                "metric_kind": str(r[9]) if len(r) > 9 and r[9] else None,
+                "match_type": str(r[10]) if len(r) > 10 and r[10] else None,
             }
             for r in rows
         ]

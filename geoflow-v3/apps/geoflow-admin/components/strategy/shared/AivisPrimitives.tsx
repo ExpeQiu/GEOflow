@@ -67,6 +67,32 @@ export function PlatformBadge({ platform, count }: { platform: string; count?: n
   );
 }
 
+const SCHEME_BADGE: Record<string, { label: string; cls: string }> = {
+  open_api: { label: "C轨 · 日扫", cls: "bg-slate-50 text-slate-700" },
+  framework_api: { label: "A轨 · 框架", cls: "bg-cyan-50 text-cyan-800" },
+  citation_grounded: { label: "B轨 · 引用", cls: "bg-emerald-50 text-emerald-800" },
+  cend_sample: { label: "C端 · L2", cls: "bg-amber-50 text-amber-800" },
+};
+
+export function SchemeBadge({ scheme }: { scheme?: string | null }) {
+  if (!scheme) return null;
+  const cfg = SCHEME_BADGE[scheme] || { label: scheme, cls: "bg-slate-50 text-slate-600" };
+  return <span className={`rounded px-1.5 py-0.5 text-[11px] ${cfg.cls}`}>{cfg.label}</span>;
+}
+
+const OWNER_BADGE: Record<string, { label: string; cls: string }> = {
+  ours: { label: "我方", cls: "bg-emerald-50 text-emerald-800" },
+  competitor: { label: "竞品", cls: "bg-rose-50 text-rose-800" },
+  third_party: { label: "第三方", cls: "bg-slate-100 text-slate-700" },
+  unknown: { label: "未知", cls: "bg-gray-50 text-gray-500" },
+};
+
+export function OwnerBadge({ owner }: { owner?: string | null }) {
+  if (!owner) return null;
+  const cfg = OWNER_BADGE[owner] || OWNER_BADGE.unknown;
+  return <span className={`rounded px-1.5 py-0.5 text-[10px] ${cfg.cls}`}>{cfg.label}</span>;
+}
+
 export function LayerSection({
   title,
   subtitle,

@@ -55,4 +55,14 @@ celery_app.conf.beat_schedule = {
         "task": "app.workers.tasks.process_due_remediations",
         "schedule": 3600.0,
     },
+    "framework-scan-weekly": {
+        "task": "app.workers.tasks.run_framework_probe_scan",
+        "schedule": crontab(hour=5, minute=0, day_of_week=1),
+        "kwargs": {"limit": 12},
+    },
+    "citation-scan-weekly": {
+        "task": "app.workers.tasks.run_citation_probe_scan",
+        "schedule": crontab(hour=5, minute=30, day_of_week=1),
+        "kwargs": {"limit": 12},
+    },
 }

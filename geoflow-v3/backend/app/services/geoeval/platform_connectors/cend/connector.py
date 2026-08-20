@@ -93,7 +93,7 @@ class CendBrowserConnector:
         cite_titles = [c.get("title", "") for c in captured.citations]
         mentioned = parsed.mentioned or any(b in captured.answer_text for b in brands)
 
-        return ProbeOutcome(
+        outcome = ProbeOutcome(
             question_id=question_id,
             platform=platform,
             brand_rank=brand_rank if mentioned else None,
@@ -120,6 +120,9 @@ class CendBrowserConnector:
             metric_kind="cend_sample",
             cend_meta={**captured.meta, "citation_count": len(cite_urls)},
         )
+        from app.services.geoeval.probe_scheme import SCHEME_CEND, stamp_outcome
+
+        return stamp_outcome(outcome, scheme=SCHEME_CEND)
 
     def _mock_outcome(
         self,
@@ -142,7 +145,7 @@ class CendBrowserConnector:
             f"https://www.autohome.com.cn/mock/{platform}",
             "https://auto.sina.com.cn/mock",
         ]
-        return ProbeOutcome(
+        outcome = ProbeOutcome(
             question_id=question_id,
             platform=platform,
             brand_rank=parsed.brand_rank,
@@ -179,6 +182,9 @@ class CendBrowserConnector:
             metric_kind="cend_sample",
             cend_meta={"mock": True, "platform": platform},
         )
+        from app.services.geoeval.probe_scheme import SCHEME_CEND, stamp_outcome
+
+        return stamp_outcome(outcome, scheme=SCHEME_CEND)
 
 
 async def probe_cend_platform(

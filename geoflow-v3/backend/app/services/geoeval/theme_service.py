@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from typing import Any
 
 from fastapi import HTTPException
@@ -13,6 +12,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.theme import DEFAULT_PACK_SPEC, GeoTheme
+from app.services.geoflow.wiki_types import ascii_slug
 from app.services.admin.materials_libraries_service import (
     LibraryBody,
     TitleBody,
@@ -29,9 +29,7 @@ DOMAINS = ("adas", "battery", "edrive", "cockpit", "safety")
 
 
 def _slugify(text_in: str) -> str:
-    s = re.sub(r"[^\w\u4e00-\u9fff-]+", "-", text_in.strip().lower())
-    s = re.sub(r"-+", "-", s).strip("-")
-    return (s or "theme")[:180]
+    return ascii_slug(text_in, fallback="theme")
 
 
 def _iso_ts(t: GeoTheme, attr: str) -> str | None:
@@ -71,6 +69,25 @@ def _theme_dict(t: GeoTheme) -> dict[str, Any]:
         "created_at": _iso_ts(t, "created_at"),
         "updated_at": _iso_ts(t, "updated_at"),
     }
+
+
+def remaining_pack_runs(created_count: int | None, article_limit: int | None) -> int:
+    """启生产应入队的剩余篇数（复合包一次出齐）。"""
+    limit = max(int(article_limit or 0), 0)
+    created = max(int(created_count or 0), 0)
+    return max(0, limit - created)
+
+
+def pack_type_for_title(pack: list | None, title: str, created_count: int | None, fallback: str) -> str:
+    """按标题匹配 pack_spec.type，避免 Mock/并行入队错配页型。"""
+    want = (title or "").strip()
+    for item in pack or []:
+        if str(item.get("title") or "").strip() == want and item.get("type"):
+            return str(item["type"])
+    idx = max(0, int(created_count or 0))
+    if pack and idx < len(pack) and pack[idx].get("type"):
+        return str(pack[idx]["type"])
+    return fallback
 
 
 def _build_default_pack(title: str, queries: list[str]) -> list[dict]:
@@ -356,6 +373,52 @@ async def create_theme_from_scene(db: AsyncSession, scene_id: int) -> dict:
     }
 
 
+async def create_theme_from_question(
+    db: AsyncSession,
+    question_id: int,
+    flags: list[str] | None = None,
+) -> dict:
+    """交叉判定缺口 → 同一场景 Theme 草稿，并把该题写入 target_queries。"""
+    row = (
+        await db.execute(
+            text(
+                """
+                SELECT id, scene_id, question_text
+                FROM geo_monitor_questions WHERE id = :id
+                """
+            ),
+            {"id": question_id},
+        )
+    ).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="question_not_found")
+    scene_id = row[1]
+    if not scene_id:
+        raise HTTPException(status_code=422, detail="question_has_no_scene")
+    result = await create_theme_from_scene(db, int(scene_id))
+    theme_row = await db.get(GeoTheme, result["theme"]["id"])
+    qtext = str(row[2] or "").strip()
+    if theme_row:
+        meta = dict(theme_row.meta or {})
+        meta["source"] = "cross_track"
+        meta["source_question_id"] = question_id
+        meta["cross_flags"] = [str(f) for f in (flags or []) if f]
+        theme_row.meta = meta
+        queries = [str(q) for q in (theme_row.target_queries or []) if q]
+        if qtext and qtext not in queries:
+            theme_row.target_queries = [qtext] + queries
+        await db.flush()
+        result["theme"] = _theme_dict(theme_row)
+    logger.info(
+        "theme_draft_from_cross_track theme_id=%s question_id=%s scene_id=%s flags=%s",
+        result["theme"]["id"],
+        question_id,
+        scene_id,
+        flags or [],
+    )
+    return result
+
+
 async def spawn_theme_candidate(db: AsyncSession, theme_id: int, candidate_index: int = 0) -> dict:
     """从已有 Theme 的 mining.candidates 另存草稿。"""
     theme = await db.get(GeoTheme, theme_id)
@@ -592,18 +655,36 @@ async def start_produce(db: AsyncSession, theme_id: int) -> dict:
     if not theme.task_id:
         raise HTTPException(status_code=422, detail="theme_task_missing")
 
+    from app.models.task import Task
     from app.services.geoflow.task_lifecycle import TaskLifecycleService
 
+    task = await db.get(Task, int(theme.task_id))
+    if task is None:
+        raise HTTPException(status_code=422, detail="theme_task_missing")
+
+    remaining = remaining_pack_runs(task.created_count, task.article_limit)
     svc = TaskLifecycleService(db)
-    await svc.enqueue(theme.task_id)
-    theme.status = "producing"
-    await db.flush()
+    run_ids: list[int] = []
+    for _ in range(remaining):
+        run = await svc.enqueue(theme.task_id)
+        run_ids.append(int(run.id))
+    if remaining:
+        theme.status = "producing"
+        await db.flush()
     logger.info(
-        "theme_produce_started theme_id=%s task_id=%s status=producing",
+        "theme_produce_started theme_id=%s task_id=%s status=%s remaining=%s run_ids=%s",
         theme.id,
         theme.task_id,
+        theme.status,
+        remaining,
+        run_ids,
     )
-    return {"theme": _theme_dict(theme), "enqueued": True}
+    return {
+        "theme": _theme_dict(theme),
+        "enqueued": remaining > 0,
+        "remaining": remaining,
+        "run_ids": run_ids,
+    }
 
 
 async def refresh_theme_gate_summary(db: AsyncSession, theme_id: int) -> dict:
@@ -702,6 +783,20 @@ async def mark_theme_distributing(db: AsyncSession, theme_id: int) -> None:
 
 
 async def mark_theme_published(db: AsyncSession, theme_id: int, *, hub_slug: str | None = None) -> None:
+    theme = await db.get(GeoTheme, theme_id)
+    if not theme:
+        return
+    if hub_slug:
+        theme.geoweb_hub_slug = hub_slug
+    summary = await refresh_theme_gate_summary(db, theme_id)
+    gs = summary.get("gate_summary") or {}
+    if not gs.get("pack_gate_ok"):
+        logger.info(
+            "theme_publish_deferred theme_id=%s pack_gate_ok=false article_count=%s",
+            theme_id,
+            gs.get("article_count"),
+        )
+        return
     theme = await db.get(GeoTheme, theme_id)
     if not theme:
         return

@@ -8,6 +8,7 @@ from app.services.geoeval.platform_connectors.api_connector import ApiConnector
 from app.services.geoeval.platform_connectors.base import PLATFORMS_CN, ProbeOutcome
 from app.services.geoeval.platform_connectors.corpus_connector import CorpusConnector
 from app.services.geoeval.platform_connectors.llm_connector import LlmConnector
+from app.services.geoeval.probe_scheme import SCHEME_DEV, SCHEME_OPEN_API, stamp_outcome
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +91,7 @@ async def load_platforms(db: AsyncSession) -> tuple[str, ...]:
 
 
 def _skipped_outcome(platform: str, reason: str) -> ProbeOutcome:
-    return ProbeOutcome(
+    o = ProbeOutcome(
         question_id=0,
         platform=platform,
         brand_rank=None,
@@ -99,7 +100,11 @@ def _skipped_outcome(platform: str, reason: str) -> ProbeOutcome:
         engine="skipped",
         ranking_score=0.0,
         competitor_mentions=[],
+        tracks=[],
+        reasoning_grade="none",
+        metric_kind="mixed",
     )
+    return stamp_outcome(o, scheme=SCHEME_OPEN_API)
 
 
 async def probe_platform(
@@ -114,6 +119,7 @@ async def probe_platform(
     probe_mode: str,
     question_index: int,
     strict_api: bool | None = None,
+    scheme: str = SCHEME_OPEN_API,
 ) -> ProbeOutcome:
     outcome: ProbeOutcome | None = None
     if strict_api is None:
@@ -145,6 +151,7 @@ async def probe_platform(
             corpus=corpus,
             brand_list=brand_list,
             competitor_brands=competitor_brands,
+            scheme=scheme,
         )
         if outcome is None and strict_api:
             logger.warning(
@@ -200,9 +207,16 @@ async def probe_platform(
         except Exception:
             outcome.evidence_level = "L0"
 
+    if outcome is not None:
+        eng = getattr(outcome, "engine", None)
+        if eng == "api":
+            stamp_outcome(outcome, scheme=scheme or SCHEME_OPEN_API)
+        elif eng in ("corpus", "llm"):
+            stamp_outcome(outcome, scheme=SCHEME_DEV)
+
     logger.debug(
         "probe_platform platform=%s engine=%s mentioned=%s rank=%s "
-        "rank_method=%s evidence_level=%s parser_version=%s strict=%s",
+        "rank_method=%s evidence_level=%s parser_version=%s strict=%s scheme=%s tracks=%s",
         platform,
         outcome.engine,
         outcome.mentioned,
@@ -211,5 +225,7 @@ async def probe_platform(
         getattr(outcome, "evidence_level", "L0"),
         getattr(outcome, "parser_version", None),
         strict_api,
+        getattr(outcome, "scheme", None),
+        getattr(outcome, "tracks", None),
     )
     return outcome

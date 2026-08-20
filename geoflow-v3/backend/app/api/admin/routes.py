@@ -962,6 +962,22 @@ class CendScanBody(BaseModel):
     sync: bool = False  # True 时进程内执行（联调/Mock）；默认入队
 
 
+class FrameworkScanBody(BaseModel):
+    platforms: list[str] | None = None
+    limit: int = Field(default=12, ge=1, le=12)
+    min_priority: int = Field(default=80, ge=0, le=100)
+    scene_id: int | None = None
+    sync: bool = False
+
+
+class CitationScanBody(BaseModel):
+    platforms: list[str] | None = None
+    limit: int = Field(default=12, ge=1, le=12)
+    min_priority: int = Field(default=80, ge=0, le=100)
+    scene_id: int | None = None
+    sync: bool = False
+
+
 class CendIngestBody(BaseModel):
     """手工导入一条完整 C 端捕获（契约验收 / 无浏览器时）。"""
 
@@ -1006,6 +1022,141 @@ async def strategy_cend_scan(body: CendScanBody, request: Request, db: DbSession
     )
     logger.info("admin_cend_scan_queued platforms=%s limit=%s", body.platforms, body.limit)
     return success(request, {"queued": True, "scan_type": "cend", "platforms": body.platforms, "limit": body.limit})
+
+
+@router.post("/strategy/framework/scan")
+async def strategy_framework_scan(body: FrameworkScanBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    """A+C 框架轨扫描；metric_kind=framework_sample，不覆盖 visibility_open_api。"""
+    from app.workers.celery_app import celery_app
+
+    if body.sync:
+        from app.services.geoeval.framework_scan import FrameworkScanOrchestrator
+
+        result = await FrameworkScanOrchestrator(db).run_scan(
+            platforms=body.platforms,
+            limit=body.limit,
+            min_priority=body.min_priority,
+            scene_id=body.scene_id,
+            sync_mock=True,
+        )
+        logger.info(
+            "admin_framework_scan_sync platforms=%s probes=%s raw_cot=%s",
+            body.platforms,
+            result.get("probes"),
+            result.get("raw_cot"),
+        )
+        return success(request, result)
+
+    celery_app.send_task(
+        "app.workers.tasks.run_framework_probe_scan",
+        kwargs={
+            "platforms": body.platforms,
+            "limit": body.limit,
+            "min_priority": body.min_priority,
+            "scene_id": body.scene_id,
+        },
+    )
+    logger.info("admin_framework_scan_queued platforms=%s limit=%s", body.platforms, body.limit)
+    return success(
+        request,
+        {
+            "queued": True,
+            "scan_type": "framework_api",
+            "platforms": body.platforms,
+            "limit": body.limit,
+            "metric_kind": "framework_sample",
+        },
+    )
+
+
+@router.post("/strategy/citation/scan")
+async def strategy_citation_scan(body: CitationScanBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    """B+C 引用轨扫描；metric_kind=citation_sample，不覆盖 visibility_open_api。"""
+    from app.workers.celery_app import celery_app
+
+    if body.sync:
+        from app.services.geoeval.citation_scan import CitationScanOrchestrator
+
+        result = await CitationScanOrchestrator(db).run_scan(
+            platforms=body.platforms,
+            limit=body.limit,
+            min_priority=body.min_priority,
+            scene_id=body.scene_id,
+            sync_mock=True,
+        )
+        logger.info(
+            "admin_citation_scan_sync platforms=%s probes=%s with_b=%s",
+            body.platforms,
+            result.get("probes"),
+            result.get("with_b"),
+        )
+        return success(request, result)
+
+    celery_app.send_task(
+        "app.workers.tasks.run_citation_probe_scan",
+        kwargs={
+            "platforms": body.platforms,
+            "limit": body.limit,
+            "min_priority": body.min_priority,
+            "scene_id": body.scene_id,
+        },
+    )
+    logger.info("admin_citation_scan_queued platforms=%s limit=%s", body.platforms, body.limit)
+    return success(
+        request,
+        {
+            "queued": True,
+            "scan_type": "citation_grounded",
+            "platforms": body.platforms,
+            "limit": body.limit,
+            "metric_kind": "citation_sample",
+        },
+    )
+
+
+@router.get("/strategy/cross-track")
+async def strategy_cross_track(
+    request: Request,
+    db: DbSession,
+    jwt=Depends(get_admin_jwt),
+    scene_id: int | None = Query(default=None),
+    question_id: int | None = Query(default=None),
+    limit: int = Query(default=40, ge=1, le=120),
+):
+    from app.services.geoeval.cross_track_service import build_cross_track
+
+    data = await build_cross_track(db, scene_id=scene_id, question_id=question_id, limit=limit)
+    logger.info(
+        "admin_cross_track scene_id=%s question_id=%s items=%s",
+        scene_id,
+        question_id,
+        len(data.get("items") or []),
+    )
+    return success(request, data)
+
+
+@router.post("/strategy/cross-track/spawn-theme")
+async def strategy_cross_track_spawn_theme(
+    body: dict,
+    request: Request,
+    db: DbSession,
+    jwt=Depends(get_admin_jwt),
+):
+    from app.services.geoeval.theme_service import create_theme_from_question
+
+    question_id = int(body.get("question_id") or 0)
+    if question_id <= 0:
+        raise HTTPException(status_code=422, detail="question_id_required")
+    flags = body.get("flags") or []
+    if not isinstance(flags, list):
+        flags = [str(flags)]
+    data = await create_theme_from_question(db, question_id, flags)
+    logger.info(
+        "admin_cross_track_spawn_theme question_id=%s theme_id=%s",
+        question_id,
+        (data.get("theme") or {}).get("id"),
+    )
+    return success(request, data, status=201)
 
 
 @router.get("/strategy/cend/platforms")
@@ -1090,6 +1241,9 @@ async def strategy_cend_ingest(body: CendIngestBody, request: Request, db: DbSes
         metric_kind="cend_sample",
         cend_meta={"ingest": True},
     )
+    from app.services.geoeval.probe_scheme import SCHEME_CEND, stamp_outcome
+
+    stamp_outcome(outcome, scheme=SCHEME_CEND)
     probe_id = None
     if run_id:
         probe_id = await _persist_probe(db, run_id=run_id, outcome=outcome)

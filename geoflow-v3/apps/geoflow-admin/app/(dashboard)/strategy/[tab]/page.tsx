@@ -50,7 +50,7 @@ const LEGACY_TAB_REDIRECT: Record<string, string> = {
   analytics: "/operations/analytics",
   simulator: "/production/geo-eval",
   "geo-eval": "/production/geo-eval",
-  settings: "/strategy/probes",
+  settings: "/strategy/probes?view=settings",
   collection: "/strategy/probes?view=scan",
   "question-bank": "/strategy/probes?view=questions",
   brand: "/strategy/visibility?view=brand",
@@ -65,6 +65,8 @@ export default function StrategyPage() {
   const [scanning, setScanning] = useState(false);
   const [scanStatus, setScanStatus] = useState("");
   const [cendScanning, setCendScanning] = useState(false);
+  const [frameworkScanning, setFrameworkScanning] = useState(false);
+  const [citationScanning, setCitationScanning] = useState(false);
   const [loading, setLoading] = useState(true);
   const [processBusy, setProcessBusy] = useState(false);
 
@@ -261,6 +263,62 @@ export default function StrategyPage() {
     }
   }
 
+  async function runFrameworkScan() {
+    const t = getToken();
+    if (!t) return;
+    setFrameworkScanning(true);
+    setScanStatus("框架轨入队…");
+    try {
+      await apiPost("/api/admin/strategy/framework/scan", t, {
+        platforms: ["deepseek"],
+        limit: 8,
+        min_priority: 80,
+        sync: false,
+      });
+      setFlash({
+        variant: "success",
+        message: "框架轨扫描已入队（scheme=framework_api，不覆盖 open_api）",
+      });
+      for (let i = 0; i < 20; i++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        await reloadCollection(t);
+      }
+    } catch (e) {
+      setFlash({ variant: "error", message: errMsg(e, "框架轨扫描入队失败") });
+    } finally {
+      setFrameworkScanning(false);
+      setScanStatus("");
+    }
+  }
+
+  async function runCitationScan() {
+    const t = getToken();
+    if (!t) return;
+    setCitationScanning(true);
+    setScanStatus("引用轨入队…");
+    try {
+      await apiPost("/api/admin/strategy/citation/scan", t, {
+        platforms: ["doubao", "kimi"],
+        limit: 8,
+        min_priority: 80,
+        sync: false,
+      });
+      setFlash({
+        variant: "success",
+        message: "引用轨扫描已入队（scheme=citation_grounded，不覆盖 open_api）",
+      });
+      for (let i = 0; i < 20; i++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        await reloadCollection(t);
+      }
+    } catch (e) {
+      setFlash({ variant: "error", message: errMsg(e, "引用轨扫描入队失败") });
+    } finally {
+      setCitationScanning(false);
+      setScanStatus("");
+    }
+  }
+
   async function processRemediationsDue() {
     const t = getToken();
     if (!t) return;
@@ -370,6 +428,8 @@ export default function StrategyPage() {
           collection={collection}
           onScan={runMonitorScan}
           onCendScan={runCendScan}
+          onFrameworkScan={runFrameworkScan}
+          onCitationScan={runCitationScan}
           onRefreshCollection={async () => {
             const t = getToken();
             if (t) await reloadCollection(t);
@@ -377,6 +437,8 @@ export default function StrategyPage() {
           scanning={scanning}
           scanStatus={scanStatus}
           cendScanning={cendScanning}
+          frameworkScanning={frameworkScanning}
+          citationScanning={citationScanning}
           scenes={monitorScenes}
           competitors={monitorCompetitors}
           brandName={monitorBrandName}

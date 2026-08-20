@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ExternalLink, X } from "lucide-react";
 import { apiGet, getToken } from "@/lib/api-client";
 import type { QuestionCitationDetail, QueryProbe } from "@/lib/strategy-types";
-import { platformLabel, surfaceCardClass } from "./shared/AivisPrimitives";
+import { OwnerBadge, platformLabel, surfaceCardClass } from "./shared/AivisPrimitives";
 
 function ProbeRow({ probe }: { probe: QueryProbe }) {
   const [open, setOpen] = useState(probe.mentioned || probe.engine === "cend_browser");
@@ -29,6 +29,20 @@ function ProbeRow({ probe }: { probe: QueryProbe }) {
           {isCend && (
             <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-800">C端 · L2</span>
           )}
+          {probe.scheme === "framework_api" && (
+            <span className="rounded bg-cyan-50 px-1.5 py-0.5 text-[11px] text-cyan-800">
+              A轨 · {probe.reasoning_grade || "raw"}
+            </span>
+          )}
+          {probe.scheme === "citation_grounded" && (
+            <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] text-emerald-800">B轨 · 引用</span>
+          )}
+          {probe.scheme &&
+            probe.scheme !== "cend_sample" &&
+            probe.scheme !== "framework_api" &&
+            probe.scheme !== "citation_grounded" && (
+            <span className="rounded bg-slate-50 px-1.5 py-0.5 text-[11px] text-slate-600">{probe.scheme}</span>
+          )}
           {probe.engine && !isCend && (
             <span className="rounded bg-slate-50 px-1.5 py-0.5 text-[11px] text-slate-600">{probe.engine}</span>
           )}
@@ -43,7 +57,8 @@ function ProbeRow({ probe }: { probe: QueryProbe }) {
           {probe.thinking_text && (
             <div>
               <p className="mb-1 text-[11px] font-medium text-gray-500">
-                思考链路{probe.thinking_ms != null ? ` · ${Math.round(probe.thinking_ms / 1000)}s` : ""}
+                思考链路{probe.reasoning_grade ? ` · ${probe.reasoning_grade}` : ""}
+                {probe.thinking_ms != null ? ` · ${Math.round(probe.thinking_ms / 1000)}s` : ""}
               </p>
               <p className="max-h-28 overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed text-gray-600">
                 {probe.thinking_text}
@@ -92,8 +107,9 @@ function ProbeRow({ probe }: { probe: QueryProbe }) {
                     <ExternalLink className="mt-0.5 h-3 w-3 shrink-0" />
                     <span className="line-clamp-2">{c.title || c.url}</span>
                   </a>
-                  {(c.evidence_level || c.source) && (
-                    <span className="mt-0.5 block text-[10px] text-gray-400">
+                  {(c.evidence_level || c.source || c.owner) && (
+                    <span className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-gray-400">
+                      <OwnerBadge owner={c.owner} />
                       {[c.evidence_level, c.source].filter(Boolean).join(" · ")}
                     </span>
                   )}
@@ -122,6 +138,7 @@ export function QuestionProbeDetail({
   const [data, setData] = useState<QuestionCitationDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [schemeFilter, setSchemeFilter] = useState<string>("all");
 
   useEffect(() => {
     const t = getToken();
@@ -156,10 +173,26 @@ export function QuestionProbeDetail({
                 探针 {data.probes?.length ?? 0} · 引用合计{" "}
                 {data.probes?.reduce((s, p) => s + (p.citation_count || 0), 0) ?? 0}
               </p>
-              <div className="space-y-2">
-                {(data.probes || []).map((p) => (
-                  <ProbeRow key={p.probe_id} probe={p} />
+              <div className="flex flex-wrap gap-1">
+                {["all", "open_api", "framework_api", "citation_grounded", "cend_sample"].map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setSchemeFilter(s)}
+                    className={`rounded px-2 py-0.5 text-[11px] ${
+                      schemeFilter === s ? "bg-violet-100 text-violet-800" : "bg-gray-50 text-gray-600"
+                    }`}
+                  >
+                    {s === "all" ? "全部" : s}
+                  </button>
                 ))}
+              </div>
+              <div className="space-y-2">
+                {(data.probes || [])
+                  .filter((p) => schemeFilter === "all" || p.scheme === schemeFilter || (!p.scheme && schemeFilter === "open_api"))
+                  .map((p) => (
+                    <ProbeRow key={p.probe_id} probe={p} />
+                  ))}
               </div>
             </>
           )}

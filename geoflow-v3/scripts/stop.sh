@@ -19,14 +19,16 @@ for arg in "$@"; do
 done
 
 log "===== stop 开始 ====="
-log "停止 Admin / API / Worker 本地进程..."
+log "停止 Admin / API / Worker / Beat 本地进程..."
 pkill -f "run-admin-watchdog.sh" 2>/dev/null || true
 pkill -f "next dev.*--port ${ADMIN_PORT}" 2>/dev/null || true
 pkill -f "run-api-watchdog.sh" 2>/dev/null || true
 pkill -f "uvicorn app.main:app --host 127.0.0.1 --port ${API_PORT}" 2>/dev/null || true
 pkill -f "run-worker-watchdog.sh" 2>/dev/null || true
+pkill -f "run-beat-watchdog.sh" 2>/dev/null || true
 pkill -f "celery -A app.workers.celery_app worker" 2>/dev/null || true
-rm -f "${GEOFLOW_ADMIN_PID}" "${GEOFLOW_API_PID}" "${GEOFLOW_WORKER_PID}"
+pkill -f "celery -A app.workers.celery_app beat" 2>/dev/null || true
+rm -f "${GEOFLOW_ADMIN_PID}" "${GEOFLOW_API_PID}" "${GEOFLOW_WORKER_PID}" "${GEOFLOW_BEAT_PID}"
 
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   if docker ps --format '{{.Names}}' | grep -q "^${PG_NAME}$"; then

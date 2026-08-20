@@ -110,6 +110,16 @@ class SimulationRagService:
             except Exception:
                 logger.exception("geo_eval_rag_retrieve_failed article_id=%s kb_id=%s", article.id, kb_id)
 
+        if not chunks and self.settings.ai_mock_mode and (article.content or "").strip():
+            chunks = [
+                {
+                    "chunk_id": "mock-self",
+                    "content": (article.content or "")[:1200],
+                    "score": 0.72,
+                    "source": "mock_article",
+                }
+            ]
+
         retrieval_score = _retrieval_score(chunks)
         overlap_score = _article_overlap_score(query, article)
         in_retrieval = _article_in_retrieval(chunks, article)
