@@ -4,8 +4,14 @@
 /logs
 /uploads
 .env
-.env.local
-geoflow-v3/.env.local
+.env.*
+!.env.example
+!**/.env.example
+**/.env
+**/.env.local
+**/.env*.bak*
+*.bak
+*.pid
 guide/aiapi测试.md
 .env.prod
 .env.backup
@@ -24,10 +30,12 @@ Homestead.yaml
 Thumbs.db
 
 # ── v3 ──
+/geoflow-v3/.venv
 /geoflow-v3/backend/.venv
 /geoflow-v3/backend/.pytest_cache
 /geoflow-v3/backend/__pycache__
 /geoflow-v3/backend/**/__pycache__
+/geoflow-v3/backend/celerybeat-schedule*
 /geoflow-v3/docker-data
 /geoflow-v3/apps/geoflow-admin/node_modules
 /geoflow-v3/apps/geoflow-admin/.next
