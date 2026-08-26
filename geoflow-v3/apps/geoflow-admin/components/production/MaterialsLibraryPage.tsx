@@ -8,7 +8,7 @@ import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiDelete, apiGet, apiPatch, apiPost, apiUpload, getToken } from "@/lib/api-client";
-import { PRODUCTION_NAV } from "@/lib/nav-config";
+import { PRODUCTION_MORE_NAV, PRODUCTION_NAV } from "@/lib/nav-config";
 import { zh } from "@/lib/i18n/zh";
 
 type LibraryConfig = {
@@ -137,7 +137,7 @@ export function MaterialsLibraryPage({ kind }: { kind: keyof typeof CONFIGS }) {
   return (
     <div>
       <HubHeader title={cfg.title} subtitle="管理素材库与库内条目" />
-      <HubNav items={PRODUCTION_NAV} tone="emerald" />
+      <HubNav items={PRODUCTION_NAV} moreItems={PRODUCTION_MORE_NAV} tone="emerald" />
       <Link href="/production/materials" className="mb-4 inline-block text-sm text-emerald-700">← 素材 Hub</Link>
       {flash && <FlashAlert variant="error">{flash}</FlashAlert>}
       <div className="grid gap-6 lg:grid-cols-2">

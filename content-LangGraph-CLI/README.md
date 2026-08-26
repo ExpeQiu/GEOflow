@@ -1,8 +1,8 @@
 # content-LangGraph-CLI
 
-独立内容工作流引擎 CLI：直跑 `content` / `content_pipeline` / `url_import` / `semantic_chunk`。
+独立内容工作流引擎 **归档外挂** CLI。
 
-> **外挂**：不修改 GEOFlow 生产引擎。内嵌 `run_workflow_sync` 仍是主路径；本仓做离线 `--demo` 与 YAML 契约门禁。见 [guide/cli-plugins.md](../guide/cli-plugins.md)。
+> **归档**：主栈不安装。内嵌 `run_workflow_sync` 仍是生产路径；本仓只做离线 `--demo` 与 YAML 契约。`./start.sh` 仅跑 `verify.sh`。见 [guide/cli-plugins.md](../guide/cli-plugins.md)。
 ## 安装
 
 ```bash

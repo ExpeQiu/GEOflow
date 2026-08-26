@@ -7,6 +7,7 @@ export type DistributionChannelType =
 export type DistributionFormOptions = {
   default_channel_type: DistributionChannelType;
   channel_types: DistributionChannelType[];
+  advanced_channel_types?: DistributionChannelType[];
   tech_brand_mode: boolean;
   default_geoweb_base_url?: string;
 };

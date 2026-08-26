@@ -49,7 +49,7 @@ class AdminTaskCreateBody(BaseModel):
     publish_interval: int | None = Field(default=60, ge=1)
     category_mode: str | None = Field(default="smart", pattern="^(smart|fixed|random)$")
     model_selection_mode: str | None = Field(default="fixed", pattern="^(fixed|smart_failover)$")
-    content_pipeline_mode: str | None = Field(default="legacy", pattern="^(legacy|pipeline|auto)$")
+    content_pipeline_mode: str | None = Field(default="pipeline", pattern="^(legacy|pipeline|auto)$")
     content_format: str | None = Field(default="article", pattern="^(article|wiki_mdx)$")
     wiki_page_type: str | None = Field(default="concept")
     tech_ip_asset_id: int | None = Field(default=None, ge=1)
@@ -223,7 +223,7 @@ def _validate_task_body(body: AdminTaskCreateBody) -> tuple[dict, list[int]]:
         "is_loop": 1 if body.is_loop else 0,
         "category_mode": category_mode,
         "model_selection_mode": body.model_selection_mode or "fixed",
-        "content_pipeline_mode": body.content_pipeline_mode or "legacy",
+        "content_pipeline_mode": body.content_pipeline_mode or "pipeline",
         "content_format": body.content_format or "article",
         "wiki_page_type": body.wiki_page_type if body.content_format == "wiki_mdx" else None,
         "tech_ip_asset_id": body.tech_ip_asset_id,

@@ -168,7 +168,7 @@ class CitationScanOrchestrator:
                 {
                     "plat": f"citation_grounded:{','.join(platforms)}"[:200],
                     "qc": qcount,
-                    "ts": datetime.now(timezone.utc),
+                    "ts": datetime.now(timezone.utc).replace(tzinfo=None),
                 },
             )
         ).first()
@@ -185,5 +185,5 @@ class CitationScanOrchestrator:
                 WHERE id = :id
                 """
             ),
-            {"pc": probe_count, "ts": datetime.now(timezone.utc), "id": run_id},
+            {"pc": probe_count, "ts": datetime.now(timezone.utc).replace(tzinfo=None), "id": run_id},
         )

@@ -20,9 +20,12 @@ from app.services.geoeval.probe_scheme import (
     GRADE_SUMMARY,
     METRIC_FRAMEWORK,
     SCHEME_CEND,
+    SCHEME_CITATION,
     SCHEME_FRAMEWORK_API,
     SCHEME_OPEN_API,
+    build_scheme_cards,
     north_star_sql_filters,
+    scheme_from_run_platform,
     stamp_outcome,
 )
 
@@ -93,6 +96,23 @@ def test_stamp_cend_summary_not_raw():
     assert "framework_sample" in sql
 
 
+def test_stamp_cend_skipped_empty_tracks():
+    o = ProbeOutcome(
+        question_id=1,
+        platform="yuanbao",
+        brand_rank=None,
+        mentioned=False,
+        snippet="[skipped:playwright_not_installed]",
+        engine="skipped",
+        metric_kind="cend_sample",
+    )
+    stamp_outcome(o, scheme=SCHEME_CEND)
+    assert o.scheme == SCHEME_CEND
+    assert o.metric_kind == "cend_sample"
+    assert o.tracks == []
+    assert o.reasoning_grade == GRADE_NONE
+
+
 def test_extract_framework_six_classes():
     fw = extract_framework(MOCK_COT, scene_name="三电", intent="怎么选")
     assert fw["sub_questions"]
@@ -133,6 +153,36 @@ async def test_api_framework_mock(monkeypatch):
     assert "对比维度" in (outcome.thinking_text or "")
     assert "A" in outcome.tracks
     assert outcome.metric_kind == METRIC_FRAMEWORK
+
+
+def test_scheme_from_run_platform_prefixes():
+    assert scheme_from_run_platform("doubao,deepseek") == SCHEME_OPEN_API
+    assert scheme_from_run_platform("scene:12|doubao,deepseek") == SCHEME_OPEN_API
+    assert scheme_from_run_platform("framework_api:deepseek") == SCHEME_FRAMEWORK_API
+    assert scheme_from_run_platform("citation_grounded:doubao,kimi") == SCHEME_CITATION
+    assert scheme_from_run_platform("cend:yuanbao,doubao") == SCHEME_CEND
+    assert scheme_from_run_platform(None) == SCHEME_OPEN_API
+    assert scheme_from_run_platform("") == SCHEME_OPEN_API
+
+
+def test_build_scheme_cards_order_and_kpi_flag():
+    cards = build_scheme_cards(
+        probe_counts={SCHEME_OPEN_API: 10, SCHEME_FRAMEWORK_API: 3},
+        questions_estimated={SCHEME_OPEN_API: 20, SCHEME_FRAMEWORK_API: 12, SCHEME_CITATION: 12, SCHEME_CEND: 5},
+        latest_runs={SCHEME_OPEN_API: {"id": 7, "status": "completed"}},
+    )
+    assert [c["scheme"] for c in cards] == [
+        SCHEME_OPEN_API,
+        SCHEME_FRAMEWORK_API,
+        SCHEME_CITATION,
+        SCHEME_CEND,
+    ]
+    assert cards[0]["covers_kpi"] is True
+    assert all(c["covers_kpi"] is False for c in cards[1:])
+    assert cards[0]["probe_count"] == 10
+    assert cards[0]["latest_run"]["id"] == 7
+    assert cards[2]["probe_count"] == 0
+    assert cards[3]["questions_estimated"] == 5
 
 
 def test_cend_mock_stamped(monkeypatch):

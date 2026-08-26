@@ -9,7 +9,7 @@ import { WikiSubNav } from "@/components/operations/WikiSubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiGet, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
-import { OPERATIONS_NAV } from "@/lib/nav-config";
+import { OPERATIONS_MORE_NAV, OPERATIONS_NAV } from "@/lib/nav-config";
 
 type ReconRow = {
   slug: string;
@@ -64,7 +64,7 @@ export default function WikiReconcilePage() {
   return (
     <div>
       <HubHeader title={zh.wiki.reconcileTitle} subtitle={zh.wiki.reconcileSubtitle} />
-      <HubNav items={OPERATIONS_NAV} tone="blue" />
+      <HubNav items={OPERATIONS_NAV} moreItems={OPERATIONS_MORE_NAV} tone="blue" />
       <WikiSubNav />
       {error && <FlashAlert variant="error">{error}</FlashAlert>}
       {loading && <FlashAlert variant="info">{zh.common.loading}</FlashAlert>}

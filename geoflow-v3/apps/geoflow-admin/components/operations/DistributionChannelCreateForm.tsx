@@ -32,6 +32,7 @@ export function DistributionChannelCreateForm() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [showAdvancedChannels, setShowAdvancedChannels] = useState(false);
 
   useEffect(() => {
     const token = getToken();
@@ -81,6 +82,12 @@ export function DistributionChannelCreateForm() {
   }
 
   const channelType = form.channel_type;
+  const visibleTypes: DistributionChannelType[] = showAdvancedChannels
+    ? ([
+        ...(options?.channel_types ?? ["geoweb"]),
+        ...(options?.advanced_channel_types ?? []),
+      ] as DistributionChannelType[])
+    : ((options?.channel_types ?? ["geoweb"]) as DistributionChannelType[]);
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
@@ -108,9 +115,10 @@ export function DistributionChannelCreateForm() {
           <legend className="text-sm font-medium text-gray-900">{zh.distributionCreate.fields.channelType}</legend>
           <p className="mt-1 text-sm text-gray-600">{zh.distributionCreate.hints.channelType}</p>
           <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
-            {(options?.channel_types ?? Object.keys(CHANNEL_LABELS)).map((type) => {
+            {visibleTypes.map((type) => {
               const key = type as DistributionChannelType;
               const meta = CHANNEL_LABELS[key];
+              if (!meta) return null;
               return (
                 <label
                   key={key}
@@ -132,6 +140,14 @@ export function DistributionChannelCreateForm() {
               );
             })}
           </div>
+          <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm text-gray-600">
+            <input
+              type="checkbox"
+              checked={showAdvancedChannels}
+              onChange={(e) => setShowAdvancedChannels(e.target.checked)}
+            />
+            显示高级渠道（WordPress / HTTP / Agent）
+          </label>
         </fieldset>
 
         <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">

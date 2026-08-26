@@ -8,7 +8,7 @@ import { AiConfigSubNav } from "@/components/production/AiConfigSubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiDelete, apiGet, apiPatch, apiPost, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
-import { PRODUCTION_NAV } from "@/lib/nav-config";
+import { PRODUCTION_MORE_NAV, PRODUCTION_NAV } from "@/lib/nav-config";
 
 type ModelRow = {
   id: number;
@@ -85,7 +85,7 @@ export default function AiModelsPage() {
   return (
     <div>
       <HubHeader title={zh.production.tabs.ai_config} subtitle={zh.production.aiConfigSub.models} />
-      <HubNav items={PRODUCTION_NAV} tone="emerald" />
+      <HubNav items={PRODUCTION_NAV} moreItems={PRODUCTION_MORE_NAV} tone="emerald" />
       <AiConfigSubNav />
       {testMsg && <FlashAlert variant="success">{testMsg}</FlashAlert>}
       <form onSubmit={onSubmit} className="mb-6 space-y-2 rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">

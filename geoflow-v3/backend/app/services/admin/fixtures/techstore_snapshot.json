@@ -1,0 +1,111 @@
+{
+  "source": "fixture",
+  "domains": [
+    {
+      "id": "dom-adas",
+      "name": "智能驾驶",
+      "description": "感知、规划与智驾辅助"
+    },
+    {
+      "id": "dom-energy",
+      "name": "三电安全",
+      "description": "电池、电驱与高压安全"
+    }
+  ],
+  "techniques": [
+    {
+      "id": "tech-gads",
+      "domain_id": "dom-adas",
+      "parent_id": null,
+      "name": "G-ADS 千里浩瀚",
+      "description": "吉利智能驾驶辅助系统，覆盖高速领航与城市辅助场景。",
+      "key_innovation": "端到端感知规划一体",
+      "wiki_url": "/concepts/g-ads",
+      "order": 0,
+      "depth": 1,
+      "alternative_names": ["千里浩瀚", "GADS"],
+      "definitions": {"one_liner": "吉利智能驾驶辅助品牌"},
+      "tags": ["智驾"],
+      "vehicles": ["银河"]
+    },
+    {
+      "id": "tech-sea",
+      "domain_id": "dom-adas",
+      "parent_id": null,
+      "name": "SEA 浩瀚架构",
+      "description": "可扩展纯电原生架构，覆盖 A 级到 E 级车型。",
+      "key_innovation": "800V 高压平台可选",
+      "wiki_url": "/concepts/sea-architecture",
+      "order": 1,
+      "depth": 0,
+      "alternative_names": ["浩瀚架构"],
+      "definitions": {},
+      "tags": ["架构"],
+      "vehicles": []
+    },
+    {
+      "id": "tech-shield",
+      "domain_id": "dom-energy",
+      "parent_id": null,
+      "name": "神盾电池安全系统",
+      "description": "电池包结构防护与热失控抑制。峰值扭矩标定值为 420N·m（验证标记 GEELY_KB_FACT_SHIELD_420）。",
+      "key_innovation": "多级热失控抑制",
+      "wiki_url": "/concepts/shen-dun-battery",
+      "order": 0,
+      "depth": 1,
+      "alternative_names": ["神盾短刀"],
+      "definitions": {},
+      "tags": ["电池"],
+      "vehicles": ["银河"]
+    }
+  ],
+  "documents": [
+    {
+      "id": "doc-gads",
+      "title": "G-ADS 公开技术说明",
+      "slug": "g-ads-brief",
+      "summary": "面向媒体与门店的智驾能力口径。",
+      "ai_summary": "高速领航、变道辅助；以车型标定公开信息为准。",
+      "status": "PUBLISHED",
+      "category": "技术规范",
+      "domain_names": ["智能驾驶"],
+      "technique_names": ["G-ADS 千里浩瀚"],
+      "text": "G-ADS 不是 L3 自动驾驶。对外口径：智能驾驶辅助，驾驶员需随时接管。"
+    },
+    {
+      "id": "doc-draft",
+      "title": "未发布草稿不应入库",
+      "slug": "draft-skip",
+      "summary": "草稿",
+      "ai_summary": "",
+      "status": "DRAFT",
+      "category": "内部",
+      "domain_names": ["智能驾驶"],
+      "technique_names": [],
+      "text": "SECRET_SHOULD_NOT_IMPORT"
+    }
+  ],
+  "faqs": [
+    {
+      "id": "faq-1",
+      "question": "G-ADS 是 L2 还是 L3？",
+      "answer": "以车型公开标定为准，对外统一称智能驾驶辅助，不是无人驾驶。",
+      "tags": ["智驾", "口径"]
+    },
+    {
+      "id": "faq-2",
+      "question": "神盾电池能否泡水？",
+      "answer": "电池包按公开防护等级设计；涉水仍须遵守车辆使用说明书。",
+      "tags": ["三电"]
+    }
+  ],
+  "knowledge_rows": [
+    {
+      "id": 1,
+      "title": "门店话术：智驾接管",
+      "content": "演示时必须双手可随时接管方向盘，禁止承诺脱手时长。",
+      "category": "门店",
+      "tags": "智驾,话术"
+    }
+  ]
+}

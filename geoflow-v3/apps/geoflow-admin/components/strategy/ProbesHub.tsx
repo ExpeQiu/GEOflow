@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CollectionPanel } from "./CollectionPanel";
 import { CrossTrackPanel } from "./CrossTrackPanel";
+import { GoldLabelsPanel } from "./GoldLabelsPanel";
 import { ProbeSettingsForm } from "./ProbeSettingsForm";
 import { QuestionBankPanel } from "./QuestionBankPanel";
 import type {
@@ -13,7 +14,22 @@ import type {
   QueryTemplate,
 } from "@/lib/strategy-types";
 
-type ProbeView = "scan" | "questions" | "settings" | "cross";
+type ProbeView = "scan" | "questions" | "cross" | "gold" | "settings";
+
+const VALID_VIEWS: ProbeView[] = ["scan", "questions", "cross", "gold", "settings"];
+
+function readViewFromUrl(): ProbeView {
+  if (typeof window === "undefined") return "scan";
+  const v = new URLSearchParams(window.location.search).get("view");
+  return VALID_VIEWS.includes(v as ProbeView) ? (v as ProbeView) : "scan";
+}
+
+function writeViewToUrl(next: ProbeView) {
+  const url = new URL(window.location.href);
+  if (next === "scan") url.searchParams.delete("view");
+  else url.searchParams.set("view", next);
+  window.history.replaceState(null, "", `${url.pathname}${url.search}`);
+}
 
 export function ProbesHub({
   collection,
@@ -61,29 +77,44 @@ export function ProbesHub({
   const [view, setView] = useState<ProbeView>("scan");
 
   useEffect(() => {
-    const v = new URLSearchParams(window.location.search).get("view");
-    if (v === "questions" || v === "settings" || v === "cross") setView(v);
+    setView(readViewFromUrl());
+    const onPop = () => setView(readViewFromUrl());
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  const tabs = useMemo(
+  const selectView = useCallback((next: ProbeView) => {
+    setView(next);
+    writeViewToUrl(next);
+  }, []);
+
+  const primaryTabs = useMemo(
     () =>
       [
-        { key: "scan" as const, label: "数据采集" },
+        { key: "scan" as const, label: "采集工作台" },
         { key: "questions" as const, label: "监控问题库" },
-        { key: "settings" as const, label: "探针设置" },
-        { key: "cross" as const, label: "交叉判定" },
       ] as const,
     [],
   );
+  const labTabs = useMemo(
+    () =>
+      [
+        { key: "cross" as const, label: "交叉判定" },
+        { key: "gold" as const, label: "金标对照" },
+        { key: "settings" as const, label: "探针设置" },
+      ] as const,
+    [],
+  );
+  const labOpen = view === "cross" || view === "gold" || view === "settings";
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2 border-b border-gray-100 pb-3">
-        {tabs.map((t) => (
+      <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 pb-3">
+        {primaryTabs.map((t) => (
           <button
             key={t.key}
             type="button"
-            onClick={() => setView(t.key)}
+            onClick={() => selectView(t.key)}
             className={`rounded-md px-3 py-1.5 text-sm font-medium ${
               view === t.key ? "bg-violet-100 text-violet-800" : "text-gray-600 hover:bg-gray-50"
             }`}
@@ -91,7 +122,24 @@ export function ProbesHub({
             {t.label}
           </button>
         ))}
+        <span className="mx-1 hidden h-4 w-px bg-gray-200 sm:inline" aria-hidden="true" />
+        <span className="text-[11px] font-medium uppercase tracking-wide text-gray-400">实验室</span>
+        {labTabs.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => selectView(t.key)}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+              view === t.key ? "bg-violet-100 text-violet-800" : "text-gray-500 hover:bg-gray-50"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
+      {labOpen && (
+        <p className="text-xs text-gray-500">实验室入口不影响北极星 KPI；日常请用采集工作台的 open_api 日扫。</p>
+      )}
 
       {view === "scan" && collection && (
         <CollectionPanel
@@ -124,9 +172,11 @@ export function ProbesHub({
         />
       )}
 
-      {view === "settings" && <ProbeSettingsForm onSaved={onRefreshCollection} />}
-
       {view === "cross" && <CrossTrackPanel />}
+
+      {view === "gold" && <GoldLabelsPanel />}
+
+      {view === "settings" && <ProbeSettingsForm onSaved={onRefreshCollection} />}
     </div>
   );
 }

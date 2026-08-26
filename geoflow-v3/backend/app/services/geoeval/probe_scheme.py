@@ -35,6 +35,38 @@ METRIC_MIXED = "mixed"
 
 KPI_EXCLUDED_METRICS = frozenset({METRIC_CEND, METRIC_FRAMEWORK, METRIC_CITATION})
 
+# 采集工作台卡片规格（与 engine 解绑）
+SCHEME_CARD_SPECS: tuple[dict[str, Any], ...] = (
+    {
+        "scheme": SCHEME_OPEN_API,
+        "tracks": [TRACK_C],
+        "label": "日常 C 轨",
+        "kpi_note": "计入 visibility_open_api",
+        "covers_kpi": True,
+    },
+    {
+        "scheme": SCHEME_FRAMEWORK_API,
+        "tracks": [TRACK_A, TRACK_C],
+        "label": "A 框架轨",
+        "kpi_note": "明文 CoT，不覆盖北极星",
+        "covers_kpi": False,
+    },
+    {
+        "scheme": SCHEME_CITATION,
+        "tracks": [TRACK_B, TRACK_C],
+        "label": "B 引用轨",
+        "kpi_note": "答文 URL L1，不覆盖北极星",
+        "covers_kpi": False,
+    },
+    {
+        "scheme": SCHEME_CEND,
+        "tracks": [TRACK_B, TRACK_C],
+        "label": "C 端金标",
+        "kpi_note": "资料链 L2，不覆盖北极星",
+        "covers_kpi": False,
+    },
+)
+
 
 def ordered_tracks(tracks: Iterable[str]) -> list[str]:
     seen = {str(t).strip().upper() for t in tracks if str(t).strip()}
@@ -72,10 +104,14 @@ def stamp_outcome(outcome: Any, *, scheme: str) -> Any:
             tracks.insert(-1, TRACK_B)
     elif scheme == SCHEME_CEND:
         outcome.metric_kind = METRIC_CEND
-        outcome.reasoning_grade = GRADE_SUMMARY if thinking else GRADE_NONE
-        tracks = [TRACK_C]
-        if cites:
-            tracks.insert(0, TRACK_B)
+        if engine == "skipped":
+            outcome.reasoning_grade = GRADE_NONE
+            tracks = []
+        else:
+            outcome.reasoning_grade = GRADE_SUMMARY if thinking else GRADE_NONE
+            tracks = [TRACK_C]
+            if cites:
+                tracks.insert(0, TRACK_B)
         # C 端思考仅辅证，不进 A 轨 KPI
     elif scheme == SCHEME_CITATION:
         outcome.metric_kind = METRIC_CITATION
@@ -99,3 +135,39 @@ def stamp_outcome(outcome: Any, *, scheme: str) -> Any:
 
     outcome.tracks = ordered_tracks(tracks)
     return outcome
+
+
+def scheme_from_run_platform(platform: str | None) -> str:
+    """从 geo_monitor_runs.platform 前缀推断 scheme（表未单独存 scan_type）。"""
+    raw = (platform or "").strip().lower()
+    if raw.startswith("framework_api"):
+        return SCHEME_FRAMEWORK_API
+    if raw.startswith("citation_grounded"):
+        return SCHEME_CITATION
+    if raw.startswith("cend"):
+        return SCHEME_CEND
+    return SCHEME_OPEN_API
+
+
+def build_scheme_cards(
+    *,
+    probe_counts: dict[str, int] | None = None,
+    latest_runs: dict[str, dict] | None = None,
+    questions_estimated: dict[str, int] | None = None,
+) -> list[dict[str, Any]]:
+    """四套 scheme 工作台卡片；缺数据补 0，顺序固定。"""
+    counts = probe_counts or {}
+    runs = latest_runs or {}
+    est = questions_estimated or {}
+    cards: list[dict[str, Any]] = []
+    for spec in SCHEME_CARD_SPECS:
+        scheme = str(spec["scheme"])
+        cards.append(
+            {
+                **spec,
+                "probe_count": int(counts.get(scheme, 0) or 0),
+                "questions_estimated": int(est.get(scheme, 0) or 0),
+                "latest_run": runs.get(scheme),
+            }
+        )
+    return cards

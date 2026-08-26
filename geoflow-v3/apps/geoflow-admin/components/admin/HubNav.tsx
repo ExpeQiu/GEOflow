@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
-import { HUB_TONE_CLASS, type HubNavItem, type HubTone } from "@/lib/nav-config";
+import { HUB_TONE_CLASS, LAB_NAV_LABEL, type HubNavItem, type HubTone } from "@/lib/nav-config";
 
 function isItemActive(pathname: string, item: HubNavItem): boolean {
   if (item.matchPrefixes?.length) {
@@ -14,13 +14,21 @@ function isItemActive(pathname: string, item: HubNavItem): boolean {
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
+const MORE_MENU_ACTIVE: Record<HubTone, string> = {
+  emerald: "bg-emerald-50 font-medium text-emerald-800",
+  blue: "bg-blue-50 font-medium text-blue-800",
+  violet: "bg-violet-50 font-medium text-violet-800",
+};
+
 export function HubNav({
   items,
   moreItems,
+  moreLabel = LAB_NAV_LABEL,
   tone,
 }: {
   items: HubNavItem[];
   moreItems?: HubNavItem[];
+  moreLabel?: string;
   tone: HubTone;
 }) {
   const pathname = usePathname();
@@ -80,7 +88,7 @@ export function HubNav({
               aria-expanded={moreOpen}
               aria-haspopup="menu"
             >
-              更多 ▾
+              {moreLabel} ▾
             </button>
             {moreOpen && (
               <div
@@ -97,7 +105,7 @@ export function HubNav({
                       onClick={() => setMoreOpen(false)}
                       className={cn(
                         "block px-3 py-2 text-sm",
-                        active ? "bg-violet-50 font-medium text-violet-800" : "text-gray-700 hover:bg-gray-50",
+                        active ? MORE_MENU_ACTIVE[tone] : "text-gray-700 hover:bg-gray-50",
                       )}
                     >
                       {item.label}

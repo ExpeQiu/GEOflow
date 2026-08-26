@@ -52,7 +52,7 @@ export function ProbeDashboard({
               {scanning ? "扫描中…" : zh.strategy.monitor.scanAll}
             </button>
           )}
-          <Link href="/strategy/probes?view=scan" className="rounded-md border border-violet-300 px-4 py-2 text-sm text-violet-700">
+          <Link href="/strategy/probes?view=settings" className="rounded-md border border-violet-300 px-4 py-2 text-sm text-violet-700">
             探针设置
           </Link>
           <Link href="/strategy/reports" className="rounded-md border border-violet-300 px-4 py-2 text-sm text-violet-700">

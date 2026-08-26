@@ -18,7 +18,7 @@ import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiGet, apiPost, getToken } from "@/lib/api-client";
 import type { DashboardAutomationPayload } from "@/lib/dashboard-types";
 import { zh } from "@/lib/i18n/zh";
-import { OPERATIONS_NAV } from "@/lib/nav-config";
+import { OPERATIONS_MORE_NAV, OPERATIONS_NAV } from "@/lib/nav-config";
 import type {
   AdminArticle,
   ArticleStats,
@@ -202,7 +202,7 @@ export default function OperationsPage() {
   return (
     <div>
       <HubHeader title={headerTitle} subtitle={headerSubtitle} />
-      <HubNav items={OPERATIONS_NAV} tone="blue" />
+      <HubNav items={OPERATIONS_NAV} moreItems={OPERATIONS_MORE_NAV} tone="blue" />
 
       {flash && <FlashAlert variant={flash.variant === "success" ? "success" : "error"}>{flash.message}</FlashAlert>}
       {loading && !stats && tab === "overview" && <FlashAlert variant="info">{zh.common.loading}</FlashAlert>}

@@ -10,7 +10,6 @@ import { DifficultyPanelView, OptimizationPanelView } from "@/components/strateg
 import { ProbesHub } from "@/components/strategy/ProbesHub";
 import { ReportsPanel } from "@/components/strategy/ReportsPanel";
 import { SalesCopyPanel } from "@/components/strategy/SalesCopyPanel";
-import { GoldLabelsPanel } from "@/components/strategy/GoldLabelsPanel";
 import { SceneGraphPanel } from "@/components/strategy/SceneGraphPanel";
 import { ThemeMiningPanel } from "@/components/strategy/ThemeMiningPanel";
 import { VisibilityHub } from "@/components/strategy/VisibilityHub";
@@ -43,6 +42,15 @@ function errMsg(e: unknown, fallback: string) {
   return e instanceof Error && e.message ? e.message : fallback;
 }
 
+/** Hub 辅轨扫描跟探针设置，不写死 doubao/kimi。 */
+function probeScanPlatforms(data: CollectionPanelData | null | undefined): string[] {
+  const fromSettings = (data?.probe_settings?.platforms ?? [])
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (fromSettings.length) return fromSettings;
+  return (data?.next_scan?.platforms ?? []).map((p) => p.platform).filter(Boolean);
+}
+
 /** 旧入口 → 收敛后的主路径 / 合并页 */
 const LEGACY_TAB_REDIRECT: Record<string, string> = {
   overview: "/strategy/diagnosis",
@@ -53,6 +61,7 @@ const LEGACY_TAB_REDIRECT: Record<string, string> = {
   settings: "/strategy/probes?view=settings",
   collection: "/strategy/probes?view=scan",
   "question-bank": "/strategy/probes?view=questions",
+  "gold-labels": "/strategy/probes?view=gold",
   brand: "/strategy/visibility?view=brand",
   product: "/strategy/visibility?view=product",
 };
@@ -162,7 +171,7 @@ export default function StrategyPage() {
         }>("/api/admin/strategy/web-intel", t);
         setWebSources(data.sources ?? []);
         setWebReports(data.reports ?? []);
-      } else if (tab === "sales-copy" || tab === "reports" || tab === "gold-labels") {
+      } else if (tab === "sales-copy" || tab === "reports") {
         /* panels self-load */
       }
     } catch (e) {
@@ -266,18 +275,24 @@ export default function StrategyPage() {
   async function runFrameworkScan() {
     const t = getToken();
     if (!t) return;
+    const data = collection ?? (await reloadCollection(t));
+    const platforms = probeScanPlatforms(data);
+    if (!platforms.length) {
+      setFlash({ variant: "error", message: "探针设置未配置平台，请先到探针设置勾选" });
+      return;
+    }
     setFrameworkScanning(true);
     setScanStatus("框架轨入队…");
     try {
       await apiPost("/api/admin/strategy/framework/scan", t, {
-        platforms: ["deepseek"],
+        platforms,
         limit: 8,
         min_priority: 80,
         sync: false,
       });
       setFlash({
         variant: "success",
-        message: "框架轨扫描已入队（scheme=framework_api，不覆盖 open_api）",
+        message: `框架轨已入队（${platforms.join(",")}，scheme=framework_api，不覆盖 open_api）`,
       });
       for (let i = 0; i < 20; i++) {
         await new Promise((r) => setTimeout(r, 3000));
@@ -294,18 +309,24 @@ export default function StrategyPage() {
   async function runCitationScan() {
     const t = getToken();
     if (!t) return;
+    const data = collection ?? (await reloadCollection(t));
+    const platforms = probeScanPlatforms(data);
+    if (!platforms.length) {
+      setFlash({ variant: "error", message: "探针设置未配置平台，请先到探针设置勾选" });
+      return;
+    }
     setCitationScanning(true);
     setScanStatus("引用轨入队…");
     try {
       await apiPost("/api/admin/strategy/citation/scan", t, {
-        platforms: ["doubao", "kimi"],
+        platforms,
         limit: 8,
         min_priority: 80,
         sync: false,
       });
       setFlash({
         variant: "success",
-        message: "引用轨扫描已入队（scheme=citation_grounded，不覆盖 open_api）",
+        message: `引用轨已入队（${platforms.join(",")}，scheme=citation_grounded，不覆盖 open_api）`,
       });
       for (let i = 0; i < 20; i++) {
         await new Promise((r) => setTimeout(r, 3000));
@@ -404,7 +425,7 @@ export default function StrategyPage() {
       <HubNav items={STRATEGY_NAV} moreItems={STRATEGY_MORE_NAV} tone="violet" />
 
       {flash && <FlashAlert variant={flash.variant === "success" ? "success" : "error"}>{flash.message}</FlashAlert>}
-      {loading && tab !== "sales-copy" && tab !== "reports" && tab !== "gold-labels" && (
+      {loading && tab !== "sales-copy" && tab !== "reports" && (
         <FlashAlert variant="info">{zh.common.loading}</FlashAlert>
       )}
 
@@ -470,8 +491,6 @@ export default function StrategyPage() {
       {tab === "difficulty" && difficulty && <DifficultyPanelView data={difficulty} />}
 
       {tab === "reports" && <ReportsPanel />}
-
-      {tab === "gold-labels" && <GoldLabelsPanel />}
 
       {tab === "sales-copy" && <SalesCopyPanel />}
 

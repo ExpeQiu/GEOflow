@@ -8,7 +8,7 @@ import { HubNav } from "@/components/admin/HubNav";
 import { SchemeBadge } from "@/components/strategy/shared/AivisPrimitives";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiGet, getToken } from "@/lib/api-client";
-import { STRATEGY_NAV } from "@/lib/nav-config";
+import { STRATEGY_MORE_NAV, STRATEGY_NAV } from "@/lib/nav-config";
 import type { MonitorRunDetail } from "@/lib/strategy-types";
 
 export default function MonitorRunDetailPage() {
@@ -29,9 +29,9 @@ export default function MonitorRunDetailPage() {
   return (
     <div>
       <HubHeader title={`Monitor 扫描 #${id}`} subtitle="探针明细与平台汇总；scheme 仅展示，不计入北极星" />
-      <HubNav items={STRATEGY_NAV} tone="violet" />
+      <HubNav items={STRATEGY_NAV} moreItems={STRATEGY_MORE_NAV} tone="violet" />
       <Link href="/strategy/probes?view=scan" className="mb-4 inline-block text-sm text-violet-700">
-        ← 返回数据采集
+        ← 返回采集工作台
       </Link>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

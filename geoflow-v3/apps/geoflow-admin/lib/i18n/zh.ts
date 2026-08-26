@@ -33,6 +33,9 @@ export const zh = {
     remember: "记住登录状态",
     error: "登录失败，请检查账号密码",
   },
+  locale: {
+    labHint: "实验室：完整文案仅中文；其它语言覆盖顶栏与登录，正文回退中文。",
+  },
   dashboard: {
     heading: "仪表盘",
     subtitle: (site: string) => `${site} 数据概览`,
@@ -41,13 +44,13 @@ export const zh = {
     layers: {
       l1Label: "L1 策略洞察",
       l1Title: "策略洞察与分析",
-      l1Desc: "AIVIS：探针采集 → 找差距 → 挖主题 → 可见性与报告。",
+      l1Desc: "AIVIS：探针日扫 → 找差距 → 挖主题 → 诊断报告。",
       l2Label: "L2 内容生产",
       l2Title: "内容生产与知识库",
-      l2Desc: "主题包、内容任务、知识库与素材，驱动内容生成。",
+      l2Desc: "主题包确认、内容任务与知识库，驱动 Wiki 复合包生产。",
       l3Label: "L3 运营主链路",
-      l3Title: "文章与分发",
-      l3Desc: "文章审核发布、分发任务、多站点渠道与运营数据复盘。",
+      l3Title: "Wiki 与分发",
+      l3Desc: "Wiki 定稿、GEOweb 分发与再扫验证。",
     },
     quickStart: {
       eyebrow: "快速开始",
@@ -117,7 +120,7 @@ export const zh = {
   },
   production: {
     hubTitle: "内容生产与知识库",
-    hubSubtitle: "主题包、知识库、素材库与 AI 配置；先确认挖掘摘要再生产",
+    hubSubtitle: "主题包确认 → 知识库注入 → 内容任务；素材与仿真在实验室",
     viewDetail: "查看详情",
     tabs: {
       overview: "总览",
@@ -142,7 +145,7 @@ export const zh = {
     },
     materials: {
       heading: "素材库管理",
-      subtitle: "关键词、标题、图片、作者与提示词，为任务生成提供结构化输入",
+      subtitle: "遗产 CMS 素材；新战役请走主题包 + 知识库",
       foundationTitle: "基础素材",
       keywordTitle: "关键词库",
       titleTitle: "标题库",
@@ -174,6 +177,9 @@ export const zh = {
       healthPending: "待向量化",
       healthNoEmbed: "缺少 Embedding 模型",
       healthEmpty: "暂无知识库",
+      importGeely: "导入吉利知识库",
+      importGeelyHintLive: "将从 Techstore 只读库按领域写入知识库与技术 IP",
+      importGeelyHintFixture: "未配置 TECHSTORE_DATABASE_URL，将导入演示语料",
     },
     orchestration: {
       title: "Content Agent 编排",
@@ -225,7 +231,7 @@ export const zh = {
   },
   operations: {
     hubTitle: "运营与分发",
-    hubSubtitle: "文章发布、分发执行与运营数据复盘",
+    hubSubtitle: "Wiki 定稿、GEOweb 分发；文章 CMS 与引用分析在实验室",
     viewDetail: "查看详情",
     navGroups: {
       runtime: "执行",
@@ -760,7 +766,7 @@ export const zh = {
   },
   strategy: {
     hubTitle: "AI 可见性诊断 (AIVIS)",
-    hubSubtitle: "诊断总览 → 探针 → 可见性 → 场景图谱 → 挖掘主题 → 诊断报告",
+    hubSubtitle: "诊断总览 → 探针日扫 → 场景图谱 → 挖掘主题 → 诊断报告",
     viewDetail: "查看详情",
     navGroups: {
       diagnose: "诊断",
@@ -774,7 +780,7 @@ export const zh = {
       diagnosis: "诊断总览",
       probes: "探针",
       visibility: "可见性",
-      collection: "数据采集",
+      collection: "采集工作台",
       questionBank: "监控问题库",
       brand: "品牌可见性",
       product: "产品可见性",

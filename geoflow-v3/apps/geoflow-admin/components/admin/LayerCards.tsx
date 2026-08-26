@@ -5,24 +5,18 @@ const LAYER_LINKS = {
   l1: [
     { href: "/strategy/diagnosis", label: zh.strategy.tabs.diagnosis },
     { href: "/strategy/probes", label: zh.strategy.tabs.probes },
-    { href: "/strategy/visibility", label: zh.strategy.tabs.visibility },
     { href: "/strategy/scene-graph", label: zh.strategy.tabs.sceneGraph },
     { href: "/strategy/theme-mining", label: zh.strategy.tabs.themeMining },
     { href: "/strategy/reports", label: zh.strategy.tabs.reports },
   ],
   l2: [
+    { href: "/production/themes", label: zh.production.tabs.themes },
     { href: "/production/tasks", label: zh.production.tabs.tasks },
-    { href: "/production/ai_config", label: zh.production.tabs.ai_config },
-    { href: "/production/materials", label: zh.production.tabs.materials },
     { href: "/production/knowledge", label: zh.production.tabs.knowledge },
-    { href: "/production/geo-eval", label: zh.production.tabs["geo-eval"] },
   ],
   l3: [
-    { href: "/operations/articles", label: zh.operations.tabs.articles },
     { href: "/operations/wiki", label: zh.operations.tabs.wiki },
-    { href: "/operations/distribution/tasks", label: zh.distribution.tasksTab },
     { href: "/operations/distribution", label: zh.operations.tabs.distribution },
-    { href: "/operations/analytics", label: zh.operations.tabs.analytics },
   ],
 };
 
@@ -38,7 +32,7 @@ export function LayerCards() {
         links={LAYER_LINKS.l1}
       />
       <LayerCard
-        href="/production/overview"
+        href="/production/themes"
         label={zh.dashboard.layers.l2Label}
         title={zh.dashboard.layers.l2Title}
         desc={zh.dashboard.layers.l2Desc}
@@ -46,7 +40,7 @@ export function LayerCards() {
         links={LAYER_LINKS.l2}
       />
       <LayerCard
-        href="/operations/overview"
+        href="/operations/wiki"
         label={zh.dashboard.layers.l3Label}
         title={zh.dashboard.layers.l3Title}
         desc={zh.dashboard.layers.l3Desc}

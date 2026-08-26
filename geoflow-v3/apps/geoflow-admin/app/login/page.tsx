@@ -4,11 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { FlashAlert } from "@/components/admin/FlashAlert";
+import { LocaleSwitcher } from "@/components/admin/LocaleSwitcher";
 import { adminLogin, setToken } from "@/lib/api-client";
-import { zh } from "@/lib/i18n/zh";
+import { useI18n } from "@/lib/i18n";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { messages: zh } = useI18n();
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("password");
   const [error, setError] = useState("");
@@ -35,6 +37,9 @@ export default function LoginPage() {
             </div>
             <h1 className="mb-2 text-2xl font-bold text-gray-900">{zh.login.title}</h1>
             <p className="text-gray-600">{zh.login.subtitle}</p>
+            <div className="mt-4 flex justify-center">
+              <LocaleSwitcher />
+            </div>
           </div>
 
           {error && <FlashAlert variant="error">{error}</FlashAlert>}

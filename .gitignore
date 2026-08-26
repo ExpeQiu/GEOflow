@@ -4,6 +4,9 @@
 /logs
 /uploads
 .env
+.env.local
+geoflow-v3/.env.local
+guide/aiapi测试.md
 .env.prod
 .env.backup
 .env.production

@@ -1,0 +1,36 @@
+/** English overlay — nav / login / header only. Untranslated keys fall back to zh. */
+export const en = {
+  brand: "GEOFlow",
+  nav: {
+    dashboard: "Home",
+    productionHub: "Production",
+    operationsHub: "Operations",
+    strategyHub: "Strategy",
+    techAssets: "Tech IP",
+    siteSettings: "Settings",
+    groupProduction: "L2 Production",
+    groupOperations: "L3 Operations",
+    groupStrategy: "L1 Strategy",
+    backHome: "Back to home",
+    systemSettings: "System settings",
+    logout: "Sign out",
+  },
+  header: {
+    welcome: (name: string) => `Welcome, ${name}`,
+    admin: "Admin",
+    notifications: "Notifications",
+    notificationsTitle: "Notifications",
+    upToDate: "You are on the latest version",
+    noUpdateDesc: "GEOFlow admin v3 is connected to the current API surface.",
+    currentVersion: (v: string) => `Version: v${v}`,
+  },
+  login: {
+    title: "Admin sign in",
+    subtitle: "GEOFlow content engineering",
+    username: "Username",
+    password: "Password",
+    submit: "Sign in",
+    remember: "Remember me",
+    error: "Sign-in failed. Check username and password.",
+  },
+};

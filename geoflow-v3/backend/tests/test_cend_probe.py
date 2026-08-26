@@ -76,6 +76,35 @@ def test_cend_mock_outcome(monkeypatch):
     assert outcome.rank_blocks
 
 
+def test_cend_skip_stamps_scheme(monkeypatch):
+    monkeypatch.setenv("CEND_MOCK_MODE", "false")
+    monkeypatch.setenv("AI_MOCK_MODE", "false")
+
+    async def boom(*_a, **_k):
+        raise RuntimeError("playwright_not_installed")
+
+    monkeypatch.setattr(
+        "app.services.geoeval.platform_connectors.cend.connector.launch_persistent_context",
+        boom,
+    )
+    conn = CendBrowserConnector()
+    import asyncio
+
+    outcome = asyncio.run(
+        conn.probe(
+            question_text="吉利口碑",
+            platform="yuanbao",
+            brand_list=["吉利"],
+            question_id=9,
+        )
+    )
+    assert outcome.engine == "skipped"
+    assert outcome.scheme == "cend_sample"
+    assert outcome.metric_kind == "cend_sample"
+    assert outcome.tracks == []
+    assert "playwright_not_installed" in (outcome.snippet or "")
+
+
 def test_persist_url_citations_helper_signature():
     """确保 Phase0 辅助函数可导入。"""
     from app.services.geoeval.monitor_probe import _persist_url_citations, _insert_citation_row

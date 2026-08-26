@@ -8,7 +8,7 @@ import { KnowledgeSubNav } from "@/components/production/KnowledgeSubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiGet, apiPatch, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
-import { PRODUCTION_NAV } from "@/lib/nav-config";
+import { PRODUCTION_MORE_NAV, PRODUCTION_NAV } from "@/lib/nav-config";
 
 export default function KnowledgeSettingsPage() {
   const token = useAuthGuard();
@@ -44,7 +44,7 @@ export default function KnowledgeSettingsPage() {
   return (
     <div>
       <HubHeader title={zh.production.tabs.knowledge} subtitle="切片与检索参数" />
-      <HubNav items={PRODUCTION_NAV} tone="emerald" />
+      <HubNav items={PRODUCTION_NAV} moreItems={PRODUCTION_MORE_NAV} tone="emerald" />
       <KnowledgeSubNav />
       {flash && <FlashAlert variant="success">{flash}</FlashAlert>}
       <form onSubmit={onSubmit} className="max-w-lg space-y-4 rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-200">

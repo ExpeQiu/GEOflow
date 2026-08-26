@@ -31,3 +31,13 @@
 - [ ] 参数一致率有 SSOT 时点亮门禁
 - [ ] GEOweb 分发成功 → remediation awaiting_rescan → ΔTop3
 - [ ] Embedding `ensure_production_ready` 在 Mock 关闭时 ready=true
+- [ ] 关 Mock 后跑 `python scripts/reindex_all_knowledge.py`（Mock 下脚本拒绝）
+
+## Embedding 全库重嵌
+
+1. `.env`：`AI_MOCK_MODE=false`；Admin 至少一个 active embedding 模型
+2. 重启 API + Celery Worker
+3. `GET /api/admin/knowledge-bases/embedding-ready` → `ready=true, mode=api`
+4. `python scripts/reindex_all_knowledge.py` 或知识库「全库重嵌」
+5. 抽查 RAG sandbox 命中新向量
+

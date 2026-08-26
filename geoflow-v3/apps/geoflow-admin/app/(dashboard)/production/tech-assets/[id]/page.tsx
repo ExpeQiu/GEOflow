@@ -8,7 +8,7 @@ import { HubNav } from "@/components/admin/HubNav";
 import { KnowledgeSubNav } from "@/components/production/KnowledgeSubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiGet, apiPatch, getToken } from "@/lib/api-client";
-import { PRODUCTION_NAV } from "@/lib/nav-config";
+import { PRODUCTION_MORE_NAV, PRODUCTION_NAV } from "@/lib/nav-config";
 
 export default function TechAssetEditPage() {
   const token = useAuthGuard();
@@ -40,7 +40,7 @@ export default function TechAssetEditPage() {
   return (
     <div>
       <HubHeader title="编辑技术 IP" subtitle="" />
-      <HubNav items={PRODUCTION_NAV} tone="emerald" />
+      <HubNav items={PRODUCTION_NAV} moreItems={PRODUCTION_MORE_NAV} tone="emerald" />
       <KnowledgeSubNav />
       <Link href="/production/tech-assets" className="mb-4 inline-block text-sm text-emerald-700">← 返回</Link>
       <form onSubmit={onSubmit} className="grid max-w-lg gap-3 rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-200">

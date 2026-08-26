@@ -24,6 +24,14 @@ from app.services.geoeval.competitive_analyzer import (
 from app.services.geoeval.entity_classifier import filter_matrix_by_entity
 from app.services.geoeval.monitor_probe import aggregate_probe_kpis
 from app.services.geoeval.platform_connectors.base import PLATFORMS_CN
+from app.services.geoeval.probe_scheme import (
+    SCHEME_CEND,
+    SCHEME_CITATION,
+    SCHEME_FRAMEWORK_API,
+    SCHEME_OPEN_API,
+    build_scheme_cards,
+    scheme_from_run_platform,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -231,6 +239,21 @@ async def build_collection_panel(db: AsyncSession) -> dict:
         "collection_window": window,
         "probe_count": kpis.get("probe_count", 0),
         "recent_runs": await _fetch_recent_runs(db),
+        "scheme_cards": await _scheme_cards(db, next_scan),
+    }
+
+
+def _run_row_to_dict(r) -> dict:
+    plat = str(r[2] or "")
+    completed = r[5]
+    return {
+        "id": int(r[0]),
+        "status": r[1],
+        "platform": plat,
+        "question_count": int(r[3] or 0),
+        "probe_count": int(r[4] or 0) if r[4] is not None else None,
+        "completed_at": completed.isoformat() if completed else None,
+        "scheme": scheme_from_run_platform(plat),
     }
 
 
@@ -248,17 +271,95 @@ async def _fetch_recent_runs(db: AsyncSession, limit: int = 8) -> list[dict]:
             {"lim": limit},
         )
     ).all()
-    return [
-        {
-            "id": int(r[0]),
-            "status": r[1],
-            "platform": r[2],
-            "question_count": int(r[3] or 0),
-            "probe_count": int(r[4] or 0) if r[4] is not None else None,
-            "completed_at": r[5].isoformat() if r[5] else None,
-        }
-        for r in rows
-    ]
+    return [_run_row_to_dict(r) for r in rows]
+
+
+async def _p80_question_count(db: AsyncSession) -> int:
+    if not await _table_exists(db, "geo_monitor_questions"):
+        return 0
+    try:
+        n = await db.scalar(
+            text(
+                """
+                SELECT COUNT(*) FROM geo_monitor_questions
+                WHERE status = 'active' AND COALESCE(priority, 0) >= 80
+                """
+            )
+        )
+        return int(n or 0)
+    except Exception:
+        logger.debug("p80_question_count_failed", exc_info=True)
+        return 0
+
+
+async def _scheme_probe_counts(db: AsyncSession) -> dict[str, int]:
+    if not await _table_exists(db, "geo_monitor_probe_results"):
+        return {}
+    try:
+        rows = (
+            await db.execute(
+                text(
+                    """
+                    SELECT COALESCE(scheme, 'open_api') AS sch, COUNT(*) AS cnt
+                    FROM geo_monitor_probe_results
+                    GROUP BY COALESCE(scheme, 'open_api')
+                    """
+                )
+            )
+        ).all()
+        return {str(r[0]): int(r[1]) for r in rows}
+    except Exception:
+        logger.debug("scheme_probe_counts_fallback", exc_info=True)
+        return {}
+
+
+async def _latest_runs_by_scheme(db: AsyncSession) -> dict[str, dict]:
+    if not await _table_exists(db, "geo_monitor_runs"):
+        return {}
+    rows = (
+        await db.execute(
+            text(
+                """
+                SELECT id, status, platform, question_count, probe_count, completed_at
+                FROM geo_monitor_runs ORDER BY id DESC LIMIT 24
+                """
+            )
+        )
+    ).all()
+    out: dict[str, dict] = {}
+    for r in rows:
+        item = _run_row_to_dict(r)
+        scheme = item["scheme"]
+        if scheme not in out:
+            out[scheme] = {
+                "id": item["id"],
+                "status": item["status"],
+                "probe_count": item["probe_count"],
+                "completed_at": item["completed_at"],
+            }
+    return out
+
+
+async def _scheme_cards(db: AsyncSession, next_scan: dict) -> list[dict]:
+    p80 = await _p80_question_count(db)
+    daily_q = int(next_scan.get("effective_questions") or 0)
+    cards = build_scheme_cards(
+        probe_counts=await _scheme_probe_counts(db),
+        latest_runs=await _latest_runs_by_scheme(db),
+        questions_estimated={
+            SCHEME_OPEN_API: daily_q,
+            SCHEME_FRAMEWORK_API: min(12, p80),
+            SCHEME_CITATION: min(12, p80),
+            SCHEME_CEND: min(5, p80),
+        },
+    )
+    logger.info(
+        "collection_scheme_cards daily_q=%s p80=%s counts=%s",
+        daily_q,
+        p80,
+        {c["scheme"]: c["probe_count"] for c in cards},
+    )
+    return cards
 
 
 async def build_brand_panel(db: AsyncSession) -> dict:

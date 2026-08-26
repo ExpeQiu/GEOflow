@@ -69,6 +69,7 @@ PYTHONPATH=. python ../scripts/migrate_gweb_channels_to_geoweb.py --delete # 直
 
 1. **轻量编辑台（Wave 1 已落地）**：GEOFlow Admin `/operations/wiki` 定稿与一键 sync，见 [ADR-011](./ADR/ADR-011-GEOweb-Wiki轻量编辑台.md)
 2. 生产语料来自 GEOFlow **KnowledgeBase**，生成草稿后再进编辑台（Wave 2）
+3. **Techstore 导入（ADR-014）**：只读灌入知识库 + 技术 IP，不把地图树当 Wiki 真源
 
 不把 Techstore 知识地图树当成 Wiki 真源：地图是运营结构，Wiki 是 GEO 可引用文本。
 

@@ -1,20 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { Brain, Database, Plus, RefreshCw } from "lucide-react";
+import { Brain, Database, Plus, RefreshCw, Library } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { zh } from "@/lib/i18n/zh";
-import type { KnowledgeItem, MaterialStats } from "@/lib/production-types";
+import type { KnowledgeItem, MaterialStats, TechstorePreview } from "@/lib/production-types";
 
 export function KnowledgePanel({
   stats,
   items,
   onSync,
+  onReindexAll,
+  onImportTechstore,
+  techstorePreview,
   busyId,
 }: {
   stats: MaterialStats;
   items: KnowledgeItem[];
   onSync: (id: number) => void;
+  onReindexAll?: () => void;
+  onImportTechstore?: () => void;
+  techstorePreview?: TechstorePreview | null;
   busyId: number | null;
 }) {
   const progress = stats.knowledge_chunks > 0 ? Math.round((stats.vectorized_chunks / stats.knowledge_chunks) * 100) : 0;
@@ -64,8 +70,43 @@ export function KnowledgePanel({
             <Link href="/production/url-import" className="inline-flex items-center rounded-md border border-orange-200 px-3 py-1.5 text-xs font-medium text-orange-700 hover:bg-orange-50">
               URL 导入
             </Link>
+            {onReindexAll && (
+              <button
+                type="button"
+                disabled={busyId === -1 || items.length === 0}
+                onClick={onReindexAll}
+                className="inline-flex items-center rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-50 disabled:opacity-50"
+              >
+                <RefreshCw className="mr-1 h-3 w-3" />
+                全库重嵌
+              </button>
+            )}
+            {onImportTechstore && (
+              <button
+                type="button"
+                disabled={busyId === -2}
+                onClick={onImportTechstore}
+                className="inline-flex items-center rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-50 disabled:opacity-50"
+                title={
+                  techstorePreview?.source === "live"
+                    ? zh.production.knowledge.importGeelyHintLive
+                    : zh.production.knowledge.importGeelyHintFixture
+                }
+              >
+                <Library className="mr-1 h-3 w-3" />
+                {zh.production.knowledge.importGeely}
+              </button>
+            )}
           </div>
         </div>
+        {techstorePreview && (
+          <p className="mt-3 text-xs text-gray-500">
+            {techstorePreview.source === "live" ? zh.production.knowledge.importGeelyHintLive : zh.production.knowledge.importGeelyHintFixture}
+            {techstorePreview.kb_names?.length
+              ? ` · 将写入 ${techstorePreview.kb_names.length} 个知识库 / ${techstorePreview.asset_count} 个技术 IP`
+              : ""}
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-6 px-6 py-6 lg:grid-cols-4">

@@ -41,7 +41,7 @@ class TaskLifecycleService:
             is_loop=int(data.get("is_loop", 1)),
             category_mode=data.get("category_mode", "smart"),
             model_selection_mode=data.get("model_selection_mode", "fixed"),
-            content_pipeline_mode=data.get("content_pipeline_mode", "legacy"),
+            content_pipeline_mode=data.get("content_pipeline_mode", "pipeline"),
             auto_keywords=int(data.get("auto_keywords", 1)),
             auto_description=int(data.get("auto_description", 1)),
             schedule_enabled=1 if data.get("status", "active") == "active" else 0,

@@ -46,6 +46,13 @@ export function ArticlesPanel({
   }
   return (
     <div>
+      <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-950">
+        文章列表是 CMS 兼容入口。技术品牌主路径请用{" "}
+        <Link href="/operations/wiki" className="font-medium underline">
+          Wiki 编辑台
+        </Link>
+        定稿并同步 GEOweb。
+      </div>
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
         <Stat icon={FileText} label={zh.articles.statsTotal} value={stats.total} color="text-blue-600" />
         <Stat icon={Globe} label={zh.articles.statsPublished} value={stats.published} color="text-green-600" />

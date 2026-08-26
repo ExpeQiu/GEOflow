@@ -14,7 +14,9 @@ from app.models.distribution import DistributionChannel
 
 logger = logging.getLogger(__name__)
 
-CHANNEL_TYPES = ("geoflow_agent", "geoweb", "wordpress_rest", "generic_http_api")
+CHANNEL_TYPES = ("geoweb", "geoflow_agent", "wordpress_rest", "generic_http_api")
+DEFAULT_CREATE_TYPES = ("geoweb",)
+ADVANCED_CHANNEL_TYPES = ("geoflow_agent", "wordpress_rest", "generic_http_api")
 
 
 class AdminDistributionCreateBody(BaseModel):
@@ -51,10 +53,10 @@ class AdminDistributionCreateBody(BaseModel):
 
 def build_distribution_form_options() -> dict[str, Any]:
     settings = get_settings()
-    default_type = "geoweb" if settings.geoflow_tech_brand_mode else "geoflow_agent"
     return {
-        "default_channel_type": default_type,
-        "channel_types": list(CHANNEL_TYPES),
+        "default_channel_type": "geoweb",
+        "channel_types": list(DEFAULT_CREATE_TYPES),
+        "advanced_channel_types": list(ADVANCED_CHANNEL_TYPES),
         "tech_brand_mode": settings.geoflow_tech_brand_mode,
         "default_geoweb_base_url": (settings.geoweb_base_url or "").rstrip("/"),
     }

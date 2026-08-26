@@ -6,7 +6,9 @@
 
 - **backend/** — FastAPI + SQLAlchemy + Celery + LangGraph（内嵌 content-agent）
 - **apps/geoflow-admin/** — Next.js 16 独立管理后台
-- **Gweb** — 公网 Wiki 展现（外部仓库，wiki/sync 契约不变）
+- **GEOweb** — 官方技术发布站（外部仓库，`/api/geoflow/sync`）
+
+产品面收口见 [ADR-013](../guide/ADR/ADR-013-产品面收口与实验室分层.md)。仓内 RAG/Sim/content-lg CLI 为归档外挂，运行时不依赖。
 
 ## 启动
 

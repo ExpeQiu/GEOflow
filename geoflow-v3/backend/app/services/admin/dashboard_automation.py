@@ -94,27 +94,27 @@ def build_automation(stats: dict[str, int]) -> dict[str, Any]:
             "blue",
             task_status,
             [f"启用 {active_tasks}", f"排队 {pending_jobs}", f"失败 {failed_jobs}"],
-            [("/operations/tasks", "任务", True)],
+            [("/production/tasks", "任务", True)],
         ),
         _node(
             "content",
-            "内容生产",
-            "草稿生成与发布节奏",
+            "Wiki 定稿",
+            "复合包与 GEOweb 同步",
             "file-plus-2",
             "green",
             content_status,
             [f"草稿 {draft_articles}", f"今日 {today_articles}"],
-            [("/operations/articles", "文章", False)],
+            [("/operations/wiki", "Wiki", False)],
         ),
         _node(
             "review",
-            "审核发布",
-            "待审与已发布内容",
+            "Wiki 发布",
+            "门禁与已同步页面",
             "badge-check",
             "amber",
             review_status,
             [f"待审 {pending_review}", f"已发布 {published_articles}"],
-            [("/operations/articles", "审核", False, pending_review > 0)],
+            [("/operations/wiki", "定稿", False, pending_review > 0)],
         ),
         _node(
             "geo_eval",
@@ -154,8 +154,8 @@ def build_automation(stats: dict[str, int]) -> dict[str, Any]:
             _rec(eval_failed, "GEO 评估失败", "有文章未通过 GEO 门禁", "shield-alert", "cyan", "/production/geo-eval", "打开诊断"),
             _rec(distribution_failed, "分发失败", "远端同步存在失败项", "triangle-alert", "red", "/operations/distribution", "处理失败"),
             _rec(unvectorized_chunks, "切片未向量化", "知识片段尚未完成 embedding", "database-zap", "amber", "/production/knowledge", "同步切片"),
-            _rec(pending_review, "待审核文章", "有内容等待人工审核", "badge-check", "blue", "/operations/articles", "进入审核"),
-            _rec(failed_jobs, "任务失败", "队列中存在失败任务", "activity", "red", "/operations/tasks", "排查任务"),
+            _rec(pending_review, "待定稿 Wiki", "有内容等待 Wiki 定稿", "badge-check", "blue", "/operations/wiki", "打开 Wiki"),
+            _rec(failed_jobs, "任务失败", "队列中存在失败任务", "activity", "red", "/production/tasks", "排查任务"),
         ]
         if r
     ]
@@ -168,9 +168,9 @@ def build_automation(stats: dict[str, int]) -> dict[str, Any]:
             "title_key": "single",
             "rows": [
                 _lane("配置 AI", "模型与 Prompt", "/production/ai_config", "cpu", chat_models + embedding_models),
-                _lane("素材库", "知识库与素材", "/production/materials", "database", knowledge_bases),
-                _lane("创建任务", "启动生产", "/operations/tasks", "plus-circle", total_tasks),
-                _lane("文章管理", "审核与发布", "/operations/articles", "file-text", total_articles),
+                _lane("知识库", "知识库与切片", "/production/knowledge", "database", knowledge_bases),
+                _lane("创建任务", "启动生产", "/production/tasks", "plus-circle", total_tasks),
+                _lane("Wiki 定稿", "审核与同步", "/operations/wiki", "file-text", total_articles),
             ],
         },
         {

@@ -13,10 +13,10 @@ export function OperationsOverview({ stats }: { stats: OpsStats }) {
         tone="blue"
       />
       <OverviewCard
-        label={zh.operations.tabs.articles}
+        label={zh.operations.tabs.wiki}
         value={stats.total_articles}
         meta={zh.operations.overview.pendingReview(stats.pending_review)}
-        href="/operations/articles"
+        href="/operations/wiki"
         tone="emerald"
       />
       <OverviewCard

@@ -87,7 +87,7 @@ export const DEFAULT_TASK_FORM: TaskCreatePayload = {
   publish_interval: 60,
   category_mode: "smart",
   model_selection_mode: "fixed",
-  content_pipeline_mode: "legacy",
+  content_pipeline_mode: "pipeline",
   content_format: "article",
   wiki_page_type: "concept",
   tech_ip_asset_id: null,

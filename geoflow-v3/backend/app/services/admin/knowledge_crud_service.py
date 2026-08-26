@@ -96,6 +96,37 @@ async def delete_knowledge_base(db: AsyncSession, kb_id: int) -> dict:
     return {"deleted": True}
 
 
+async def upsert_knowledge_base_by_name(
+    db: AsyncSession,
+    *,
+    name: str,
+    description: str,
+    content: str,
+) -> tuple[int, str]:
+    """按名称幂等写入。返回 (id, created|updated)。"""
+    name = name.strip()[:100]
+    existing = (await db.execute(select(KnowledgeBase).where(KnowledgeBase.name == name))).scalars().first()
+    if existing:
+        existing.description = description
+        existing.content = content
+        existing.character_count = len(content)
+        existing.word_count = len(content.split())
+        await db.flush()
+        logger.info("knowledge_base_upserted id=%s name=%s action=updated", existing.id, name)
+        return existing.id, "updated"
+    kb = KnowledgeBase(
+        name=name,
+        description=description,
+        content=content,
+        character_count=len(content),
+        word_count=len(content.split()),
+    )
+    db.add(kb)
+    await db.flush()
+    logger.info("knowledge_base_upserted id=%s name=%s action=created", kb.id, name)
+    return kb.id, "created"
+
+
 async def append_knowledge_file_content(db: AsyncSession, kb_id: int, content: str, filename: str) -> dict:
     kb = await db.get(KnowledgeBase, kb_id)
     if kb is None:

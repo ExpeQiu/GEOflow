@@ -20,7 +20,7 @@ import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { useTaskWebSocket } from "@/hooks/use-task-websocket";
 import { apiDelete, apiGet, apiPost, apiPut, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
-import { PRODUCTION_NAV } from "@/lib/nav-config";
+import { PRODUCTION_MORE_NAV, PRODUCTION_NAV } from "@/lib/nav-config";
 import type { AdminTask } from "@/lib/operations-types";
 import type {
   AiStats,
@@ -28,6 +28,8 @@ import type {
   MaterialStats,
   OrchestrationStats,
   TechAsset,
+  TechstoreImportResult,
+  TechstorePreview,
   WorkflowCatalog,
 } from "@/lib/production-types";
 import type {
@@ -56,6 +58,7 @@ export default function ProductionPage() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [flash, setFlash] = useState<{ variant: "success" | "error"; message: string } | null>(null);
   const [knowledgeHealth, setKnowledgeHealth] = useState<KnowledgeHealth>("empty");
+  const [techstorePreview, setTechstorePreview] = useState<TechstorePreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [geoEval, setGeoEval] = useState<GeoEvalSummary | null>(null);
   const [gate, setGate] = useState<GateConfig | null>(null);
@@ -91,6 +94,12 @@ export default function ProductionPage() {
         setStats(data.stats);
         setKnowledgeItems(data.items);
         setOrchestration(data.orchestration);
+        try {
+          const preview = await apiGet<TechstorePreview>("/api/admin/knowledge-bases/techstore-preview", t);
+          setTechstorePreview(preview);
+        } catch {
+          setTechstorePreview(null);
+        }
       } else if (tab === "ai_config") {
         const data = await apiGet<{
           ai_stats: AiStats;
@@ -200,6 +209,43 @@ export default function ProductionPage() {
       await reload();
     } catch {
       setFlash({ variant: "error", message: `知识库 #${kbId} 同步失败` });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function reindexAllKnowledge() {
+    const t = getToken();
+    if (!t) return;
+    setBusyId(-1);
+    try {
+      const res = await apiPost<{ count: number }>("/api/admin/knowledge-bases/reindex-all", t);
+      setFlash({ variant: "success", message: `已排队全库重嵌 ${res.count} 个知识库（需 AI_MOCK_MODE=false）` });
+    } catch {
+      setFlash({ variant: "error", message: "全库重嵌入队失败" });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function importTechstoreKnowledge() {
+    const t = getToken();
+    if (!t) return;
+    setBusyId(-2);
+    try {
+      const res = await apiPost<TechstoreImportResult>("/api/admin/knowledge-bases/import-techstore", t, {
+        source: "auto",
+        sync_chunks: true,
+      });
+      const kb = res.knowledge_bases;
+      const ip = res.tech_assets;
+      setFlash({
+        variant: "success",
+        message: `吉利知识库已导入（${res.source ?? "auto"}）：知识库 +${kb?.created ?? 0}/更新 ${kb?.updated ?? 0}，技术 IP +${ip?.created ?? 0}/更新 ${ip?.updated ?? 0}`,
+      });
+      await reload();
+    } catch {
+      setFlash({ variant: "error", message: "导入吉利知识库失败（检查 TECHSTORE_DATABASE_URL 或使用 fixture）" });
     } finally {
       setBusyId(null);
     }
@@ -341,7 +387,7 @@ export default function ProductionPage() {
   return (
     <div>
       <HubHeader title={headerTitle} subtitle={headerSubtitle} />
-      <HubNav items={PRODUCTION_NAV} tone="emerald" />
+      <HubNav items={PRODUCTION_NAV} moreItems={PRODUCTION_MORE_NAV} tone="emerald" />
       {(tab === "knowledge" || tab === "tech-assets") && <KnowledgeSubNav />}
       {tab === "ai_config" && <AiConfigSubNav />}
 
@@ -375,7 +421,15 @@ export default function ProductionPage() {
       {tab === "materials" && stats && <MaterialsPanel stats={stats} />}
 
       {tab === "knowledge" && stats && (
-        <KnowledgePanel stats={stats} items={knowledgeItems} busyId={busyId} onSync={syncKb} />
+        <KnowledgePanel
+          stats={stats}
+          items={knowledgeItems}
+          busyId={busyId}
+          onSync={syncKb}
+          onReindexAll={reindexAllKnowledge}
+          onImportTechstore={importTechstoreKnowledge}
+          techstorePreview={techstorePreview}
+        />
       )}
 
       {tab === "ai_config" && aiStats && orchestration && workflowCatalog && (

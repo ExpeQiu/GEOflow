@@ -14,12 +14,20 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { clearToken } from "@/lib/api-client";
-import { zh } from "@/lib/i18n/zh";
+import { LocaleSwitcher } from "@/components/admin/LocaleSwitcher";
+import { useI18n } from "@/lib/i18n";
 import { resolveActiveNav, TOP_NAV } from "@/lib/nav-config";
 
 export function AdminHeader({ version = "3.0.0" }: { version?: string }) {
   const pathname = usePathname();
   const active = resolveActiveNav(pathname);
+  const { messages: zh } = useI18n();
+  const navLabel: Record<string, string> = {
+    dashboard: zh.nav.dashboard,
+    strategy_hub: zh.nav.strategyHub,
+    production_hub: zh.nav.productionHub,
+    operations_hub: zh.nav.operationsHub,
+  };
   const [userOpen, setUserOpen] = useState(false);
   const [notifyOpen, setNotifyOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -66,7 +74,7 @@ export function AdminHeader({ version = "3.0.0" }: { version?: string }) {
                     active === item.key ? "font-medium text-blue-600" : "text-gray-500 hover:text-gray-700",
                   )}
                 >
-                  {item.label}
+                  {navLabel[item.key] ?? item.label}
                 </Link>
               </span>
             ))}
@@ -74,6 +82,7 @@ export function AdminHeader({ version = "3.0.0" }: { version?: string }) {
         </nav>
 
         <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+          <LocaleSwitcher compact />
           <div className="relative">
             <button
               type="button"
@@ -181,7 +190,7 @@ export function AdminHeader({ version = "3.0.0" }: { version?: string }) {
                 active === item.key ? "bg-blue-100 text-blue-600" : "text-gray-600 hover:bg-gray-100",
               )}
             >
-              {item.label}
+              {navLabel[item.key] ?? item.label}
             </Link>
           ))}
           <button type="button" onClick={logout} className="mt-2 block w-full rounded-md px-3 py-2 text-left text-base text-red-600 hover:bg-gray-100">

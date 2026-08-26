@@ -21,6 +21,12 @@ DEFAULT_WIKI_DOMAINS = (
     "wikiwand.com",
 )
 
+# 探针设置未填官域时的保底（吉利主站 / 极氪）；可被 official_domains 覆盖
+DEFAULT_OFFICIAL_DOMAINS = (
+    "geely.com",
+    "zeekrlife.com",
+)
+
 THIRD_PARTY_HINTS = (
     "dongchedi",
     "autohome",
@@ -202,6 +208,9 @@ async def load_domain_catalog(db: AsyncSession) -> dict[str, Any]:
             logger.debug("domain_catalog_channels_skip", exc_info=True)
 
     official = _alias_loopback(list(dict.fromkeys(official)))
+    if not official:
+        official = list(DEFAULT_OFFICIAL_DOMAINS)
+        logger.info("domain_catalog_default_official applied domains=%s", official)
     competitors = list(dict.fromkeys(competitors))
     wiki = list(dict.fromkeys(wiki))
     logger.info(

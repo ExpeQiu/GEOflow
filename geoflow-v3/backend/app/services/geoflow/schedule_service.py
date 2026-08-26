@@ -13,7 +13,7 @@ logger = get_logger("geoflow.schedule")
 
 
 async def run_scheduled_tasks(db: AsyncSession) -> dict:
-    now = datetime.now(UTC)
+    now = datetime.now(UTC).replace(tzinfo=None)
     tasks = (
         await db.execute(
             select(Task).where(

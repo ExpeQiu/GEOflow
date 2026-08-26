@@ -1,8 +1,8 @@
 # Sim-sandbox-CLI
 
-独立 **探针真值标定仿真沙箱** CLI：答文解析（Rank v2 / Citation L0–L1）、夹具评测、Open-API vs 金标偏移对照。
+独立 **探针真值标定仿真沙箱**（归档外挂）。
 
-> **外挂**：不修改、不依赖运行中的 GEOFlow 闭环。主栈已自建 `answer_parser`（v2）；本仓继续做夹具评测与 `calibrate` 辅轨偏移（禁止改写主 KPI）。见 [guide/cli-plugins.md](../guide/cli-plugins.md)。
+> **归档**：主栈不安装。主栈已自建 `answer_parser`；本仓仅夹具评测与 `calibrate` 辅轨。见 [guide/cli-plugins.md](../guide/cli-plugins.md)。
 ## 安装
 
 ```bash

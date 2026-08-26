@@ -8,7 +8,7 @@ import { KnowledgeSubNav } from "@/components/production/KnowledgeSubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiGet, apiPost, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
-import { PRODUCTION_NAV } from "@/lib/nav-config";
+import { PRODUCTION_MORE_NAV, PRODUCTION_NAV } from "@/lib/nav-config";
 
 type KbOption = { id: number; name: string };
 type Hit = {
@@ -69,7 +69,7 @@ export default function RagSandboxPage() {
   return (
     <div>
       <HubHeader title={zh.production.tabs.knowledge} subtitle="测试知识库召回质量" />
-      <HubNav items={PRODUCTION_NAV} tone="emerald" />
+      <HubNav items={PRODUCTION_NAV} moreItems={PRODUCTION_MORE_NAV} tone="emerald" />
       <KnowledgeSubNav />
       {error && <FlashAlert variant="error">{error}</FlashAlert>}
       <form onSubmit={onSubmit} className="mb-6 space-y-3 rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">

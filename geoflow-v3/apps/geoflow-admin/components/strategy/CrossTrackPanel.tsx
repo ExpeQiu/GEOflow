@@ -58,7 +58,7 @@ export function CrossTrackPanel() {
       const res = await apiPost<{ theme?: { id: number } }>(
         "/api/admin/strategy/cross-track/spawn-theme",
         t,
-        { question_id: it.question_id, flags: it.flags || [] },
+        { question_id: it.question_id, flags: it.flags || [], unused_dims: it.unused_dims || [] },
       );
       const themeId = res.theme?.id;
       if (themeId) setSpawned((prev) => ({ ...prev, [it.question_id]: themeId }));
@@ -91,6 +91,11 @@ export function CrossTrackPanel() {
             return (
               <li key={it.question_id} className="rounded-md border border-gray-100 px-3 py-2 text-xs">
                 <p className="line-clamp-1 text-gray-800">{it.question_text}</p>
+                {(it.unused_dims || []).length > 0 ? (
+                  <p className="mt-0.5 line-clamp-2 text-[11px] text-gray-500">
+                    A 轨未用维度：{(it.unused_dims || []).slice(0, 3).join(" · ")}
+                  </p>
+                ) : null}
                 <div className="mt-1 flex flex-wrap items-center gap-1">
                   {(it.tracks_present || []).map((t) => (
                     <span key={t} className="rounded bg-slate-50 px-1.5 py-0.5 text-slate-600">

@@ -38,14 +38,17 @@ async def _complete_theme_after_lift(db: AsyncSession, remediation_id: int) -> N
                         WHERE id = :rid AND theme_id IS NOT NULL
                     )
                   )
+                RETURNING id
                 """
             ),
             {"rid": remediation_id},
         )
+        theme_ids = [int(r[0]) for r in result.all()]
         logger.info(
-            "theme_completed_after_lift remediation_id=%s updated=%s",
+            "theme_completed_after_lift remediation_id=%s theme_ids=%s updated=%s",
             remediation_id,
-            result.rowcount,
+            theme_ids,
+            len(theme_ids),
         )
     except Exception:
         logger.warning("theme_complete_after_lift_failed remediation_id=%s", remediation_id, exc_info=True)

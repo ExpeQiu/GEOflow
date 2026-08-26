@@ -152,6 +152,23 @@ class ApiConnector:
             parsed.match_type,
             citation_method,
         )
+        url_status: dict[str, str] = {}
+        evidence = parsed.evidence_level
+        if enable_citation and parsed.urls and not _mock_enabled():
+            from app.services.geoeval.url_live_check import DEAD, LIVE, classify_url_liveness
+
+            url_status = await classify_url_liveness(list(parsed.urls))
+            live_n = sum(1 for v in url_status.values() if v == LIVE)
+            dead_n = sum(1 for v in url_status.values() if v == DEAD)
+            if live_n == 0 and dead_n > 0:
+                evidence = "L0"
+            logger.info(
+                "citation_url_live scheme=%s live=%s dead=%s evidence=%s",
+                scheme,
+                live_n,
+                dead_n,
+                evidence,
+            )
         outcome = ProbeOutcome(
             question_id=0,
             platform=platform,
@@ -162,7 +179,7 @@ class ApiConnector:
             ranking_score=parsed.ranking_score,
             competitor_mentions=list(parsed.competitor_mentions),
             rank_method=parsed.rank_method,
-            evidence_level=parsed.evidence_level,
+            evidence_level=evidence,
             match_type=parsed.match_type,
             parser_version=PARSER_VERSION,
             urls=list(parsed.urls),
@@ -170,6 +187,7 @@ class ApiConnector:
             source_hosts=_hosts_of(parsed.urls),
             thinking_text=(reasoning[:8000] if reasoning else None),
             citation_method=citation_method,
+            cend_meta={"url_status": url_status} if url_status else {},
         )
         return stamp_outcome(outcome, scheme=scheme)
 
@@ -179,9 +197,13 @@ class ApiConnector:
             if enable_thinking and _mock_enabled():
                 return MOCK_ANSWER, MOCK_COT
             raise ValueError("DEEPSEEK_API_KEY missing")
-        base = os.getenv("DEEPSEEK_API_BASE", "https://api.deepseek.com")
+        base = (
+            os.getenv("DEEPSEEK_API_BASE")
+            or os.getenv("DEEPSEEK_BASE_URL")
+            or "https://api.deepseek.com"
+        ).rstrip("/")
         if enable_thinking:
-            model = os.getenv("DEEPSEEK_THINKING_MODEL") or os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+            model = os.getenv("DEEPSEEK_THINKING_MODEL") or "deepseek-reasoner"
             max_tokens = int(os.getenv("DEEPSEEK_THINKING_MAX_TOKENS", "4000"))
             timeout = 90.0
         else:
@@ -193,14 +215,24 @@ class ApiConnector:
             "messages": [{"role": "user", "content": question}],
             "max_tokens": max_tokens,
         }
-        if enable_thinking:
-            payload["thinking"] = {"type": "enabled"}
+        logger.info(
+            "deepseek_chat_request model=%s thinking=%s base=%s",
+            model,
+            enable_thinking,
+            base,
+        )
         async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.post(
-                f"{base.rstrip('/')}/chat/completions",
+                f"{base}/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}"},
                 json=payload,
             )
+            if resp.status_code >= 400:
+                logger.warning(
+                    "deepseek_chat_http status=%s body=%s",
+                    resp.status_code,
+                    (resp.text or "")[:240],
+                )
             resp.raise_for_status()
             data = resp.json()
             msg = ((data.get("choices") or [{}])[0].get("message")) or {}

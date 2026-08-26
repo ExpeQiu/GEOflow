@@ -1,8 +1,8 @@
 # RAG-CLI
 
-独立 RAG / Embedding **生产作业** CLI：切分、同步重建、检索。
+独立 RAG / Embedding **归档外挂** CLI：切分、同步重建、检索。
 
-> **外挂**：不修改、不依赖运行中的 GEOFlow 闭环。契约对齐 v3 RAG，本地 JSON store + Mock embedding。见 [guide/geoflow-contract.md](./guide/geoflow-contract.md) 与仓库 [guide/cli-plugins.md](../guide/cli-plugins.md)。
+> **归档**：主栈不安装、生产不 `import`。`./start.sh` 仅跑 `verify.sh`，无常驻服务。契约见 [guide/cli-plugins.md](../guide/cli-plugins.md)。
 ## 安装
 
 ```bash

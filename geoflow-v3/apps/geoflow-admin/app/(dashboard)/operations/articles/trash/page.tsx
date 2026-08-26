@@ -8,7 +8,7 @@ import { HubNav } from "@/components/admin/HubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiDelete, apiGet, apiPost, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
-import { OPERATIONS_NAV } from "@/lib/nav-config";
+import { OPERATIONS_MORE_NAV, OPERATIONS_NAV } from "@/lib/nav-config";
 
 type TrashedArticle = { id: number; title: string; status: string; deleted_at: string | null };
 
@@ -45,7 +45,7 @@ export default function ArticleTrashPage() {
   return (
     <div>
       <HubHeader title={zh.articleTrash.title} subtitle="" />
-      <HubNav items={OPERATIONS_NAV} tone="blue" />
+      <HubNav items={OPERATIONS_NAV} moreItems={OPERATIONS_MORE_NAV} tone="blue" />
       {flash && <FlashAlert variant="error">{flash}</FlashAlert>}
       <div className="mb-4">
         <Link href="/operations/articles" className="text-sm text-blue-600 hover:text-blue-700">← 返回文章列表</Link>

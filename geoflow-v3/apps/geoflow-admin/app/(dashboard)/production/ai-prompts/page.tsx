@@ -7,7 +7,7 @@ import { AiConfigSubNav } from "@/components/production/AiConfigSubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiDelete, apiGet, apiPatch, apiPost, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
-import { PRODUCTION_NAV } from "@/lib/nav-config";
+import { PRODUCTION_MORE_NAV, PRODUCTION_NAV } from "@/lib/nav-config";
 
 type PromptRow = { id: number; name: string; type: string; content_preview: string };
 
@@ -64,7 +64,7 @@ export default function AiPromptsPage() {
   return (
     <div>
       <HubHeader title={zh.production.tabs.ai_config} subtitle={zh.production.aiConfigSub.prompts} />
-      <HubNav items={PRODUCTION_NAV} tone="emerald" />
+      <HubNav items={PRODUCTION_NAV} moreItems={PRODUCTION_MORE_NAV} tone="emerald" />
       <AiConfigSubNav />
       <form onSubmit={onSubmit} className="mb-6 space-y-2 rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
         <div className="grid gap-2 md:grid-cols-2">

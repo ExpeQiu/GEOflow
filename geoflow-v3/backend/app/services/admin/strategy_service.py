@@ -29,7 +29,6 @@ async def build_strategy_overview(db: AsyncSession) -> dict:
         "tech_brand": await _tech_brand_metrics(db),
         "monitor": await _monitor_kpis(db),
         "analytics": await _analytics_snapshot(db),
-        "gweb_alignment": await compute_geoweb_alignment(db),
         "geoweb_alignment": await compute_geoweb_alignment(db),
         "remediations": rem.get("items", []),
     }

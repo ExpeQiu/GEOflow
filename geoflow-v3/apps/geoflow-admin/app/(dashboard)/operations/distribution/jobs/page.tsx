@@ -8,7 +8,7 @@ import { DistributionSubNav } from "@/components/operations/DistributionSubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiDelete, apiGet, apiPatch, apiPost, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
-import { OPERATIONS_NAV } from "@/lib/nav-config";
+import { OPERATIONS_MORE_NAV, OPERATIONS_NAV } from "@/lib/nav-config";
 
 type JobRow = {
   id: number;
@@ -76,7 +76,7 @@ export default function DistributionJobsPage() {
   return (
     <div>
       <HubHeader title={zh.distribution.jobsTitle} subtitle="" />
-      <HubNav items={OPERATIONS_NAV} tone="blue" />
+      <HubNav items={OPERATIONS_NAV} moreItems={OPERATIONS_MORE_NAV} tone="blue" />
       <DistributionSubNav />
       <Link href="/operations/distribution" className="mb-4 inline-block text-sm text-blue-600">← 返回分发概览</Link>
 

@@ -278,6 +278,23 @@ export type MonitorRun = {
   question_count: number;
   probe_count?: number;
   completed_at: string | null;
+  scheme?: string | null;
+};
+
+export type SchemeCard = {
+  scheme: string;
+  tracks: string[];
+  label: string;
+  kpi_note: string;
+  covers_kpi: boolean;
+  probe_count: number;
+  questions_estimated: number;
+  latest_run?: {
+    id: number;
+    status: string;
+    probe_count: number | null;
+    completed_at: string | null;
+  } | null;
 };
 
 export type MonitorProbe = {
@@ -478,6 +495,7 @@ export type CollectionPanel = {
   collection_window: { period_start: string | null; period_end: string | null };
   probe_count: number;
   recent_runs: MonitorRun[];
+  scheme_cards?: SchemeCard[];
 };
 
 export type PlatformBreakdownRow = {

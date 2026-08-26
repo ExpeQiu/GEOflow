@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     celery_broker_url: str = "redis://localhost:6379/0"
     celery_result_backend: str = "redis://localhost:6379/1"
 
+    # Techstore 只读 Postgres（吉利知识地图/FAQ/文档）。空则导入走 fixture
+    techstore_database_url: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

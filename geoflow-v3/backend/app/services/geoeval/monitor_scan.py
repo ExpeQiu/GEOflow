@@ -168,42 +168,59 @@ class MonitorScanOrchestrator:
         from app.services.geoeval.insight_generator import generate_monitor_insights
         from app.services.geoeval.monitor_alerts import check_monitor_alerts
 
-        await batch_analyze_probe_sentiments(self.db, run_id)
+        gap_result: dict = {"scenes": [], "high_gap_count": 0}
+        citation_cache: dict = {}
+        alerts: dict = {"alerts_created": 0}
+        matrix: dict = {}
+        kpis: dict = {}
+        post_error: str | None = None
+        try:
+            await batch_analyze_probe_sentiments(self.db, run_id)
 
-        if scene_id is not None:
-            gap_result = {"scenes": [await compute_scene_gap(self.db, scene_id)], "high_gap_count": 0}
-            if gap_result["scenes"] and gap_result["scenes"][0].get("gap_priority") == "high":
-                gap_result["high_gap_count"] = 1
-        else:
-            gap_result = await compute_all_scene_gaps(self.db)
+            if scene_id is not None:
+                gap_result = {"scenes": [await compute_scene_gap(self.db, scene_id)], "high_gap_count": 0}
+                if gap_result["scenes"] and gap_result["scenes"][0].get("gap_priority") == "high":
+                    gap_result["high_gap_count"] = 1
+            else:
+                gap_result = await compute_all_scene_gaps(self.db)
 
-        if scan_type == "market":
-            from app.services.geoeval.competitive_analyzer import build_competitor_matrix
+            if scan_type == "market":
+                from app.services.geoeval.competitive_analyzer import build_competitor_matrix
 
-            matrix = await build_competitor_matrix(self.db)
-        else:
-            matrix = {}
+                matrix = await build_competitor_matrix(self.db)
 
-        if scan_type != "remediation":
-            await generate_monitor_insights(self.db)
-            await aggregate_monitor_snapshot(self.db)
-            from app.services.admin.distribution_citation_service import refresh_distribution_citation_cache
+            if scan_type != "remediation":
+                await generate_monitor_insights(self.db)
+                await aggregate_monitor_snapshot(self.db)
+                from app.services.admin.distribution_citation_service import refresh_distribution_citation_cache
 
-            citation_cache = await refresh_distribution_citation_cache(self.db)
-            alerts = await check_monitor_alerts(self.db)
-        else:
-            citation_cache = {}
-            alerts = {"alerts_created": 0}
+                citation_cache = await refresh_distribution_citation_cache(self.db)
+                alerts = await check_monitor_alerts(self.db)
 
-        kpis = await aggregate_probe_kpis(self.db, scene_id=scene_id, run_id=run_id)
+            kpis = await aggregate_probe_kpis(self.db, scene_id=scene_id, run_id=run_id)
+        except Exception as exc:
+            post_error = f"{type(exc).__name__}: {exc}"
+            logger.warning(
+                "monitor_scan_postprocess_failed run_id=%s scan_type=%s error=%s",
+                run_id,
+                scan_type,
+                post_error,
+                exc_info=True,
+            )
+            if not kpis:
+                try:
+                    kpis = await aggregate_probe_kpis(self.db, scene_id=scene_id, run_id=run_id)
+                except Exception:
+                    kpis = {}
         logger.info(
-            "monitor_scan_completed scan_type=%s probes=%s run_id=%s visibility=%s scene_id=%s engines=%s",
+            "monitor_scan_completed scan_type=%s probes=%s run_id=%s visibility=%s scene_id=%s engines=%s post_error=%s",
             scan_type,
             probe_count,
             run_id,
             kpis.get("visibility_pct"),
             scene_id,
             kpis.get("engine_mix"),
+            post_error,
         )
         return {
             "status": "completed",
@@ -226,6 +243,7 @@ class MonitorScanOrchestrator:
                 "not_indexed": citation_cache.get("not_indexed_count", 0),
                 "alerts_created": citation_cache.get("alerts_created", 0),
             },
+            "postprocess_error": post_error,
         }
 
     async def run_daily_scan(self) -> dict:

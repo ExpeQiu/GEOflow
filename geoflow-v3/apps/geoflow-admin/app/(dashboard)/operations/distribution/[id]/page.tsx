@@ -10,7 +10,7 @@ import { HubNav } from "@/components/admin/HubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiDelete, apiGet, apiPatch, apiPost, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
-import { OPERATIONS_NAV } from "@/lib/nav-config";
+import { OPERATIONS_MORE_NAV, OPERATIONS_NAV } from "@/lib/nav-config";
 
 type ChannelDetail = {
   id: number;
@@ -95,7 +95,7 @@ export default function DistributionChannelPage() {
   return (
     <div>
       <HubHeader title="渠道详情" subtitle="" />
-      <HubNav items={OPERATIONS_NAV} tone="blue" />
+      <HubNav items={OPERATIONS_NAV} moreItems={OPERATIONS_MORE_NAV} tone="blue" />
       <Link href="/operations/distribution" className="mb-4 inline-flex items-center text-sm text-gray-500 hover:text-gray-700">
         <ArrowLeft className="mr-1 h-4 w-4" /> 返回分发列表
       </Link>

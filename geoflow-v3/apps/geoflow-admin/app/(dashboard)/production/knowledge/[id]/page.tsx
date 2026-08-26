@@ -9,7 +9,7 @@ import { FlashAlert } from "@/components/admin/FlashAlert";
 import { KnowledgeSubNav } from "@/components/production/KnowledgeSubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiDelete, apiGet, apiPatch, apiPost, apiUpload, getToken } from "@/lib/api-client";
-import { PRODUCTION_NAV } from "@/lib/nav-config";
+import { PRODUCTION_MORE_NAV, PRODUCTION_NAV } from "@/lib/nav-config";
 
 type ChunkRow = { id: number; chunk_index: number; token_count: number; preview: string };
 
@@ -57,7 +57,7 @@ export default function KnowledgeEditPage() {
   return (
     <div>
       <HubHeader title={isNew ? "新建知识库" : "编辑知识库"} subtitle="" />
-      <HubNav items={PRODUCTION_NAV} tone="emerald" />
+      <HubNav items={PRODUCTION_NAV} moreItems={PRODUCTION_MORE_NAV} tone="emerald" />
       <KnowledgeSubNav />
       <Link href="/production/knowledge" className="mb-4 inline-block text-sm text-emerald-700">← 返回</Link>
       {saveMsg && <FlashAlert variant="success">{saveMsg}</FlashAlert>}

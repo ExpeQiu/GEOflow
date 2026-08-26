@@ -48,3 +48,6 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 pythonpath = ["."]
+markers = [
+    "live: real platform API keys; skipped unless GEOFLOW_LIVE_PROBE=1",
+]

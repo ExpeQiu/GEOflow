@@ -1,5 +1,6 @@
 """GEO Monitor 探针 — 多平台连接器 + AIVIS 度量聚合。"""
 
+import json
 import logging
 
 from sqlalchemy import text
@@ -23,6 +24,28 @@ logger = logging.getLogger(__name__)
 PLATFORMS = PLATFORMS_CN
 
 
+def parse_brand_aliases(raw: str | None) -> list[str]:
+    """解析 brand_aliases：JSON 数组或逗号分隔，去掉引号残片。"""
+    s = str(raw or "").strip()
+    if not s:
+        return []
+    if s[0] in "[ {":
+        try:
+            parsed = json.loads(s)
+            if isinstance(parsed, list):
+                return [str(x).strip() for x in parsed if str(x).strip()]
+            if isinstance(parsed, dict):
+                return [str(v).strip() for v in parsed.values() if str(v).strip()]
+        except json.JSONDecodeError:
+            pass
+    out: list[str] = []
+    for part in s.replace("，", ",").split(","):
+        name = part.strip().strip("[]\"'")
+        if name:
+            out.append(name)
+    return out
+
+
 async def load_brand_keywords(db: AsyncSession) -> list[str]:
     keywords: list[str] = [get_settings().app_name]
     if await _table_exists(db, "site_settings"):
@@ -40,7 +63,7 @@ async def load_brand_keywords(db: AsyncSession) -> list[str]:
             if not value:
                 continue
             if key == "brand_aliases":
-                keywords.extend([p.strip() for p in str(value).split(",") if p.strip()])
+                keywords.extend(parse_brand_aliases(str(value)))
             else:
                 keywords.append(str(value).strip())
     seen: set[str] = set()
@@ -172,6 +195,7 @@ async def _persist_url_citations(
     evidence_level: str = "L1",
     source: str = "api_extract",
     titles: list[str] | None = None,
+    url_status: dict[str, str] | None = None,
 ) -> int:
     """api/cend 答文或资料块 URL → probe_citations。"""
     if not await _table_exists(db, "geo_monitor_probe_citations") or not urls:
@@ -179,6 +203,7 @@ async def _persist_url_citations(
     from urllib.parse import urlparse
 
     written = 0
+    status = url_status or {}
     for pos, raw in enumerate(urls, start=1):
         url = str(raw or "").strip()
         if not url:
@@ -192,14 +217,20 @@ async def _persist_url_citations(
                 title = host or url[:80]
             except Exception:
                 title = url[:80]
+        st = status.get(url)
+        row_src = source
+        row_ev = evidence_level
+        if st == "dead":
+            row_src = "url_dead"
+            row_ev = "L0"
         await _insert_citation_row(
             db,
             probe_id=probe_id,
             title=title,
             url=url,
             position=pos,
-            evidence_level=evidence_level,
-            source=source,
+            evidence_level=row_ev,
+            source=row_src,
         )
         written += 1
     logger.info(
@@ -250,7 +281,10 @@ async def _persist_probe(
         "metric_kind": outcome.metric_kind or ("cend_sample" if outcome.engine == "cend_browser" else "mixed"),
         "cend_meta": json.dumps(outcome.cend_meta or {}, ensure_ascii=False),
         "scheme": getattr(outcome, "scheme", None) or "open_api",
-        "tracks": json.dumps(getattr(outcome, "tracks", None) or ["C"], ensure_ascii=False),
+        "tracks": json.dumps(
+            list(getattr(outcome, "tracks")) if getattr(outcome, "tracks", None) is not None else ["C"],
+            ensure_ascii=False,
+        ),
         "reasoning_grade": getattr(outcome, "reasoning_grade", None) or "none",
         "framework": json.dumps(getattr(outcome, "framework", None) or {}, ensure_ascii=False),
     }
@@ -369,6 +403,7 @@ async def _persist_probe(
                 urls=cite_urls,
                 evidence_level=outcome.evidence_level if outcome.evidence_level in ("L1", "L2") else "L1",
                 source=src,
+                url_status=(outcome.cend_meta or {}).get("url_status") if isinstance(outcome.cend_meta, dict) else None,
             )
     elif probe_id and outcome.engine == "cend_browser":
         cite_urls = list(getattr(outcome, "citation_urls", None) or getattr(outcome, "urls", None) or [])

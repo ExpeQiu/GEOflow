@@ -377,8 +377,9 @@ async def create_theme_from_question(
     db: AsyncSession,
     question_id: int,
     flags: list[str] | None = None,
+    unused_dims: list[str] | None = None,
 ) -> dict:
-    """交叉判定缺口 → 同一场景 Theme 草稿，并把该题写入 target_queries。"""
+    """交叉判定缺口 → 同一场景 Theme 草稿。探针原文只记 meta，不进 target_queries。"""
     row = (
         await db.execute(
             text(
@@ -403,18 +404,25 @@ async def create_theme_from_question(
         meta["source"] = "cross_track"
         meta["source_question_id"] = question_id
         meta["cross_flags"] = [str(f) for f in (flags or []) if f]
+        dims = [str(d).strip() for d in (unused_dims or []) if str(d).strip()][:12]
+        meta["unused_dims"] = dims
+        if dims:
+            mining = dict(meta.get("mining") or {})
+            mining["unused_dims"] = dims
+            mining["brief"] = "A 轨未写入答文的维度：\n" + "\n".join(f"- {d}" for d in dims)
+            meta["mining"] = mining
         theme_row.meta = meta
-        queries = [str(q) for q in (theme_row.target_queries or []) if q]
-        if qtext and qtext not in queries:
-            theme_row.target_queries = [qtext] + queries
+        # ADR-010：target_queries 必须是挖掘长尾，禁止把探针原文当生产标题
         await db.flush()
         result["theme"] = _theme_dict(theme_row)
     logger.info(
-        "theme_draft_from_cross_track theme_id=%s question_id=%s scene_id=%s flags=%s",
+        "theme_draft_from_cross_track theme_id=%s question_id=%s scene_id=%s flags=%s unused_dims=%s probe=%s",
         result["theme"]["id"],
         question_id,
         scene_id,
         flags or [],
+        len(unused_dims or []),
+        qtext[:80],
     )
     return result
 

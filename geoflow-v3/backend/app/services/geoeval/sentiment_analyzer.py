@@ -52,7 +52,10 @@ async def batch_analyze_probe_sentiments(db: AsyncSession, run_id: int | None = 
     brands = await load_brand_keywords(db)
     brand_name = brands[0] if brands else "品牌"
 
-    where = "mentioned = true AND (sentiment IS NULL OR sentiment = 'null'::json)"
+    # json 列不能用 `= 'null'::json`（asyncpg: operator does not exist: json = json）
+    where = (
+        "mentioned = true AND (sentiment IS NULL OR CAST(sentiment AS TEXT) IN ('null', '\"null\"'))"
+    )
     params: dict = {}
     if run_id:
         where += " AND run_id = :run_id"

@@ -9,7 +9,7 @@ import { WikiSubNav } from "@/components/operations/WikiSubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiGet, apiPost, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
-import { OPERATIONS_NAV } from "@/lib/nav-config";
+import { OPERATIONS_MORE_NAV, OPERATIONS_NAV } from "@/lib/nav-config";
 import type { WikiPage } from "@/lib/wiki-form-types";
 
 type WikiPack = {
@@ -76,7 +76,7 @@ export default function WikiPacksPage() {
   return (
     <div>
       <HubHeader title={zh.wiki.packsTitle} subtitle={zh.wiki.packsSubtitle} />
-      <HubNav items={OPERATIONS_NAV} tone="blue" />
+      <HubNav items={OPERATIONS_NAV} moreItems={OPERATIONS_MORE_NAV} tone="blue" />
       <WikiSubNav />
       {error && <FlashAlert variant="error">{error}</FlashAlert>}
       {flash && <FlashAlert variant="success">{flash}</FlashAlert>}

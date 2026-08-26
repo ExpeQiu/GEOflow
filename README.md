@@ -29,10 +29,12 @@ cp .env.example .env
 ```
 GEOFlow/
 ├── geoflow-v3/          # v3 主栈（FastAPI + LangGraph + Next.js Admin）
-├── guide/               # 架构与设计文档（含 v2 参考）
+├── guide/               # 架构与设计文档
 ├── docs/                # 多语言 README、分发文档
 └── deploy-scripts/      # 部署脚本
 ```
+
+仓内 `RAG-CLI` / `Sim-sandbox-CLI` / `content-LangGraph-CLI` 为**归档外挂**，主栈不安装、运行时不依赖。见 [cli-plugins.md](guide/cli-plugins.md)。
 
 ## 技术栈（v3）
 
@@ -42,7 +44,7 @@ GEOFlow/
 | API | FastAPI · Celery · WebSocket |
 | AI | LangGraph（内嵌）· pgvector RAG |
 | 数据库 | PostgreSQL 16 + pgvector |
-| 公网 Wiki | [Gweb](https://github.com/)（独立仓库，`wiki/sync` 契约） |
+| 公网 Wiki | [GEOweb](/Volumes/Lexar/git/03T/GEOweb)（独立仓库，`/api/geoflow/sync` 契约） |
 
 ## Laravel v2（LTS 分支）
 
@@ -62,8 +64,8 @@ cp .env.example .env   # 或恢复归档的 .env
 
 - [v3 架构](geoflow-v3/guide/architecture.md)
 - [v3 验证报告](geoflow-v3/guide/verification-report.md)
-- [v2 系统架构](guide/geoflow-architecture.html)
-- [Gweb 集成](guide/gweb-integration.md)
+- [GEOweb 集成](guide/geoweb-integration.md)
+- [CLI 归档外挂](guide/cli-plugins.md)
 
 ## License
 

@@ -7,7 +7,7 @@ import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiGet, getToken } from "@/lib/api-client";
-import { STRATEGY_NAV } from "@/lib/nav-config";
+import { STRATEGY_MORE_NAV, STRATEGY_NAV } from "@/lib/nav-config";
 
 export default function InsightTemplateDetailPage() {
   const token = useAuthGuard();
@@ -26,7 +26,7 @@ export default function InsightTemplateDetailPage() {
   return (
     <div>
       <HubHeader title={item?.name ?? "洞察模板"} subtitle="模板详情" />
-      <HubNav items={STRATEGY_NAV} tone="violet" />
+      <HubNav items={STRATEGY_NAV} moreItems={STRATEGY_MORE_NAV} tone="violet" />
       <Link href="/strategy/insight-templates" className="mb-4 inline-block text-sm text-violet-700">← 返回列表</Link>
       {item && (
         <dl className="space-y-2 rounded-lg bg-white p-6 text-sm shadow-sm ring-1 ring-gray-200">

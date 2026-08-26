@@ -44,16 +44,7 @@ class CendBrowserConnector:
             context = await launch_persistent_context(platform)
         except RuntimeError as exc:
             logger.warning("cend_probe_skipped platform=%s reason=%s", platform, exc)
-            return ProbeOutcome(
-                question_id=question_id,
-                platform=platform,
-                brand_rank=None,
-                mentioned=False,
-                snippet=f"[skipped:{exc}]",
-                engine="skipped",
-                metric_kind="cend_sample",
-                evidence_level="L0",
-            )
+            return self._skip_outcome(platform, question_id, reason=str(exc))
 
         try:
             page = context.pages[0] if context.pages else await context.new_page()
@@ -62,15 +53,10 @@ class CendBrowserConnector:
             await close_context(context)
 
         if not captured.ok:
-            return ProbeOutcome(
-                question_id=question_id,
-                platform=platform,
-                brand_rank=None,
-                mentioned=False,
-                snippet=f"[skipped:{captured.error or 'capture_failed'}]",
-                engine="skipped",
-                metric_kind="cend_sample",
-                evidence_level="L0",
+            return self._skip_outcome(
+                platform,
+                question_id,
+                reason=captured.error or "capture_failed",
                 cend_meta=captured.meta,
                 capture_artifact=captured.capture_artifact,
             )
@@ -122,6 +108,31 @@ class CendBrowserConnector:
         )
         from app.services.geoeval.probe_scheme import SCHEME_CEND, stamp_outcome
 
+        return stamp_outcome(outcome, scheme=SCHEME_CEND)
+
+    def _skip_outcome(
+        self,
+        platform: str,
+        question_id: int,
+        *,
+        reason: str,
+        cend_meta: dict | None = None,
+        capture_artifact: str | None = None,
+    ) -> ProbeOutcome:
+        from app.services.geoeval.probe_scheme import SCHEME_CEND, stamp_outcome
+
+        outcome = ProbeOutcome(
+            question_id=question_id,
+            platform=platform,
+            brand_rank=None,
+            mentioned=False,
+            snippet=f"[skipped:{reason}]",
+            engine="skipped",
+            metric_kind="cend_sample",
+            evidence_level="L0",
+            capture_artifact=capture_artifact,
+            cend_meta={**(cend_meta or {}), "skip_reason": reason},
+        )
         return stamp_outcome(outcome, scheme=SCHEME_CEND)
 
     def _mock_outcome(

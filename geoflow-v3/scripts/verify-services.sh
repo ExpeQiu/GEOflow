@@ -26,6 +26,21 @@ if [ -n "${TOKEN:-}" ]; then
   log "Admin JWT 登录 OK"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/dashboard" -H "Authorization: Bearer $TOKEN" \
     | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; print('  dashboard: tasks=%s version=%s' % (d.get('tasks_count'), d.get('version')))"
+  AUTH_H="Authorization: Bearer $TOKEN"
+  LEGACY_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+    "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/scenes/1/create-task?legacy_direct_task=true" \
+    -H "$AUTH_H")
+  if [ "$LEGACY_CODE" = "410" ]; then
+    log "legacy_direct_task 410 OK"
+  else
+    log "WARN: legacy_direct_task 未返回 410 (got ${LEGACY_CODE})"
+  fi
+  curl -sf "http://127.0.0.1:${API_PORT}/api/admin/distribution/form-options" -H "$AUTH_H" \
+    | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert d.get('channel_types')==['geoweb']" 2>/dev/null \
+    && log "distribution form geoweb-only OK" || log "WARN: 渠道默认未收敛到 geoweb"
+  curl -sf "http://127.0.0.1:${API_PORT}/api/admin/knowledge-bases/embedding-ready" -H "$AUTH_H" \
+    | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; print('  embedding mode=%s ready=%s' % (d.get('mode'), d.get('ready')))" \
+    && log "embedding-ready OK" || log "WARN: embedding-ready 未就绪"
 else
   log "WARN: 登录失败"
   exit 1

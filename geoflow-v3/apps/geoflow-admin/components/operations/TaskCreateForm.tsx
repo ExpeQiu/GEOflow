@@ -295,7 +295,9 @@ export function TaskCreateForm({ taskId }: { taskId?: number }) {
               onChange={(e) => patch("content_pipeline_mode", e.target.value as TaskCreatePayload["content_pipeline_mode"])}
               className={inputClass}
             >
-              <option value="legacy">{zh.taskCreate.options.pipelineLegacy}</option>
+              {form.content_pipeline_mode === "legacy" && (
+                <option value="legacy">{zh.taskCreate.options.pipelineLegacy}</option>
+              )}
               <option value="pipeline">{zh.taskCreate.options.pipelinePipeline}</option>
               <option value="auto">{zh.taskCreate.options.pipelineAuto}</option>
             </select>

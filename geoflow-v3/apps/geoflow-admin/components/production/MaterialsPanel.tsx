@@ -23,9 +23,21 @@ const CARDS: {
 export function MaterialsPanel({ stats }: { stats: MaterialStats }) {
   return (
     <section className="overflow-hidden rounded-lg border border-blue-200 bg-white shadow-sm">
-      <div className="border-b border-blue-100 bg-blue-50/60 px-6 py-5">
-        <h2 className="text-xl font-semibold text-gray-900">{zh.production.materials.heading}</h2>
+      <div className="border-b border-amber-100 bg-amber-50/70 px-6 py-5">
+        <p className="text-xs font-medium uppercase tracking-wide text-amber-800">遗产 CMS</p>
+        <h2 className="mt-1 text-xl font-semibold text-gray-900">{zh.production.materials.heading}</h2>
         <p className="mt-1 text-sm text-gray-600">{zh.production.materials.subtitle}</p>
+        <p className="mt-2 text-sm text-amber-900">
+          新战役请走{" "}
+          <Link href="/production/themes" className="font-medium underline">
+            主题包
+          </Link>{" "}
+          与{" "}
+          <Link href="/production/knowledge" className="font-medium underline">
+            知识库
+          </Link>
+          ，不要把标题库当选题清单。
+        </p>
       </div>
       <div className="p-6">
         <h3 className="text-lg font-semibold text-gray-900">{zh.production.materials.foundationTitle}</h3>

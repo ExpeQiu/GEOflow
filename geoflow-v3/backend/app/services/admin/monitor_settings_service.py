@@ -10,6 +10,7 @@ from app.core.config import get_settings
 from app.services.admin.production_service import _table_exists
 from app.services.admin.settings_crud_service import SiteSettingBody, upsert_site_setting
 from app.services.geoeval.platform_connectors.base import PLATFORMS_CN
+from app.services.geoeval.domain_catalog import DEFAULT_OFFICIAL_DOMAINS
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +104,8 @@ async def get_monitor_settings(db: AsyncSession) -> dict:
                 wiki_domains = str(value or "")
 
     platforms = tuple(p.strip() for p in monitor_platforms.split(",") if p.strip()) or PLATFORMS_CN
+    if not official_domains.strip():
+        official_domains = ",".join(DEFAULT_OFFICIAL_DOMAINS)
 
     return {
         "brand_name": brand_name,

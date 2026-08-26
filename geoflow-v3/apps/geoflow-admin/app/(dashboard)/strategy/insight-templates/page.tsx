@@ -6,7 +6,7 @@ import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiDelete, apiGet, apiPatch, apiPost, getToken } from "@/lib/api-client";
-import { STRATEGY_NAV } from "@/lib/nav-config";
+import { STRATEGY_MORE_NAV, STRATEGY_NAV } from "@/lib/nav-config";
 
 type TemplateRow = { id: number; name: string; source_url: string };
 
@@ -53,7 +53,7 @@ export default function InsightTemplatesPage() {
   return (
     <div>
       <HubHeader title="Insight Templates" subtitle="洞察模板 CRUD 与 re-mine" />
-      <HubNav items={STRATEGY_NAV} tone="violet" />
+      <HubNav items={STRATEGY_NAV} moreItems={STRATEGY_MORE_NAV} tone="violet" />
       <form onSubmit={onSubmit} className="mb-6 grid gap-2 rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200 md:grid-cols-3">
         <input className="rounded-md border px-3 py-2 text-sm" placeholder="名称" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         <input className="rounded-md border px-3 py-2 text-sm" placeholder="来源 URL" value={form.source_url} onChange={(e) => setForm({ ...form, source_url: e.target.value })} />

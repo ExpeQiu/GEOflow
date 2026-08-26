@@ -52,6 +52,23 @@ if [ -n "${TOKEN:-}" ]; then
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/remediations" -H "$AUTH_H" >/dev/null && log "Admin remediations OK" || log "WARN: remediations 未就绪（需 alembic 012）"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/gweb-alignment" -H "$AUTH_H" >/dev/null && log "Admin gweb-alignment OK" || log "WARN: gweb-alignment 未就绪"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/settings" -H "$AUTH_H" | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert 'strict_api' in d and 'remediation_delay_hours' in d" 2>/dev/null && log "Admin closed-loop settings OK" || log "WARN: closed-loop settings 字段缺失"
+  LEGACY_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+    "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor/scenes/1/create-task?legacy_direct_task=true" \
+    -H "$AUTH_H")
+  if [ "$LEGACY_CODE" = "410" ]; then
+    log "legacy_direct_task 410 OK"
+  else
+    log "WARN: legacy_direct_task 未返回 410 (got ${LEGACY_CODE})"
+  fi
+  curl -sf "http://127.0.0.1:${API_PORT}/api/admin/distribution/form-options" -H "$AUTH_H" \
+    | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert d.get('channel_types')==['geoweb']" 2>/dev/null \
+    && log "distribution form geoweb-only OK" || log "WARN: 渠道默认未收敛到 geoweb"
+  curl -sf "http://127.0.0.1:${API_PORT}/api/admin/knowledge-bases/embedding-ready" -H "$AUTH_H" \
+    | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; print('  embedding mode=%s ready=%s' % (d.get('mode'), d.get('ready')))" \
+    && log "embedding-ready OK" || log "WARN: embedding-ready 未就绪"
+  curl -sf "http://127.0.0.1:${API_PORT}/api/admin/knowledge-bases/techstore-preview?source=fixture" -H "$AUTH_H" \
+    | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert 'kb_names' in d and d.get('source')=='fixture'" 2>/dev/null \
+    && log "Admin techstore-preview fixture OK" || log "WARN: techstore-preview 未就绪"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/knowledge-bases/rag-sandbox" -H "$AUTH_H" -H "Content-Type: application/json" -d '{"knowledge_base_id":1,"query":"test","limit":3}' >/dev/null 2>&1 && log "Admin RAG sandbox OK" || log "WARN: RAG sandbox 跳过（需知识库数据）"
   if pgrep -f "celery -A app.workers.celery_app worker" >/dev/null 2>&1 \
     || docker ps --filter "name=geoflow-v3-worker" --filter "status=running" --format '{{.Names}}' 2>/dev/null | grep -q .; then

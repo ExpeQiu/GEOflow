@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
+echo "[archive] Sim-sandbox-CLI 为归档外挂。主栈不安装。见 ../guide/cli-plugins.md"
 
 PORT="${SIMSB_PORT:-8765}"
 HOST="${SIMSB_HOST:-127.0.0.1}"

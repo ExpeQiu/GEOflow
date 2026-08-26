@@ -638,11 +638,12 @@ async def sync_wiki_pack(db: AsyncSession, theme_id: int) -> dict[str, Any]:
         gate = await refresh_theme_gate_summary(db, theme.id)
         pack_ok = bool((gate.get("gate_summary") or {}).get("pack_gate_ok"))
         if not pack_ok:
-            logger.info("wiki_pack_theme_gate_blocked theme_id=%s", theme.id)
+            logger.info("wiki_pack_theme_gate_blocked theme_id=%s pack_gate_ok=false", theme.id)
             raise HTTPException(
                 status_code=422,
                 detail={"code": "theme_pack_gate_blocked", "theme_id": theme.id},
             )
+        logger.info("wiki_pack_theme_gate_ok theme_id=%s pack_gate_ok=true members=%s", theme.id, len(members))
 
     serialized = [
         {"id": a.id, "wiki_page_type": resolve_wiki_page_type(a), "type": resolve_wiki_page_type(a)}

@@ -136,6 +136,11 @@ from app.services.admin.knowledge_settings_service import (
     save_knowledge_settings,
 )
 from app.services.admin.tech_assets_import_service import TechYamlImportBody, import_tech_assets_yaml
+from app.services.admin.techstore_knowledge_import_service import (
+    TechstoreImportBody,
+    import_techstore_knowledge,
+    preview_techstore_import,
+)
 from app.services.admin.upload_service import read_knowledge_upload, save_image_upload
 from app.services.admin.knowledge_crud_service import KnowledgeBaseBody, append_knowledge_file_content, create_knowledge_base, delete_knowledge_base, get_knowledge_base, list_knowledge_bases_detail, update_knowledge_base
 from app.services.geoflow.rag.knowledge_sync_queue import queue_knowledge_chunk_sync
@@ -1150,7 +1155,10 @@ async def strategy_cross_track_spawn_theme(
     flags = body.get("flags") or []
     if not isinstance(flags, list):
         flags = [str(flags)]
-    data = await create_theme_from_question(db, question_id, flags)
+    unused_dims = body.get("unused_dims") or []
+    if not isinstance(unused_dims, list):
+        unused_dims = [str(unused_dims)]
+    data = await create_theme_from_question(db, question_id, flags, unused_dims=unused_dims)
     logger.info(
         "admin_cross_track_spawn_theme question_id=%s theme_id=%s",
         question_id,
@@ -1304,12 +1312,14 @@ async def strategy_monitor_scene_create_task(
     jwt=Depends(get_admin_jwt),
     legacy_direct_task: bool = Query(False),
 ):
-    """默认创建 Theme 草稿；legacy_direct_task=true 保留旧「直接建 Task」（弃用）。"""
+    """缺口场景 → Theme 草稿。legacy_direct_task 已移除，传 true 返回 410。"""
+    if legacy_direct_task:
+        raise HTTPException(status_code=410, detail="legacy_direct_task_removed_use_theme_draft")
     from app.services.geoeval.gap_task_generator import create_task_from_scene_gap
 
     return success(
         request,
-        await create_task_from_scene_gap(db, scene_id, legacy_direct_task=legacy_direct_task),
+        await create_task_from_scene_gap(db, scene_id),
         status=201,
     )
 
@@ -1436,7 +1446,8 @@ async def strategy_monitor_geoweb_alignment(request: Request, db: DbSession, jwt
 
 @router.get("/strategy/monitor/gweb-alignment")
 async def strategy_monitor_gweb_alignment_compat(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
-    """兼容旧路径 → GEOweb 对齐。"""
+    """Deprecated：请改用 /strategy/monitor/geoweb-alignment。"""
+    logger.warning("deprecated_gweb_alignment_path path=/api/admin/strategy/monitor/gweb-alignment")
     from app.services.geoeval.geoweb_alignment_service import compute_geoweb_alignment
 
     return success(request, await compute_geoweb_alignment(db))
@@ -1839,22 +1850,58 @@ async def list_knowledge_bases(request: Request, db: DbSession, jwt=Depends(get_
     return success(request, {"items": [{"id": k.id, "name": k.name} for k in rows]})
 
 
-@router.post("/knowledge-bases/{kb_id}/sync-chunks")
-async def sync_kb_chunks(kb_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
-    from app.workers.celery_app import celery_app
-
-    celery_app.send_task("app.workers.tasks.sync_knowledge_chunks", args=[kb_id])
-    return success(request, {"queued": True, "knowledge_base_id": kb_id})
-
-
 @router.get("/knowledge-bases/detail")
 async def knowledge_bases_detail(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     return success(request, await list_knowledge_bases_detail(db))
 
 
-@router.get("/knowledge-bases/{kb_id}/detail")
-async def knowledge_base_detail(kb_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
-    return success(request, await get_knowledge_base(db, kb_id))
+@router.get("/knowledge-bases/embedding-ready")
+async def knowledge_embedding_ready(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.services.geoflow.rag.embeddings import EmbeddingService
+
+    status = await EmbeddingService(db).ensure_production_ready()
+    logger.info(
+        "embedding_ready_check ready=%s mode=%s model_id=%s",
+        status.get("ready"),
+        status.get("mode"),
+        status.get("model_id"),
+    )
+    return success(request, status)
+
+
+@router.get("/knowledge-bases/techstore-preview")
+async def knowledge_techstore_preview(
+    request: Request,
+    jwt=Depends(get_admin_jwt),
+    source: str = Query(default="auto"),
+):
+    if source not in {"auto", "live", "fixture"}:
+        raise HTTPException(status_code=422, detail="invalid_source")
+    try:
+        return success(request, await preview_techstore_import(source))  # type: ignore[arg-type]
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("techstore_preview_failed")
+        raise HTTPException(status_code=500, detail="techstore_preview_failed") from exc
+
+
+@router.post("/knowledge-bases/import-techstore")
+async def knowledge_import_techstore(
+    body: TechstoreImportBody,
+    request: Request,
+    db: DbSession,
+    jwt=Depends(get_admin_jwt),
+):
+    try:
+        result = await import_techstore_knowledge(db, body)
+        await db.commit()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("techstore_import_failed")
+        raise HTTPException(status_code=500, detail="techstore_import_failed") from exc
+    return success(request, result)
 
 
 @router.post("/knowledge-bases/create")
@@ -1864,6 +1911,35 @@ async def knowledge_base_create(body: KnowledgeBaseBody, request: Request, db: D
     await db.commit()
     result["sync_queued"] = queue_knowledge_chunk_sync(kb_id)
     return success(request, result, status=201)
+
+
+@router.post("/knowledge-bases/reindex-all")
+async def knowledge_reindex_all(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.workers.celery_app import celery_app
+
+    ids = list((await db.execute(select(KnowledgeBase.id))).scalars().all())
+    for kb_id in ids:
+        celery_app.send_task("app.workers.tasks.sync_knowledge_chunks", args=[kb_id])
+    logger.info("knowledge_reindex_all queued=%s", len(ids))
+    return success(request, {"queued": True, "knowledge_base_ids": ids, "count": len(ids)})
+
+
+@router.post("/knowledge-bases/rag-sandbox")
+async def knowledge_rag_sandbox(body: RagSandboxBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await run_rag_sandbox(db, body))
+
+
+@router.post("/knowledge-bases/{kb_id}/sync-chunks")
+async def sync_kb_chunks(kb_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    from app.workers.celery_app import celery_app
+
+    celery_app.send_task("app.workers.tasks.sync_knowledge_chunks", args=[kb_id])
+    return success(request, {"queued": True, "knowledge_base_id": kb_id})
+
+
+@router.get("/knowledge-bases/{kb_id}/detail")
+async def knowledge_base_detail(kb_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await get_knowledge_base(db, kb_id))
 
 
 @router.patch("/knowledge-bases/{kb_id}")
@@ -1902,11 +1978,6 @@ async def knowledge_settings_get(request: Request, db: DbSession, jwt=Depends(ge
 @router.patch("/knowledge-settings")
 async def knowledge_settings_patch(body: KnowledgeSettingsBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     return success(request, await save_knowledge_settings(db, body))
-
-
-@router.post("/knowledge-bases/rag-sandbox")
-async def knowledge_rag_sandbox(body: RagSandboxBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
-    return success(request, await run_rag_sandbox(db, body))
 
 
 @router.get("/ai-models")

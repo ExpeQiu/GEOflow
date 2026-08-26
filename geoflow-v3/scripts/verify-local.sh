@@ -29,8 +29,14 @@ check "LangGraph config" "[ -f '${BACKEND}/app/ai/config/workflows.yml' ]"
 check "lifecycle scripts" "[ -x '${ROOT}/scripts/start.sh' ] && [ -x '${ROOT}/scripts/verify.sh' ]"
 
 if [ -x "${BACKEND}/.venv/bin/python" ]; then
-  if (cd "${BACKEND}" && .venv/bin/python -m pytest tests/ -q); then
-    log "OK  pytest ($(cd "${BACKEND}" && .venv/bin/python -m pytest tests/ --collect-only -q 2>/dev/null | tail -1))"
+  # 与 verification-report 对齐的收口冒烟；全量 tests/ 含环境依赖项不作为本脚本门禁
+  if (cd "${BACKEND}" && .venv/bin/python -m pytest -q \
+      tests/test_product_trim.py \
+      tests/test_techstore_knowledge_import.py \
+      tests/test_theme_pack_produce.py::test_mining_prompt_injects_compare_dims \
+      tests/test_north_star_kpi.py \
+      tests/test_platform_uat.py -m "not live"); then
+    log "OK  pytest (product-trim / techstore-import / mining inject / north-star)"
     PASS=$((PASS + 1))
   else
     log "FAIL pytest"

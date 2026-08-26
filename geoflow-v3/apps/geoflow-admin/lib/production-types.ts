@@ -35,9 +35,31 @@ export type OrchestrationStats = {
   knowledge_pending: number;
 };
 
-export type WorkflowStep = { id: string; label: string; type: string; agent?: string };
-export type WorkflowDef = { description: string; visual_layout: string; visual_steps: WorkflowStep[] };
-export type WorkflowCatalog = { default_workflow: string; workflows: Record<string, WorkflowDef> };
+export type TechstorePreview = {
+  source: "live" | "fixture" | string;
+  connected: boolean;
+  warning?: string;
+  counts?: {
+    domains: number;
+    techniques: number;
+    documents: number;
+    faqs: number;
+    knowledge_rows: number;
+  };
+  asset_count: number;
+  kb_names: string[];
+};
+
+export type TechstoreImportResult = {
+  run_id: string;
+  dry_run: boolean;
+  source?: string;
+  knowledge_bases?: { created: number; updated: number; items: { id: number; name: string; action: string }[] };
+  tech_assets?: { created: number; updated: number };
+  sync_queued?: number[];
+  kb_names?: string[];
+  asset_count?: number;
+};
 
 export type KnowledgeItem = {
   id: number;
@@ -71,3 +93,7 @@ export type TechAsset = {
   wiki_type: string;
   status: string;
 };
+
+export type WorkflowStep = { id: string; label: string; type: string; agent?: string };
+export type WorkflowDef = { description: string; visual_layout: string; visual_steps: WorkflowStep[] };
+export type WorkflowCatalog = { default_workflow: string; workflows: Record<string, WorkflowDef> };

@@ -8,7 +8,7 @@ import { HubNav } from "@/components/admin/HubNav";
 import { FlashAlert } from "@/components/admin/FlashAlert";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiGet, apiPost, getToken } from "@/lib/api-client";
-import { PRODUCTION_NAV } from "@/lib/nav-config";
+import { PRODUCTION_MORE_NAV, PRODUCTION_NAV } from "@/lib/nav-config";
 
 type JobDetail = {
   id: number;
@@ -63,7 +63,7 @@ export default function UrlImportJobPage() {
   return (
     <div>
       <HubHeader title={`URL 导入 #${jobId}`} subtitle="任务详情与提交" />
-      <HubNav items={PRODUCTION_NAV} tone="emerald" />
+      <HubNav items={PRODUCTION_NAV} moreItems={PRODUCTION_MORE_NAV} tone="emerald" />
       <Link href="/production/url-import" className="mb-4 inline-block text-sm text-emerald-700">← 返回列表</Link>
       {flash && <FlashAlert variant="success">{flash}</FlashAlert>}
       {job && (

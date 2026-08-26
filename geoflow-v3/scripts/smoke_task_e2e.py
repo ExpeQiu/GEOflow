@@ -70,7 +70,7 @@ def main() -> int:
         "publish_interval": 60,
         "category_mode": "smart",
         "model_selection_mode": "fixed",
-        "content_pipeline_mode": "legacy",
+        "content_pipeline_mode": "pipeline",
         "content_format": "article",
         "publish_scope": "local_only",
         "distribution_channel_ids": [],

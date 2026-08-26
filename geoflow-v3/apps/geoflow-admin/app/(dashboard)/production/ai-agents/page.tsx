@@ -9,7 +9,7 @@ import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiGet, apiPatch, getToken } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 import { zh } from "@/lib/i18n/zh";
-import { PRODUCTION_NAV } from "@/lib/nav-config";
+import { PRODUCTION_MORE_NAV, PRODUCTION_NAV } from "@/lib/nav-config";
 
 type AgentUsage = { workflow: string; node_id: string };
 
@@ -123,7 +123,7 @@ export default function AiAgentsPage() {
   return (
     <div>
       <HubHeader title={zh.production.tabs.ai_config} subtitle={zh.production.aiConfigSub.agents} />
-      <HubNav items={PRODUCTION_NAV} tone="emerald" />
+      <HubNav items={PRODUCTION_NAV} moreItems={PRODUCTION_MORE_NAV} tone="emerald" />
       <AiConfigSubNav />
 
       {msg && <FlashAlert variant="success">{msg}</FlashAlert>}
