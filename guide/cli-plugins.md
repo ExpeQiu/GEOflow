@@ -79,7 +79,7 @@
 
 ## 验收（外挂可选）
 
-1. 不启动 `ragc` / `simsb` / `content-lg`，按 [真实闭环P0](./真实闭环P0.md) 仍可完成探针→缺口→发布→lift。
+1. 不启动 `ragc` / `simsb` / `content-lg`，按 [真实闭环P0](./archive/历史指导/真实闭环P0.md) 仍可完成探针→缺口→发布→lift。
 2. 主栈单元测试覆盖 Rank v2 夹具（`tests/fixtures/probe_rank`）。
 3. 外挂侧 `./start.sh`（等价 `./verify.sh`）可选跑，失败不阻断主栈部署。
 
@@ -91,6 +91,6 @@
 
 ## 相关
 
-- [真实闭环P0](./真实闭环P0.md)
+- [真实闭环P0](./archive/历史指导/真实闭环P0.md)
 - [探针真值标定](./探针真值标定专题.md)（标定外挂运营）
 - [langgraph-orchestration](./langgraph-orchestration.md)

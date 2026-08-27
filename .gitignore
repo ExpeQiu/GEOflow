@@ -12,7 +12,7 @@
 **/.env*.bak*
 *.bak
 *.pid
-guide/aiapi测试.md
+guide/archive/过程/aiapi测试.md
 .env.prod
 .env.backup
 .env.production

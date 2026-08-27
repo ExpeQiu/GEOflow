@@ -212,7 +212,7 @@ L2 页面 `/geo_admin/production` **不执行** LangGraph，但展示编排状�
 - Overview Tab：侧车健康、24h 工作流统计、backend 模式
 - Knowledge Tab：进行中的 `semantic_chunk` 请求、最近失败
 
-Docker 启用 external 见 [content-agent-deploy.md](./content-agent-deploy.md)。
+Docker 启用 external 见 [content-agent-deploy.md](./archive/历史指导/content-agent-deploy.md)（Laravel v2 侧车，已归档）。
 
 ---
 
@@ -243,4 +243,4 @@ Docker 启用 external 见 [content-agent-deploy.md](./content-agent-deploy.md)�
 
 ---
 
-*相关：`guide/解析文档.md` §5.2、`config/geoflow.php` content_agent、`services/content-agent/config/`。*
+*相关：`guide/archive/历史指导/解析文档.md` §5.2、`config/geoflow.php` content_agent、`services/content-agent/config/`。*

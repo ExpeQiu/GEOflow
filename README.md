@@ -29,9 +29,10 @@ cp .env.example .env
 ```
 GEOFlow/
 ├── geoflow-v3/          # v3 主栈（FastAPI + LangGraph + Next.js Admin）
-├── guide/               # 架构与设计文档
+├── guide/               # 现行指导（ADR、Runbook、集成）
+│   └── archive/         # 过程日志与过期设计
 ├── docs/                # 多语言 README、分发文档
-└── deploy-scripts/      # 部署脚本
+└── deploy-scripts/      # 部署脚本（仍含 Laravel v2，勿当 v3 生产路径）
 ```
 
 仓内 `RAG-CLI` / `Sim-sandbox-CLI` / `content-LangGraph-CLI` 为**归档外挂**，主栈不安装、运行时不依赖。见 [cli-plugins.md](guide/cli-plugins.md)。
@@ -62,6 +63,7 @@ cp .env.example .env   # 或恢复归档的 .env
 
 ## 文档
 
+- [文档索引](guide/README.md)
 - [v3 架构](geoflow-v3/guide/architecture.md)
 - [v3 验证报告](geoflow-v3/guide/verification-report.md)
 - [GEOweb 集成](guide/geoweb-integration.md)
