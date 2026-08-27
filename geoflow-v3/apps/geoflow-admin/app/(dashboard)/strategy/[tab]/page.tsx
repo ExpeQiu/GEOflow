@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { FlashAlert } from "@/components/admin/FlashAlert";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
@@ -18,6 +18,7 @@ import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiDelete, apiGet, apiPatch, apiPost, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
 import { STRATEGY_MORE_NAV, STRATEGY_NAV } from "@/lib/nav-config";
+import { useRouteParams } from "@/lib/use-route-params";
 import type {
   BrandPanel,
   CollectionPanel as CollectionPanelData,
@@ -66,8 +67,8 @@ const LEGACY_TAB_REDIRECT: Record<string, string> = {
   product: "/strategy/visibility?view=product",
 };
 
-export default function StrategyPage() {
-  const { tab } = useParams<{ tab: string }>();
+export default function StrategyPage({ params }: { params: Promise<{ tab: string }> }) {
+  const { tab } = useRouteParams(params);
   const router = useRouter();
   const token = useAuthGuard();
   const [flash, setFlash] = useState<{ variant: "success" | "error"; message: string } | null>(null);

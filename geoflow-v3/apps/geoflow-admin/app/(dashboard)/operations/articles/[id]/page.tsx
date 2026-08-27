@@ -1,13 +1,13 @@
 "use client";
 
-import { useParams } from "next/navigation";
 import { ArticleEditForm } from "@/components/operations/ArticleEditForm";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
+import { useRouteParams } from "@/lib/use-route-params";
 
-export default function ArticleEditPage() {
+export default function ArticleEditPage({ params }: { params: Promise<{ id: string }> }) {
   useAuthGuard();
-  const params = useParams<{ id: string }>();
-  const articleId = Number(params.id);
+  const { id } = useRouteParams(params);
+  const articleId = Number(id);
 
   if (!Number.isFinite(articleId) || articleId <= 0) {
     return null;

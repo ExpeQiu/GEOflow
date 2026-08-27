@@ -5,10 +5,13 @@ import { apiGet, apiPatch, getToken } from "@/lib/api-client";
 import type { MonitorSettings } from "@/lib/strategy-types";
 import { platformLabel, surfaceCardClass, surfaceInputClass } from "./shared/AivisPrimitives";
 
-const ALL_PLATFORMS = ["doubao", "deepseek", "tongyi", "yuanbao", "wenxin", "kimi"] as const;
+const FALLBACK_PLATFORMS = ["doubao", "deepseek", "tongyi", "yuanbao", "wenxin", "kimi"] as const;
+
+type PlatformOption = { id: string; label: string; custom?: boolean };
 
 export function ProbeSettingsForm({ onSaved }: { onSaved?: () => void }) {
   const [settings, setSettings] = useState<MonitorSettings | null>(null);
+  const [platformOptions, setPlatformOptions] = useState<PlatformOption[]>([]);
   const [knowledgeBases, setKnowledgeBases] = useState<Array<{ id: number; name: string }>>([]);
   const [form, setForm] = useState({
     brand_name: "",
@@ -33,7 +36,11 @@ export function ProbeSettingsForm({ onSaved }: { onSaved?: () => void }) {
     apiGet<MonitorSettings>("/api/admin/strategy/monitor/settings", t)
       .then((s) => {
         setSettings(s);
-        const plats = s.platforms?.length ? s.platforms : ALL_PLATFORMS.slice();
+        const opts: PlatformOption[] =
+          s.available_platforms?.map((p) => ({ id: p.id, label: p.label, custom: p.custom })) ??
+          FALLBACK_PLATFORMS.map((id) => ({ id, label: platformLabel(id) }));
+        setPlatformOptions(opts);
+        const plats = s.platforms?.length ? s.platforms : opts.map((p) => p.id);
         setForm({
           brand_name: s.brand_name,
           brand_aliases: s.brand_aliases,
@@ -233,12 +240,24 @@ export function ProbeSettingsForm({ onSaved }: { onSaved?: () => void }) {
       </div>
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="text-gray-500">采集平台：</span>
-        {ALL_PLATFORMS.map((p) => (
-          <label key={p} className="inline-flex cursor-pointer items-center gap-1 rounded-md bg-gray-50 px-2 py-1">
-            <input type="checkbox" checked={form.selectedPlatforms.includes(p)} onChange={() => togglePlatform(p)} />
-            {platformLabel(p)}
+        {platformOptions.map((p) => (
+          <label key={p.id} className="inline-flex cursor-pointer items-center gap-1 rounded-md bg-gray-50 px-2 py-1">
+            <input type="checkbox" checked={form.selectedPlatforms.includes(p.id)} onChange={() => togglePlatform(p.id)} />
+            {p.label}
+            {p.custom ? <span className="text-[10px] text-violet-600">自定义</span> : null}
           </label>
         ))}
+        <a
+          href="?view=api-config"
+          className="ml-2 text-xs text-violet-600 hover:underline"
+          onClick={(e) => {
+            e.preventDefault();
+            window.history.replaceState(null, "", `${window.location.pathname}?view=api-config`);
+            window.dispatchEvent(new PopStateEvent("popstate"));
+          }}
+        >
+          配置 API →
+        </a>
       </div>
       <p className="text-xs text-gray-500">
         真实闭环建议：probe_mode=api + 勾选严格 API + 平台选豆包/DeepSeek；补缺再扫默认 72 小时（联调可设 0）。

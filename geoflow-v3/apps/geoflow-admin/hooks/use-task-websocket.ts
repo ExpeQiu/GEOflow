@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { COOKIE_AUTH, getToken } from "@/lib/api-client";
 
 type TaskOverview = {
   tasks: { id: number; name: string; status: string }[];
@@ -13,7 +14,10 @@ export function useTaskWebSocket(onUpdate: (data: TaskOverview) => void) {
 
   useEffect(() => {
     const proto = window.location.protocol === "https:" ? "wss" : "ws";
-    const wsUrl = `${proto}://${window.location.host}/ws/admin/tasks`;
+    const token = getToken();
+    // Cookie 同源会自动带上；query token 作内存回退（刷新后可能为空，靠 Cookie）
+    const qs = token && token !== COOKIE_AUTH ? `?token=${encodeURIComponent(token)}` : "";
+    const wsUrl = `${proto}://${window.location.host}/ws/admin/tasks${qs}`;
     let ws: WebSocket | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let pingTimer: ReturnType<typeof setInterval> | null = null;

@@ -17,6 +17,9 @@ type JobRow = {
   channel_id: number;
   channel_name: string;
   status: string;
+  remote_url: string | null;
+  canonical_url?: string | null;
+  tracked_url?: string | null;
   error_message: string;
 };
 
@@ -69,6 +72,11 @@ export default function DistributionJobsPage() {
     await load();
   }
 
+  function copyLink(url: string | null | undefined) {
+    if (!url) return;
+    void navigator.clipboard.writeText(url);
+  }
+
   const channelIds = channels.length > 0 ? channels : [...new Set(jobs.map((j) => ({ id: j.channel_id, name: j.channel_name })))];
 
   if (!token) return null;
@@ -107,7 +115,7 @@ export default function DistributionJobsPage() {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              {["Job", "文章", "渠道", "状态", "错误", "操作"].map((h) => (
+              {["Job", "文章", "渠道", "状态", "主站/追踪链接", "错误", "操作"].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">{h}</th>
               ))}
             </tr>
@@ -115,27 +123,50 @@ export default function DistributionJobsPage() {
           <tbody className="divide-y divide-gray-200">
             {jobs.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-500">暂无匹配的分发任务</td>
+                <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">暂无匹配的分发任务</td>
               </tr>
             ) : (
-              jobs.map((j) => (
-                <tr key={j.id}>
-                  <td className="px-4 py-3 text-sm">#{j.id}</td>
-                  <td className="px-4 py-3 text-sm">{j.article_title || `#${j.article_id}`}</td>
-                  <td className="px-4 py-3 text-sm">{j.channel_name || `#${j.channel_id}`}</td>
-                  <td className="px-4 py-3 text-sm">{j.status}</td>
-                  <td className="max-w-xs truncate px-4 py-3 text-sm text-gray-500">{j.error_message || "—"}</td>
-                  <td className="px-4 py-3 text-sm space-x-2">
-                    {j.status === "failed" && (
-                      <button type="button" onClick={() => retry(j.id)} className="text-blue-600 hover:text-blue-700">重试</button>
-                    )}
-                    {j.status !== "cancelled" && (
-                      <button type="button" onClick={() => cancelJob(j.id)} className="text-amber-600">取消</button>
-                    )}
-                    <button type="button" onClick={() => removeJob(j.id)} className="text-red-600">删除</button>
-                  </td>
-                </tr>
-              ))
+              jobs.map((j) => {
+                const displayUrl = j.tracked_url || j.canonical_url || j.remote_url;
+                return (
+                  <tr key={j.id}>
+                    <td className="px-4 py-3 text-sm">#{j.id}</td>
+                    <td className="px-4 py-3 text-sm">{j.article_title || `#${j.article_id}`}</td>
+                    <td className="px-4 py-3 text-sm">{j.channel_name || `#${j.channel_id}`}</td>
+                    <td className="px-4 py-3 text-sm">{j.status}</td>
+                    <td className="max-w-xs px-4 py-3 text-sm">
+                      {j.canonical_url && (
+                        <p className="truncate text-gray-600" title={j.canonical_url}>
+                          主站: {j.canonical_url}
+                        </p>
+                      )}
+                      {j.tracked_url && j.tracked_url !== j.canonical_url && (
+                        <p className="truncate text-blue-700" title={j.tracked_url}>
+                          追踪: {j.tracked_url}
+                        </p>
+                      )}
+                      {!j.canonical_url && !j.tracked_url && (
+                        <p className="truncate text-gray-500">{displayUrl || "—"}</p>
+                      )}
+                      {displayUrl && (
+                        <button type="button" onClick={() => copyLink(displayUrl)} className="mt-1 text-xs text-blue-600 hover:underline">
+                          复制链接
+                        </button>
+                      )}
+                    </td>
+                    <td className="max-w-xs truncate px-4 py-3 text-sm text-gray-500">{j.error_message || "—"}</td>
+                    <td className="space-x-2 px-4 py-3 text-sm">
+                      {j.status === "failed" && (
+                        <button type="button" onClick={() => retry(j.id)} className="text-blue-600 hover:text-blue-700">重试</button>
+                      )}
+                      {j.status !== "cancelled" && (
+                        <button type="button" onClick={() => cancelJob(j.id)} className="text-amber-600">取消</button>
+                      )}
+                      <button type="button" onClick={() => removeJob(j.id)} className="text-red-600">删除</button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

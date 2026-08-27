@@ -14,7 +14,11 @@ from app.services.admin.wiki_editor_schema import (
     wiki_publish_gate,
 )
 from app.services.admin.wiki_pack import sort_pack_pages
-from app.services.admin.wiki_reconcile import diff_wiki_inventories, is_geoflow_remote_page
+from app.services.admin.wiki_reconcile import (
+    diff_wiki_inventories,
+    is_geoflow_remote_page,
+    is_public_geoweb_wiki_page,
+)
 from app.services.geoflow.wiki_types import (
     ascii_slug,
     fill_sibling_related,
@@ -154,22 +158,26 @@ def test_mock_draft_fills_body():
     assert draft2["hit_count"] == 1
 
 
-def test_reconcile_filters_smoke_and_seed():
+def test_reconcile_uses_public_geoweb_wiki_pages():
     local = [
         {"slug": "g-ads", "title": "G-ADS", "wiki_page_type": "concept", "id": 1, "geo_content_hash": "aaa"},
         {"slug": "local-only", "title": "仅本地", "wiki_page_type": "concept", "id": 2},
         {"slug": "gads-smoke-check", "title": "探针", "wiki_page_type": "concept", "id": 3},
     ]
     remote = [
-        {"slug": "g-ads", "title": "G-ADS", "type": "concept", "source": "geoflow", "geoContentHash": "bbb"},
+        {"slug": "g-ads", "title": "G-ADS", "type": "concept", "source": "seed", "geoContentHash": "aaa"},
         {"slug": "seed-page", "title": "种子", "type": "concept", "source": "seed"},
-        {"slug": "remote-only", "title": "仅远端", "type": "concept", "source": "geoflow"},
+        {"slug": "remote-only", "title": "仅远端", "type": "concept", "source": "seed"},
+        {"slug": "geoflow-junk", "title": "junk", "type": "concept", "source": "geoflow"},
         {"slug": "wiki-probe-1", "title": "探针", "type": "concept", "source": "geoflow"},
+        {"slug": "long-article", "title": "长文", "type": "article", "source": "seed"},
     ]
-    assert is_geoflow_remote_page(remote[0]) is True
-    assert is_geoflow_remote_page(remote[1]) is False
+    assert is_public_geoweb_wiki_page(remote[0]) is True
+    assert is_public_geoweb_wiki_page(remote[3]) is False
+    assert is_public_geoweb_wiki_page(remote[5]) is False
+    assert is_geoflow_remote_page(remote[3]) is True
     diff = diff_wiki_inventories(local, remote)
-    assert [r["slug"] for r in diff["hash_mismatch"]] == ["g-ads"]
+    assert [r["slug"] for r in diff["matched"]] == ["g-ads"]
     assert [r["slug"] for r in diff["local_only"]] == ["local-only"]
-    assert [r["slug"] for r in diff["remote_only"]] == ["remote-only"]
-    assert diff["stats"]["matched"] == 0
+    assert sorted(r["slug"] for r in diff["remote_only"]) == ["remote-only", "seed-page"]
+    assert diff["stats"]["remote"] == 3

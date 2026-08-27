@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.geoeval import InsightTemplate
 from app.models.material import AiModel, Author, Category
+from app.ai.llm_gateway import refresh_api_resource_from_db, resolve_llm_endpoint
 from app.models.task import Task
 from app.models.tech_ip import TechIpAsset
 from app.services.admin.production_service import _table_exists
@@ -209,12 +210,16 @@ async def _resolve_ai_model(db: AsyncSession, task: Task) -> tuple[dict, int | N
         if chosen is None or chosen.status != "active":
             raise RuntimeError("ai_model_unavailable")
 
+    await refresh_api_resource_from_db(db)
+    ep = resolve_llm_endpoint(chosen)
     model_dict = {
         "id": chosen.id,
         "name": chosen.name,
-        "model_id": chosen.model_id,
-        "provider_url": chosen.api_url,
-        "api_key": chosen.api_key,
+        "model_id": ep.model_id,
+        "provider_url": ep.base_url,
+        "api_key": ep.api_key,
+        "vendor": ep.vendor,
+        "via": ep.via,
     }
     return model_dict, chosen.id
 

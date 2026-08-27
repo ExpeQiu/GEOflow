@@ -12,6 +12,9 @@ export const fr = {
     groupStrategy: "L1 Stratégie",
     backHome: "Retour à l’accueil",
     systemSettings: "Paramètres système",
+    securitySettings: "Sécurité et mot de passe",
+    apiTokens: "Jetons API",
+    admins: "Administrateurs",
     logout: "Déconnexion",
   },
   header: {

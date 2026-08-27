@@ -26,10 +26,58 @@ if [ -n "${TOKEN:-}" ]; then
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/dashboard" -H "Authorization: Bearer $TOKEN" >/dev/null && log "Admin dashboard OK"
   AUTH_H="Authorization: Bearer $TOKEN"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/settings/site" -H "$AUTH_H" >/dev/null && log "Admin site settings OK" || log "WARN: site settings 未就绪（需 alembic 002+）"
+  curl -sf "http://127.0.0.1:${API_PORT}/api/admin/settings/admins" -H "$AUTH_H" | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert 'items' in d and 'current_admin_id' in d" 2>/dev/null && log "Admin settings admins OK" || log "WARN: settings/admins 未就绪"
+  curl -sf "http://127.0.0.1:${API_PORT}/api/admin/settings/api-tokens" -H "$AUTH_H" | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert 'items' in d" 2>/dev/null && log "Admin settings api-tokens OK" || log "WARN: settings/api-tokens 未就绪"
+  curl -sf "http://127.0.0.1:${API_PORT}/api/admin/settings/security/sensitive-words" -H "$AUTH_H" | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert 'words' in d" 2>/dev/null && log "Admin settings security OK" || log "WARN: settings/security 未就绪"
+  curl -sf "http://127.0.0.1:${API_PORT}/api/admin/settings/activity-logs" -H "$AUTH_H" | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert 'items' in d" 2>/dev/null && log "Admin activity-logs OK" || log "WARN: activity-logs 未就绪"
+  UP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${API_PORT}/uploads/__missing__")
+  if [ "$UP_CODE" = "401" ] || [ "$UP_CODE" = "403" ]; then
+    log "uploads auth gate OK (${UP_CODE})"
+  else
+    log "WARN: uploads 未鉴权 (got ${UP_CODE})"
+  fi
+  CB_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://127.0.0.1:${API_PORT}/internal/content-agent/callback" \
+    -H "Content-Type: application/json" -d '{"request_id":"x","workflow_type":"content","status":"success"}')
+  if [ "$CB_CODE" = "401" ] || [ "$CB_CODE" = "503" ]; then
+    log "content-agent callback signature gate OK (${CB_CODE})"
+  else
+    log "WARN: content-agent callback 未强制签名 (got ${CB_CODE})"
+  fi
+  WS_CODE=$(python3 - <<'PY'
+import asyncio, sys
+try:
+    import websockets
+except ImportError:
+    print("skip")
+    sys.exit(0)
+async def main():
+    try:
+        async with websockets.connect("ws://127.0.0.1:%s/ws/admin/tasks" % (__import__("os").environ.get("API_PORT","18081")), open_timeout=2):
+            print("open")
+    except Exception as e:
+        print(type(e).__name__)
+asyncio.run(main())
+PY
+)
+  if [ "$WS_CODE" = "skip" ]; then
+    log "SKIP ws auth check (no websockets pkg)"
+  elif echo "$WS_CODE" | grep -qiE 'InvalidStatus|ConnectionClosed|401|403|open'; then
+    # 无 token 应无法正常订阅；open 表示仍可连上（需人工确认）
+    if [ "$WS_CODE" = "open" ]; then
+      log "WARN: ws 无 token 仍可连接"
+    else
+      log "ws auth gate OK (${WS_CODE})"
+    fi
+  else
+    log "ws auth probe result=${WS_CODE}"
+  fi
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/materials/title-libraries" -H "$AUTH_H" >/dev/null && log "Admin title-libraries OK" || log "WARN: title-libraries 未就绪（需 alembic 002）"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/materials/keyword-libraries" -H "$AUTH_H" >/dev/null && log "Admin keyword-libraries OK" || log "WARN: keyword-libraries 未就绪"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/strategy/monitor" -H "$AUTH_H" >/dev/null && log "Admin strategy monitor OK" || log "WARN: strategy monitor 未就绪"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/knowledge-settings" -H "$AUTH_H" >/dev/null && log "Admin knowledge-settings OK" || log "WARN: knowledge-settings 未就绪（需 alembic 004）"
+  curl -sf "http://127.0.0.1:${API_PORT}/api/admin/ai-models" -H "$AUTH_H" | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert 'items' in d and 'vendors' in d" 2>/dev/null && log "Admin ai-models gateway catalog OK" || log "WARN: ai-models 网关字段未就绪（需 alembic 019）"
+  curl -sf "http://127.0.0.1:${API_PORT}/api/admin/ai-gateway" -H "$AUTH_H" | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert 'mode' in d and 'probe' in d" 2>/dev/null && log "Admin ai-gateway probe OK" || log "WARN: ai-gateway 未就绪（Lobster :56045 可选）"
+  curl -sf "http://127.0.0.1:${API_PORT}/api/admin/ai-gateway" -H "$AUTH_H" | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert 'mode' in d" 2>/dev/null && log "Admin ai-gateway OK" || log "WARN: ai-gateway 未就绪"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/wiki" -H "$AUTH_H" | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert 'pages' in d and 'stats' in d" 2>/dev/null && log "Admin wiki editor OK" || log "WARN: wiki editor 未就绪"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/wiki/related-options" -H "$AUTH_H" | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert 'items' in d" 2>/dev/null && log "Admin wiki related-options OK" || log "WARN: wiki related-options 未就绪"
   curl -sf "http://127.0.0.1:${API_PORT}/api/admin/wiki/packs" -H "$AUTH_H" | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; assert 'packs' in d" 2>/dev/null && log "Admin wiki packs OK" || log "WARN: wiki packs 未就绪"

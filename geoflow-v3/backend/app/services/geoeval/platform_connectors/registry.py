@@ -52,7 +52,9 @@ async def load_platforms(db: AsyncSession) -> tuple[str, ...]:
     from sqlalchemy import text
 
     from app.services.admin.production_service import _table_exists
+    from app.services.geoeval.platform_connectors.base import PLATFORMS_CN
 
+    platforms: tuple[str, ...] | None = None
     if await _table_exists(db, "site_settings"):
         row = (
             await db.execute(
@@ -60,34 +62,45 @@ async def load_platforms(db: AsyncSession) -> tuple[str, ...]:
             )
         ).scalar_one_or_none()
         if row and str(row).strip():
-            platforms = tuple(p.strip() for p in str(row).split(",") if p.strip())
-            if platforms:
-                return platforms
-
-        # 未配置 monitor_platforms 时，用探针标准 scan_platforms（默认豆包+DeepSeek）
-        row2 = (
-            await db.execute(
-                text("SELECT setting_value FROM site_settings WHERE setting_key = 'probe_scan_platforms' LIMIT 1")
-            )
-        ).scalar_one_or_none()
-        if row2 and str(row2).strip():
-            plats = tuple(p.strip() for p in str(row2).split(",") if p.strip())
+            plats = tuple(p.strip() for p in str(row).split(",") if p.strip())
             if plats:
-                return plats
+                platforms = plats
 
-    try:
-        from app.services.admin.geo_eval_settings_service import get_probe_standards
+        if platforms is None:
+            row2 = (
+                await db.execute(
+                    text("SELECT setting_value FROM site_settings WHERE setting_key = 'probe_scan_platforms' LIMIT 1")
+                )
+            ).scalar_one_or_none()
+            if row2 and str(row2).strip():
+                plats = tuple(p.strip() for p in str(row2).split(",") if p.strip())
+                if plats:
+                    platforms = plats
 
-        standards = await get_probe_standards(db)
-        raw = str(standards.get("scan_platforms") or "").strip()
-        if raw:
-            plats = tuple(p.strip() for p in raw.split(",") if p.strip())
-            if plats:
-                return plats
-    except Exception:
-        pass
+    if platforms is None:
+        try:
+            from app.services.admin.geo_eval_settings_service import get_probe_standards
 
-    return PLATFORMS_CN
+            standards = await get_probe_standards(db)
+            raw = str(standards.get("scan_platforms") or "").strip()
+            if raw:
+                plats = tuple(p.strip() for p in raw.split(",") if p.strip())
+                if plats:
+                    platforms = plats
+        except Exception:
+            pass
+
+    if platforms is None:
+        platforms = PLATFORMS_CN
+
+    from app.services.geoeval.probe_platform_registry import is_known_platform, load_probe_api_config_raw
+
+    cfg = await load_probe_api_config_raw(db)
+    filtered = tuple(p for p in platforms if is_known_platform(p, cfg))
+    unknown = set(platforms) - set(filtered)
+    if unknown:
+        logger.warning("load_platforms_unknown filtered=%s", sorted(unknown))
+    return filtered or PLATFORMS_CN
 
 
 def _skipped_outcome(platform: str, reason: str) -> ProbeOutcome:
@@ -144,6 +157,9 @@ async def probe_platform(
             return _skipped_outcome(platform, skip_reason or "daily_limit")
 
     if probe_mode == "api":
+        from app.services.admin.probe_api_config_service import _load_raw_config
+
+        probe_api_config = await _load_raw_config(db)
         outcome = await _api.probe(
             question_text=question_text,
             priority=priority,
@@ -152,6 +168,7 @@ async def probe_platform(
             brand_list=brand_list,
             competitor_brands=competitor_brands,
             scheme=scheme,
+            probe_api_config=probe_api_config,
         )
         if outcome is None and strict_api:
             logger.warning(

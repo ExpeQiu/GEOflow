@@ -17,6 +17,8 @@ export function ArticlesPanel({
   onTrash,
   onBatchTrash,
   onBatchPublish,
+  onImport,
+  importing,
   busyId,
   themeFilter,
   onThemeFilterChange,
@@ -30,6 +32,8 @@ export function ArticlesPanel({
   onTrash: (id: number) => void;
   onBatchTrash?: (ids: number[]) => void;
   onBatchPublish?: (ids: number[]) => void;
+  onImport?: () => void;
+  importing?: boolean;
   busyId: number | null;
   themeFilter?: string;
   onThemeFilterChange?: (value: string) => void;
@@ -46,13 +50,21 @@ export function ArticlesPanel({
   }
   return (
     <div>
-      <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-950">
-        文章列表是 CMS 兼容入口。技术品牌主路径请用{" "}
+      <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50/70 px-4 py-3 text-sm text-blue-950">
+        生产-分发长文入口：审核、发布并推送到 GEOweb{" "}
+        <span className="font-medium">/articles</span>。结构化 Wiki 页请到{" "}
         <Link href="/operations/wiki" className="font-medium underline">
           Wiki 编辑台
         </Link>
-        定稿并同步 GEOweb。
+        。
       </div>
+      <p className="mb-3 text-xs text-gray-500">
+        「从 GEOweb 导入」仅拉取官方 /articles seed（排除 GEOFlow 同步页）；Wiki 结构化页见{" "}
+        <Link href="/operations/wiki" className="font-medium text-blue-700 hover:underline">
+          {zh.operations.tabs.wiki}
+        </Link>
+        。
+      </p>
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
         <Stat icon={FileText} label={zh.articles.statsTotal} value={stats.total} color="text-blue-600" />
         <Stat icon={Globe} label={zh.articles.statsPublished} value={stats.published} color="text-green-600" />
@@ -82,6 +94,16 @@ export function ArticlesPanel({
         <Link href="/operations/articles/trash" className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
           {zh.articles.trashLink}
         </Link>
+        {onImport && (
+          <button
+            type="button"
+            disabled={importing}
+            onClick={onImport}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {importing ? zh.common.loading : zh.articles.importFromGeoweb}
+          </button>
+        )}
         {selected.size > 0 && onBatchPublish && (
           <button type="button" onClick={() => { onBatchPublish([...selected]); setSelected(new Set()); }} className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white">
             批量发布 ({selected.size})

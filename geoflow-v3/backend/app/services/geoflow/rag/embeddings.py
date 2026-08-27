@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.models.material import AiModel
+from app.ai.llm_gateway import refresh_api_resource_from_db, resolve_llm_endpoint
 from app.services.geoflow.rag.chunking import pad_embedding_vector
 
 settings = get_settings()
@@ -40,12 +41,14 @@ class EmbeddingService:
 
         import httpx
 
+        await refresh_api_resource_from_db(self.db)
+        ep = resolve_llm_endpoint(row)
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.post(
-                    f"{row.api_url.rstrip('/')}/embeddings",
-                    headers={"Authorization": f"Bearer {row.api_key}"},
-                    json={"input": text, "model": row.model_id},
+                    f"{ep.base_url.rstrip('/')}/embeddings",
+                    headers={"Authorization": f"Bearer {ep.api_key}"},
+                    json={"input": text, "model": ep.model_id},
                 )
             if resp.status_code >= 400:
                 logger.warning("embedding_api_error status=%s model_id=%s", resp.status_code, row.model_id)

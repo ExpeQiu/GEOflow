@@ -16,6 +16,8 @@ class AiModel(Base):
     model_id: Mapped[str] = mapped_column(String(100), nullable=False)
     model_type: Mapped[str] = mapped_column(String(20), default="chat")
     api_url: Mapped[str] = mapped_column(String(500), default="https://api.openai.com/v1")
+    vendor: Mapped[str] = mapped_column(String(40), default="")
+    connection_kind: Mapped[str] = mapped_column(String(20), default="inherit")
     failover_priority: Mapped[int] = mapped_column(Integer, default=100)
     daily_limit: Mapped[int] = mapped_column(Integer, default=0)
     used_today: Mapped[int] = mapped_column(Integer, default=0)

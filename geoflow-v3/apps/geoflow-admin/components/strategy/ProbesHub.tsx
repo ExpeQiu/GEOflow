@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CollectionPanel } from "./CollectionPanel";
 import { CrossTrackPanel } from "./CrossTrackPanel";
 import { GoldLabelsPanel } from "./GoldLabelsPanel";
+import { ProbeApiConfigPanel } from "./ProbeApiConfigPanel";
 import { ProbeSettingsForm } from "./ProbeSettingsForm";
 import { QuestionBankPanel } from "./QuestionBankPanel";
 import type {
@@ -14,9 +15,9 @@ import type {
   QueryTemplate,
 } from "@/lib/strategy-types";
 
-type ProbeView = "scan" | "questions" | "cross" | "gold" | "settings";
+type ProbeView = "scan" | "questions" | "cross" | "gold" | "settings" | "api-config";
 
-const VALID_VIEWS: ProbeView[] = ["scan", "questions", "cross", "gold", "settings"];
+const VALID_VIEWS: ProbeView[] = ["scan", "questions", "cross", "gold", "settings", "api-config"];
 
 function readViewFromUrl(): ProbeView {
   if (typeof window === "undefined") return "scan";
@@ -102,10 +103,11 @@ export function ProbesHub({
         { key: "cross" as const, label: "交叉判定" },
         { key: "gold" as const, label: "金标对照" },
         { key: "settings" as const, label: "探针设置" },
+        { key: "api-config" as const, label: "API 配置" },
       ] as const,
     [],
   );
-  const labOpen = view === "cross" || view === "gold" || view === "settings";
+  const labOpen = view === "cross" || view === "gold" || view === "settings" || view === "api-config";
 
   return (
     <div className="space-y-4">
@@ -177,6 +179,8 @@ export function ProbesHub({
       {view === "gold" && <GoldLabelsPanel />}
 
       {view === "settings" && <ProbeSettingsForm onSaved={onRefreshCollection} />}
+
+      {view === "api-config" && <ProbeApiConfigPanel />}
     </div>
   );
 }

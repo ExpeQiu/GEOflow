@@ -81,6 +81,9 @@ export type DistributionJobRow = {
   channel_id: number;
   status: string;
   remote_url: string | null;
+  canonical_url?: string | null;
+  tracked_url?: string | null;
+  trace_params?: Record<string, string> | null;
   error_message: string;
   updated_at: string | null;
   theme_id?: number | null;

@@ -109,6 +109,8 @@ async def _load_distributed_rows(db: AsyncSession) -> list[dict]:
             }
             grouped[article.id] = bucket
         remote_url = (dist.remote_url or "").strip()
+        canonical = (getattr(dist, "canonical_url", None) or remote_url or "").strip()
+        tracked = (getattr(dist, "tracked_url", None) or "").strip()
         bucket["distributions"].append(
             {
                 "distribution_id": dist.id,
@@ -116,10 +118,15 @@ async def _load_distributed_rows(db: AsyncSession) -> list[dict]:
                 "channel_name": channel.name,
                 "channel_type": channel.channel_type,
                 "remote_url": remote_url or None,
+                "canonical_url": canonical or None,
+                "tracked_url": tracked or None,
+                "trace_params": getattr(dist, "trace_params_json", None),
                 "synced_at": dist.updated_at.isoformat() if dist.updated_at else None,
             }
         )
-        if remote_url:
+        if canonical:
+            bucket["article_urls"].append(canonical)
+        elif remote_url:
             bucket["article_urls"].append(remote_url)
 
     return list(grouped.values())

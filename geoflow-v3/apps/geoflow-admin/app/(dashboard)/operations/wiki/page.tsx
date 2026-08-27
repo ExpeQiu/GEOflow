@@ -44,13 +44,29 @@ export default function WikiListPage() {
     setError("");
     setFlash("");
     try {
-      const data = await apiPost<WikiPanelPayload & { import?: { created: number; updated: number } }>(
+      const data = await apiPost<
+        WikiPanelPayload & {
+          import?: {
+            created: number;
+            updated: number;
+            official_count?: number;
+            geoflow_skipped?: number;
+          };
+        }
+      >(
         "/api/admin/wiki/import-geoweb",
         t,
       );
       setPayload(data);
       const result = data.import;
-      setFlash(zh.wiki.importSuccess(result?.created ?? 0, result?.updated ?? 0));
+      setFlash(
+        zh.wiki.importSuccess(
+          result?.created ?? 0,
+          result?.updated ?? 0,
+          result?.official_count,
+          result?.geoflow_skipped,
+        ),
+      );
     } catch {
       setError(zh.wiki.importError);
     } finally {

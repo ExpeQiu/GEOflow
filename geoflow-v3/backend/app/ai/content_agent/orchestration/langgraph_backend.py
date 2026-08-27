@@ -42,7 +42,14 @@ class LangGraphBackend:
             or os.getenv("LARAVEL_CALLBACK_URL", "").strip()
             or "http://127.0.0.1:18081/internal/content-agent/callback"
         )
-        secret = os.getenv("CONTENT_AGENT_CALLBACK_SECRET", "dev-callback-secret").strip()
+        secret = os.getenv("CONTENT_AGENT_CALLBACK_SECRET", "").strip()
+        if not secret:
+            try:
+                from app.core.config import get_settings
+
+                secret = (get_settings().content_agent_callback_secret or "").strip()
+            except Exception:
+                secret = "dev-callback-secret"
         if callback_url == "" or secret == "":
             return
 

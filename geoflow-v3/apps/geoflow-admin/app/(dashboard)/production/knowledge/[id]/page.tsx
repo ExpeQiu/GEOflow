@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
 import { FlashAlert } from "@/components/admin/FlashAlert";
@@ -10,12 +10,13 @@ import { KnowledgeSubNav } from "@/components/production/KnowledgeSubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiDelete, apiGet, apiPatch, apiPost, apiUpload, getToken } from "@/lib/api-client";
 import { PRODUCTION_MORE_NAV, PRODUCTION_NAV } from "@/lib/nav-config";
+import { useRouteParams } from "@/lib/use-route-params";
 
 type ChunkRow = { id: number; chunk_index: number; token_count: number; preview: string };
 
-export default function KnowledgeEditPage() {
+export default function KnowledgeEditPage({ params }: { params: Promise<{ id: string }> }) {
   const token = useAuthGuard();
-  const { id } = useParams<{ id: string }>();
+  const { id } = useRouteParams(params);
   const router = useRouter();
   const isNew = id === "new";
   const [form, setForm] = useState({ name: "", description: "", content: "" });

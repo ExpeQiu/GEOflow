@@ -14,11 +14,15 @@
 ## 数据流
 
 ```
-GEOFlow Article 发布
-  → channel_type=geoweb
-  → GeowebPublisher
-  → POST {GEOWEB_BASE_URL}/api/geoflow/sync
-  → /articles 或 Wiki 路由
+GEOFlow 生产-分发（content_format=article）
+  → GeowebPublisher geoflow_lane=distribution
+  → POST /api/geoflow/sync type=article
+  → GEOweb /articles
+
+GEOFlow Wiki 定稿（content_format=wiki_mdx）
+  → GeowebPublisher geoflow_lane=wiki
+  → POST /api/geoflow/sync type=concept|guide|…
+  → GEOweb Wiki 路由
 ```
 
 ### Theme 复合主题包

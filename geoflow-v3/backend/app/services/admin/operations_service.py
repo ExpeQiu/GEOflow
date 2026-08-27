@@ -13,6 +13,7 @@ from app.models.material import AiModel
 from app.models.task import Task, TaskRun
 from app.services.admin.distribution_citation_service import build_distribution_citation_summary
 from app.services.admin.production_service import _table_exists
+from app.services.geoflow.wiki_types import is_distribution_article
 
 logger = logging.getLogger(__name__)
 
@@ -145,13 +146,27 @@ async def build_articles_panel(
 ) -> dict:
     from sqlalchemy import text
 
-    query = select(Article).where(Article.deleted_at.is_(None)).order_by(Article.id.desc()).limit(100)
+    query = (
+        select(Article)
+        .where(Article.deleted_at.is_(None))
+        .order_by(Article.id.desc())
+        .limit(100)
+    )
     if review_status:
         query = query.where(Article.review_status == review_status)
     if theme_id is not None:
         query = query.where(Article.theme_id == theme_id)
 
-    articles = (await db.execute(query)).scalars().all()
+    articles = [
+        a
+        for a in (await db.execute(query)).scalars().all()
+        if is_distribution_article(
+            content_format=a.content_format,
+            slug=a.slug or "",
+            title=a.title or "",
+            wiki_meta=a.wiki_meta if isinstance(a.wiki_meta, dict) else {},
+        )
+    ]
     theme_titles: dict[int, str] = {}
     theme_gate: dict[int, tuple[str, bool | None]] = {}
     theme_ids = {a.theme_id for a in articles if a.theme_id}
@@ -173,34 +188,25 @@ async def build_articles_panel(
             theme_titles[tid] = str(r[1] or "")
             theme_gate[tid] = (str(r[2] or "soft"), _parse_pack_gate_ok(str(r[3]) if r[3] is not None else None))
 
+    all_active = (
+        await db.execute(select(Article).where(Article.deleted_at.is_(None)))
+    ).scalars().all()
+    distribution_articles = [
+        a
+        for a in all_active
+        if is_distribution_article(
+            content_format=a.content_format,
+            slug=a.slug or "",
+            title=a.title or "",
+            wiki_meta=a.wiki_meta if isinstance(a.wiki_meta, dict) else {},
+        )
+    ]
+
     stats = {
-        "total": int(
-            await db.scalar(select(func.count()).select_from(Article).where(Article.deleted_at.is_(None))) or 0
-        ),
-        "published": int(
-            await db.scalar(
-                select(func.count())
-                .select_from(Article)
-                .where(Article.status == "published", Article.deleted_at.is_(None))
-            )
-            or 0
-        ),
-        "draft": int(
-            await db.scalar(
-                select(func.count())
-                .select_from(Article)
-                .where(Article.status == "draft", Article.deleted_at.is_(None))
-            )
-            or 0
-        ),
-        "pending_review": int(
-            await db.scalar(
-                select(func.count())
-                .select_from(Article)
-                .where(Article.review_status == "pending", Article.deleted_at.is_(None))
-            )
-            or 0
-        ),
+        "total": len(distribution_articles),
+        "published": sum(1 for a in distribution_articles if a.status == "published"),
+        "draft": sum(1 for a in distribution_articles if a.status == "draft"),
+        "pending_review": sum(1 for a in distribution_articles if a.review_status == "pending"),
     }
 
     return {
@@ -321,6 +327,8 @@ async def build_distribution_panel(db: AsyncSession, theme_id: int | None = None
                 "channel_id": j.channel_id,
                 "status": j.status,
                 "remote_url": j.remote_url,
+                "canonical_url": getattr(j, "canonical_url", None),
+                "tracked_url": getattr(j, "tracked_url", None),
                 "error_message": j.error_message[:120] if j.error_message else "",
                 "updated_at": j.updated_at.isoformat() if j.updated_at else None,
                 "theme_id": th[0],

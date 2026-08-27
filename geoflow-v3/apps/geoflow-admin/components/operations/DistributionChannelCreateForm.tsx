@@ -5,9 +5,13 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { FlashAlert } from "@/components/admin/FlashAlert";
-import { apiGet, apiPost, getToken } from "@/lib/api-client";
+import { DistributionTraceConfigSection } from "@/components/operations/DistributionTraceConfigSection";
+import { apiDelete, apiGet, apiPatch, apiPost, getToken } from "@/lib/api-client";
 import {
   DEFAULT_DISTRIBUTION_FORM,
+  channelDetailToForm,
+  isExternalChannelType,
+  type DistributionChannelDetail,
   type DistributionChannelType,
   type DistributionCreatePayload,
   type DistributionFormOptions,
@@ -25,30 +29,46 @@ const CHANNEL_LABELS: Record<DistributionChannelType, { title: string; desc: str
   generic_http_api: { title: zh.distributionCreate.types.generic, desc: zh.distributionCreate.types.genericDesc },
 };
 
-export function DistributionChannelCreateForm() {
+type Props = {
+  channelId?: string;
+};
+
+export function DistributionChannelCreateForm({ channelId }: Props) {
   const router = useRouter();
+  const isEdit = Boolean(channelId);
   const [options, setOptions] = useState<DistributionFormOptions | null>(null);
   const [form, setForm] = useState<DistributionCreatePayload>(DEFAULT_DISTRIBUTION_FORM);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [showAdvancedChannels, setShowAdvancedChannels] = useState(false);
+  const [showAdvancedChannels, setShowAdvancedChannels] = useState(isEdit);
+  const [health, setHealth] = useState<{ healthy: boolean; message: string } | null>(null);
 
   useEffect(() => {
     const token = getToken();
     if (!token) return;
-    apiGet<DistributionFormOptions>("/api/admin/distribution/form-options", token)
-      .then((opts) => {
+
+    const optsPromise = apiGet<DistributionFormOptions>("/api/admin/distribution/form-options", token);
+    const detailPromise = channelId
+      ? apiGet<{ channel: DistributionChannelDetail }>(`/api/admin/distribution/channels/${channelId}`, token)
+      : Promise.resolve(null);
+
+    Promise.all([optsPromise, detailPromise])
+      .then(([opts, detail]) => {
         setOptions(opts);
-        setForm((prev) => ({
-          ...prev,
-          channel_type: opts.default_channel_type,
-          endpoint_url: prev.endpoint_url || opts.default_geoweb_base_url || "",
-        }));
+        if (detail?.channel) {
+          setForm(channelDetailToForm(detail.channel));
+        } else {
+          setForm((prev) => ({
+            ...prev,
+            channel_type: opts.default_channel_type,
+            endpoint_url: prev.endpoint_url || opts.default_geoweb_base_url || "",
+          }));
+        }
       })
-      .catch(() => setError(zh.distributionCreate.loadError))
+      .catch(() => setError(isEdit ? zh.distributionCreate.editLoadError : zh.distributionCreate.loadError))
       .finally(() => setLoading(false));
-  }, []);
+  }, [channelId, isEdit]);
 
   function patch<K extends keyof DistributionCreatePayload>(key: K, value: DistributionCreatePayload[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -67,14 +87,46 @@ export function DistributionChannelCreateForm() {
 
     setSubmitting(true);
     try {
-      await apiPost("/api/admin/distribution/channels", token, { ...form, name: form.name.trim() });
+      const payload = { ...form, name: form.name.trim() };
+      if (isEdit && channelId) {
+        await apiPatch(`/api/admin/distribution/channels/${channelId}`, token, payload);
+      } else {
+        await apiPost("/api/admin/distribution/channels", token, payload);
+      }
       router.push("/operations/distribution");
       router.refresh();
     } catch {
-      setError(zh.distributionCreate.submitError);
+      setError(isEdit ? zh.distributionCreate.editSubmitError : zh.distributionCreate.submitError);
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function toggleStatus(action: "pause" | "activate") {
+    if (!channelId) return;
+    const token = getToken();
+    if (!token) return;
+    await apiPost(`/api/admin/distribution/channels/${channelId}/${action}`, token);
+    patch("status", action === "pause" ? "paused" : "active");
+  }
+
+  async function checkHealth() {
+    if (!channelId) return;
+    const token = getToken();
+    if (!token) return;
+    const res = await apiGet<{ healthy: boolean; message: string }>(
+      `/api/admin/distribution/channels/${channelId}/health`,
+      token,
+    );
+    setHealth(res);
+  }
+
+  async function removeChannel() {
+    if (!channelId) return;
+    const token = getToken();
+    if (!token || !confirm("确认删除此渠道？")) return;
+    await apiDelete(`/api/admin/distribution/channels/${channelId}`, token);
+    router.push("/operations/distribution");
   }
 
   if (loading) {
@@ -82,7 +134,8 @@ export function DistributionChannelCreateForm() {
   }
 
   const channelType = form.channel_type;
-  const visibleTypes: DistributionChannelType[] = showAdvancedChannels
+  const showTrace = isExternalChannelType(channelType);
+  const visibleTypes: DistributionChannelType[] = showAdvancedChannels || isEdit
     ? ([
         ...(options?.channel_types ?? ["geoweb"]),
         ...(options?.advanced_channel_types ?? []),
@@ -96,8 +149,12 @@ export function DistributionChannelCreateForm() {
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{zh.distributionCreate.title}</h1>
-          <p className="mt-1 text-sm text-gray-600">{zh.distributionCreate.subtitle}</p>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {isEdit ? zh.distributionCreate.editTitle : zh.distributionCreate.title}
+          </h1>
+          <p className="mt-1 text-sm text-gray-600">
+            {isEdit ? zh.distributionCreate.editSubtitle : zh.distributionCreate.subtitle}
+          </p>
         </div>
       </div>
 
@@ -131,6 +188,7 @@ export function DistributionChannelCreateForm() {
                     checked={channelType === key}
                     onChange={() => patch("channel_type", key)}
                     className="mt-1 text-blue-600"
+                    disabled={isEdit}
                   />
                   <span>
                     <span className="block text-sm font-semibold text-gray-900">{meta.title}</span>
@@ -140,14 +198,16 @@ export function DistributionChannelCreateForm() {
               );
             })}
           </div>
-          <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm text-gray-600">
-            <input
-              type="checkbox"
-              checked={showAdvancedChannels}
-              onChange={(e) => setShowAdvancedChannels(e.target.checked)}
-            />
-            显示高级渠道（WordPress / HTTP / Agent）
-          </label>
+          {!isEdit && (
+            <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm text-gray-600">
+              <input
+                type="checkbox"
+                checked={showAdvancedChannels}
+                onChange={(e) => setShowAdvancedChannels(e.target.checked)}
+              />
+              显示高级渠道（WordPress / HTTP / Agent）
+            </label>
+          )}
         </fieldset>
 
         <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -215,6 +275,7 @@ export function DistributionChannelCreateForm() {
                   onChange={(e) => patch("geoweb_sync_token", e.target.value)}
                   className={inputClass}
                   autoComplete="new-password"
+                  placeholder={isEdit ? "留空则不修改" : undefined}
                 />
               </div>
               <div>
@@ -266,6 +327,7 @@ export function DistributionChannelCreateForm() {
                   onChange={(e) => patch("wordpress_application_password", e.target.value)}
                   className={inputClass}
                   autoComplete="new-password"
+                  placeholder={isEdit ? "留空则不修改" : undefined}
                 />
               </div>
               <div>
@@ -329,6 +391,7 @@ export function DistributionChannelCreateForm() {
                     onChange={(e) => patch("generic_secret", e.target.value)}
                     className={inputClass}
                     autoComplete="new-password"
+                    placeholder={isEdit ? "留空则不修改" : undefined}
                   />
                 </div>
               )}
@@ -356,6 +419,8 @@ export function DistributionChannelCreateForm() {
           </div>
         )}
 
+        {showTrace && <DistributionTraceConfigSection form={form} onPatch={patch} />}
+
         <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
           <div>
             <label className={labelClass}>{zh.distributionCreate.fields.status}</label>
@@ -371,12 +436,40 @@ export function DistributionChannelCreateForm() {
           <textarea rows={4} value={form.description} onChange={(e) => patch("description", e.target.value)} className={inputClass} />
         </div>
 
+        {isEdit && (
+          <div className="mt-6 flex flex-wrap gap-2 border-t border-gray-100 pt-6">
+            {form.status === "active" ? (
+              <button type="button" onClick={() => toggleStatus("pause")} className="rounded-md border border-gray-300 px-4 py-2 text-sm">
+                暂停渠道
+              </button>
+            ) : (
+              <button type="button" onClick={() => toggleStatus("activate")} className="rounded-md border border-green-300 px-4 py-2 text-sm text-green-700">
+                激活渠道
+              </button>
+            )}
+            <button type="button" onClick={checkHealth} className="rounded-md border border-cyan-300 px-4 py-2 text-sm text-cyan-700">
+              健康检查
+            </button>
+            <button type="button" onClick={removeChannel} className="rounded-md border border-red-200 px-4 py-2 text-sm text-red-600">
+              删除渠道
+            </button>
+            <Link href="/operations/distribution/jobs" className="rounded-md border border-gray-300 px-4 py-2 text-sm">
+              查看 Jobs
+            </Link>
+            {health && (
+              <p className={`w-full text-sm ${health.healthy ? "text-green-700" : "text-red-600"}`}>
+                健康状态：{health.healthy ? "正常" : "异常"} — {health.message}
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="mt-6 flex justify-end gap-3">
           <Link href="/operations/distribution" className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
             {zh.distributionCreate.cancel}
           </Link>
           <button type="submit" disabled={submitting} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
-            {submitting ? zh.common.loading : zh.distributionCreate.submit}
+            {submitting ? zh.common.loading : isEdit ? zh.distributionCreate.editSubmit : zh.distributionCreate.submit}
           </button>
         </div>
       </section>

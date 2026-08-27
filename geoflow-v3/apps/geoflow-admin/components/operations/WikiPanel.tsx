@@ -72,6 +72,13 @@ export function WikiPanel({
         )}
       </div>
       <p className="mb-3 text-xs text-gray-500">{zh.wiki.smokeHint}</p>
+      <p className="mb-3 text-xs text-gray-500">
+        列表仅展示与 GEOweb 官方 Wiki seed 对齐的页面；长文见{" "}
+        <Link href="/operations/articles" className="font-medium text-blue-700 hover:underline">
+          {zh.operations.tabs.articles}
+        </Link>
+        。「从 GEOweb 导入」可重新对齐官方内容。
+      </p>
 
       {pages.length === 0 ? (
         <div className="rounded-lg bg-white px-6 py-10 text-center text-sm text-gray-500 shadow-sm ring-1 ring-gray-200">

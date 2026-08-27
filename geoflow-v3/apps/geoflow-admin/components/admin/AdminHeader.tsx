@@ -7,13 +7,16 @@ import {
   Bell,
   ChevronDown,
   Home,
+  KeyRound,
   LogOut,
   Menu,
   Settings,
+  Shield,
   User,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { clearToken } from "@/lib/api-client";
+import { adminLogout, clearToken, getAdminProfile, getToken } from "@/lib/api-client";
 import { LocaleSwitcher } from "@/components/admin/LocaleSwitcher";
 import { useI18n } from "@/lib/i18n";
 import { resolveActiveNav, TOP_NAV } from "@/lib/nav-config";
@@ -31,7 +34,15 @@ export function AdminHeader({ version = "3.0.0" }: { version?: string }) {
   const [userOpen, setUserOpen] = useState(false);
   const [notifyOpen, setNotifyOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [adminName, setAdminName] = useState("admin");
   const rootRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const profile = getAdminProfile();
+    if (profile?.name || profile?.username) {
+      setAdminName(profile.name || profile.username);
+    }
+  }, []);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -46,8 +57,10 @@ export function AdminHeader({ version = "3.0.0" }: { version?: string }) {
   }, []);
 
   function logout() {
-    clearToken();
-    window.location.href = "/login";
+    void adminLogout(getToken()).finally(() => {
+      clearToken();
+      window.location.href = "/login";
+    });
   }
 
   return (
@@ -130,7 +143,7 @@ export function AdminHeader({ version = "3.0.0" }: { version?: string }) {
             {userOpen && (
               <div className="absolute right-0 z-50 mt-2 w-56 rounded-md bg-white py-1 shadow-lg">
                 <div className="border-b border-gray-100 px-4 py-2">
-                  <div className="text-sm text-gray-700">{zh.header.welcome("admin")}</div>
+                  <div className="text-sm text-gray-700">{zh.header.welcome(adminName)}</div>
                   <div className="text-xs text-gray-400">{zh.header.admin}</div>
                 </div>
                 <Link href="/dashboard" className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
@@ -142,16 +155,16 @@ export function AdminHeader({ version = "3.0.0" }: { version?: string }) {
                   {zh.nav.systemSettings}
                 </Link>
                 <Link href="/settings/security" className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                  <Settings className="mr-2 h-4 w-4" />
-                  安全与密码
+                  <Shield className="mr-2 h-4 w-4" />
+                  {zh.nav.securitySettings}
                 </Link>
                 <Link href="/settings/api-tokens" className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                  <Settings className="mr-2 h-4 w-4" />
-                  API Tokens
+                  <KeyRound className="mr-2 h-4 w-4" />
+                  {zh.nav.apiTokens}
                 </Link>
                 <Link href="/settings/admins" className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                  <Settings className="mr-2 h-4 w-4" />
-                  管理员
+                  <Users className="mr-2 h-4 w-4" />
+                  {zh.nav.admins}
                 </Link>
                 <div className="border-t border-gray-100" />
                 <button
@@ -193,6 +206,9 @@ export function AdminHeader({ version = "3.0.0" }: { version?: string }) {
               {navLabel[item.key] ?? item.label}
             </Link>
           ))}
+          <Link href="/settings/site" className="mb-1 block rounded-md px-3 py-2 text-base text-gray-600 hover:bg-gray-100">
+            {zh.nav.systemSettings}
+          </Link>
           <button type="button" onClick={logout} className="mt-2 block w-full rounded-md px-3 py-2 text-left text-base text-red-600 hover:bg-gray-100">
             {zh.nav.logout}
           </button>

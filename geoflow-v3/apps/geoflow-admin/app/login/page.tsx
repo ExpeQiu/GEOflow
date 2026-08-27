@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { FlashAlert } from "@/components/admin/FlashAlert";
 import { LocaleSwitcher } from "@/components/admin/LocaleSwitcher";
-import { adminLogin, setToken } from "@/lib/api-client";
+import { adminLogin, setAdminProfile, setToken } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n";
 
 export default function LoginPage() {
@@ -21,9 +21,10 @@ export default function LoginPage() {
     try {
       const data = await adminLogin(username, password);
       setToken(data.access_token);
+      if (data.admin) setAdminProfile(data.admin);
       router.push("/dashboard");
-    } catch {
-      setError(zh.login.error);
+    } catch (err) {
+      setError(err instanceof Error && err.message === "login_locked" ? "登录失败次数过多，请稍后再试" : zh.login.error);
     }
   }
 

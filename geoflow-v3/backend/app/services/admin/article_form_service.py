@@ -14,7 +14,18 @@ from app.models.article import Article
 from app.models.geoeval import ArticleEvaluation
 from app.models.material import Author, Category
 from app.models.task import Task
+from app.core.config import get_settings
+from app.core.sensitive_filter import assert_text_clean
 from app.services.admin.geo_eval_settings_service import get_geo_eval_gate_config
+from app.services.admin.article_import import (
+    default_geoweb_articles_dir,
+    is_official_geoweb_article_page,
+    scan_geoweb_articles_dir,
+)
+from app.services.admin.article_reconcile import diff_article_inventories
+from app.services.admin.operations_service import build_articles_panel
+from app.services.admin.wiki_editor_service import _default_category_author, _parse_theme_id
+from app.services.geoflow.wiki_types import is_article_content_format, is_distribution_article, is_wiki_content_format
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +66,8 @@ async def build_article_form_options(db: AsyncSession) -> dict[str, Any]:
 async def build_article_detail(db: AsyncSession, article_id: int) -> dict[str, Any]:
     article = await db.get(Article, article_id)
     if article is None or article.deleted_at:
+        raise HTTPException(status_code=404, detail="article_not_found")
+    if is_wiki_content_format(article.content_format):
         raise HTTPException(status_code=404, detail="article_not_found")
 
     task_name = ""
@@ -138,6 +151,7 @@ async def build_article_detail(db: AsyncSession, article_id: int) -> dict[str, A
 
 
 async def update_admin_article(db: AsyncSession, article_id: int, body: AdminArticleUpdateBody) -> dict:
+    await assert_text_clean(db, body.title, body.content, body.excerpt, body.keywords, context="article_update")
     article = await db.get(Article, article_id)
     if article is None or article.deleted_at:
         raise HTTPException(status_code=404, detail="article_not_found")
@@ -175,6 +189,7 @@ async def update_admin_article(db: AsyncSession, article_id: int, body: AdminArt
 
 
 async def create_admin_article(db: AsyncSession, body: AdminArticleCreateBody) -> dict:
+    await assert_text_clean(db, body.title, body.content, getattr(body, "excerpt", ""), getattr(body, "keywords", ""), context="article_create")
     category = await db.get(Category, body.category_id)
     author = await db.get(Author, body.author_id)
     if category is None:
@@ -194,6 +209,7 @@ async def create_admin_article(db: AsyncSession, body: AdminArticleCreateBody) -
         author_id=body.author_id,
         status=body.status,
         review_status=body.review_status,
+        content_format="article",
     )
     if body.status == "published" and body.review_status in ("approved", "auto_approved"):
         article.published_at = datetime.now(UTC)
@@ -209,6 +225,7 @@ async def build_trashed_articles(db: AsyncSession) -> dict:
             select(Article).where(Article.deleted_at.isnot(None)).order_by(Article.deleted_at.desc()).limit(100)
         )
     ).scalars().all()
+    articles = [a for a in articles if is_article_content_format(a.content_format)]
     return {
         "articles": [
             {
@@ -272,3 +289,203 @@ async def _unique_slug(db: AsyncSession, title: str, article_id: int) -> str:
             return slug
         suffix += 1
         slug = f"{base}-{suffix}"
+
+
+def _article_geoweb_url(base: str, slug: str) -> str:
+    return f"{base.rstrip('/')}/articles/{slug}"
+
+
+def _build_article_import_meta(parsed: dict[str, Any], *, geoweb_url: str) -> dict[str, Any]:
+    source = str(parsed.get("source") or "seed").strip() or "seed"
+    meta: dict[str, Any] = {
+        "type": "article",
+        "slug": parsed["slug"],
+        "domain": parsed.get("domain") or "",
+        "quick_answer": parsed.get("quick_answer") or "",
+        "core_takeaway": parsed.get("core_takeaway") or "",
+        "target_query": parsed.get("target_query") or "",
+        "related": parsed.get("related") or [],
+        "faq": parsed.get("faq") or [],
+        "schema_type": parsed.get("schema_type") or "TechArticle",
+        "tags": parsed.get("tags") or [],
+        "imported_from": source,
+        "geoflow_lane": "distribution",
+        "geoweb_url": geoweb_url,
+    }
+    if parsed.get("geo_content_hash"):
+        meta["geo_content_hash"] = parsed["geo_content_hash"]
+    if parsed.get("geo_theme_id"):
+        meta["geo_theme_id"] = parsed["geo_theme_id"]
+    return meta
+
+
+async def import_geoweb_articles(
+    db: AsyncSession,
+    wiki_dir: str | None = None,
+    include_smoke: bool = False,
+    *,
+    official_only: bool = True,
+) -> dict[str, Any]:
+    """把 GEOweb content/wiki/articles 官方长文拉进编辑台。"""
+    from pathlib import Path
+
+    settings = get_settings()
+    root = Path(wiki_dir) if wiki_dir else default_geoweb_articles_dir()
+    if not root.is_dir():
+        raise HTTPException(status_code=422, detail=f"wiki_dir_not_found:{root}")
+
+    scanned_all = scan_geoweb_articles_dir(root, include_smoke=True, official_only=False)
+    scanned = scan_geoweb_articles_dir(root, include_smoke=include_smoke, official_only=official_only)
+    geoflow_skipped = sum(1 for p in scanned_all if not is_official_geoweb_article_page(p))
+    category_id, author_id = await _default_category_author(db)
+    geoweb_base_url = (settings.geoweb_base_url or "").rstrip("/")
+    created = 0
+    updated = 0
+    skipped_conflict = 0
+    smoke_skipped = 0
+
+    for parsed in scanned:
+        slug = parsed["slug"]
+        if parsed.get("smoke") and not include_smoke:
+            smoke_skipped += 1
+            continue
+        existing = (
+            await db.execute(
+                select(Article).where(Article.slug == slug, Article.deleted_at.is_(None)).limit(1)
+            )
+        ).scalar_one_or_none()
+        if existing is not None and is_wiki_content_format(existing.content_format):
+            skipped_conflict += 1
+            logger.warning("article_import_slug_conflict slug=%s article_id=%s", slug, existing.id)
+            continue
+
+        excerpt = (parsed.get("quick_answer") or parsed.get("core_takeaway") or "").strip()
+        tags = parsed.get("tags") or []
+        preview = _article_geoweb_url(geoweb_base_url, slug) if geoweb_base_url else ""
+        if existing is None:
+            article = Article(
+                title=parsed["title"],
+                slug=slug,
+                content=parsed["body"],
+                excerpt=excerpt,
+                original_keyword=parsed.get("target_query") or "",
+                keywords=",".join(tags),
+                category_id=category_id,
+                author_id=author_id,
+                status="published",
+                review_status="auto_approved",
+                eval_status="skipped",
+                content_format="article",
+                wiki_meta={},
+                theme_id=_parse_theme_id(parsed.get("geo_theme_id")),
+                published_at=datetime.now(UTC).replace(tzinfo=None),
+                is_ai_generated=0,
+            )
+            db.add(article)
+            await db.flush()
+            created += 1
+        else:
+            article = existing
+            article.title = parsed["title"]
+            article.content = parsed["body"]
+            article.excerpt = excerpt
+            article.original_keyword = parsed.get("target_query") or ""
+            article.keywords = ",".join(tags)
+            article.content_format = "article"
+            article.status = "published"
+            if article.review_status not in ("approved", "auto_approved"):
+                article.review_status = "auto_approved"
+            if article.published_at is None:
+                article.published_at = datetime.now(UTC).replace(tzinfo=None)
+            if parsed.get("geo_theme_id"):
+                article.theme_id = _parse_theme_id(parsed.get("geo_theme_id"))
+            updated += 1
+
+        article.wiki_meta = _build_article_import_meta(parsed, geoweb_url=preview)
+
+    await db.flush()
+    logger.info(
+        "articles_imported created=%s updated=%s smoke_skipped=%s geoflow_skipped=%s conflict=%s dir=%s official_only=%s",
+        created,
+        updated,
+        smoke_skipped,
+        geoflow_skipped,
+        skipped_conflict,
+        str(root),
+        official_only,
+    )
+    panel = await build_articles_panel(db)
+    panel["import"] = {
+        "created": created,
+        "updated": updated,
+        "smoke_skipped": smoke_skipped,
+        "geoflow_skipped": geoflow_skipped,
+        "conflict": skipped_conflict,
+        "wiki_dir": str(root),
+        "official_only": official_only,
+        "official_count": len(scanned),
+    }
+    return panel
+
+
+async def reconcile_articles_with_geoweb(db: AsyncSession) -> dict[str, Any]:
+    import httpx
+
+    settings = get_settings()
+    geoweb_base_url = (settings.geoweb_base_url or "").rstrip("/")
+    if not geoweb_base_url:
+        raise HTTPException(status_code=422, detail="geoweb_base_url_missing")
+
+    articles = (
+        await db.execute(
+            select(Article).where(Article.deleted_at.is_(None)).order_by(Article.id.desc())
+        )
+    ).scalars().all()
+    local = [
+        {
+            "id": a.id,
+            "slug": a.slug,
+            "title": a.title,
+            "status": a.status,
+            "wiki_meta": a.wiki_meta if isinstance(a.wiki_meta, dict) else {},
+        }
+        for a in articles
+        if is_distribution_article(
+            content_format=a.content_format,
+            slug=a.slug or "",
+            title=a.title or "",
+            wiki_meta=a.wiki_meta if isinstance(a.wiki_meta, dict) else {},
+        )
+    ]
+
+    url = f"{geoweb_base_url}/api/pages.json"
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.get(url)
+            if resp.status_code >= 400:
+                raise HTTPException(status_code=502, detail=f"geoweb_pages_http_{resp.status_code}")
+            remote = resp.json()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("articles_reconcile_fetch_failed url=%s error=%s", url, str(exc)[:200])
+        raise HTTPException(status_code=502, detail="geoweb_pages_unreachable") from exc
+
+    if not isinstance(remote, list):
+        raise HTTPException(status_code=502, detail="geoweb_pages_invalid")
+
+    diff = diff_article_inventories(local, remote)
+    logger.info(
+        "articles_reconciled local=%s remote=%s matched=%s local_only=%s remote_only=%s hash_mismatch=%s",
+        diff["stats"]["local"],
+        diff["stats"]["remote"],
+        diff["stats"]["matched"],
+        diff["stats"]["local_only"],
+        diff["stats"]["remote_only"],
+        diff["stats"]["hash_mismatch"],
+    )
+    return {
+        **diff,
+        "geoweb_base_url": geoweb_base_url,
+        "pages_json": url,
+    }

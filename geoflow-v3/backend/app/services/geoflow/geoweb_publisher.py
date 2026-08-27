@@ -49,6 +49,13 @@ def _as_faq(value: Any) -> list[dict[str, str]]:
     return out
 
 
+def _resolve_geoflow_lane(article: Article) -> str:
+    """distribution=生产-分发→GEOweb /articles；wiki=Wiki 定稿→GEOweb Wiki。"""
+    if (article.content_format or "article") == "wiki_mdx":
+        return "wiki"
+    return "distribution"
+
+
 def _resolve_page_type(article: Article, config: dict[str, Any]) -> str:
     """Wiki MDX 用 pack 页型；普通文章才吃渠道 default_page_type。"""
     meta = article.wiki_meta if isinstance(article.wiki_meta, dict) else {}
@@ -92,6 +99,7 @@ class GeowebPublisher:
         page_type = _resolve_page_type(article, config)
         slug = ascii_slug(str(meta.get("slug") or article.slug).strip() or article.slug, fallback="page")
         geo_task_id = geo_flow_task or _resolve_geo_task_id(article)
+        geoflow_lane = _resolve_geoflow_lane(article)
         body = _extract_body(article)
         if not body:
             raise RuntimeError("geoweb_publisher_empty_body")
@@ -130,6 +138,7 @@ class GeowebPublisher:
             "body": body,
             "geo_publish": True,
             "geo_flow_task": geo_task_id,
+            "geoflow_lane": geoflow_lane,
             "last_updated": last_updated,
             "schema_type": str(
                 frontmatter.get("schema_type") or meta.get("schema_type") or "TechArticle"
@@ -223,10 +232,11 @@ class GeowebPublisher:
         geo_content_hash = data.get("geo_content_hash")
         self._apply_sync_result(article, payload, remote_url=remote_url, geo_content_hash=geo_content_hash)
         logger.info(
-            "geoweb_published article_id=%s theme_id=%s type=%s slug=%s geo_flow_task=%s",
+            "geoweb_published article_id=%s theme_id=%s type=%s lane=%s slug=%s geo_flow_task=%s",
             article.id,
             article.theme_id,
             payload["type"],
+            payload.get("geoflow_lane"),
             payload["slug"],
             payload.get("geo_flow_task"),
         )

@@ -12,6 +12,9 @@ export const ja = {
     groupStrategy: "L1 戦略",
     backHome: "ホームへ",
     systemSettings: "システム設定",
+    securitySettings: "セキュリティとパスワード",
+    apiTokens: "API Tokens",
+    admins: "管理者",
     logout: "ログアウト",
   },
   header: {

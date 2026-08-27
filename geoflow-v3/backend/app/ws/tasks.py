@@ -1,6 +1,5 @@
 """WebSocket 任务监控 — 替代 Laravel Reverb。"""
 
-import json
 from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
@@ -8,6 +7,7 @@ from sqlalchemy import select
 
 from app.core.database import async_session_factory
 from app.core.logging import get_logger
+from app.core.security import ADMIN_COOKIE_NAME, decode_jwt, load_active_admin
 from app.models.task import Task, TaskRun
 
 logger = get_logger("ws.tasks")
@@ -39,7 +39,41 @@ async def _build_overview() -> dict[str, Any]:
     }
 
 
+def _token_from_ws(websocket: WebSocket) -> str | None:
+    auth = websocket.headers.get("authorization") or websocket.headers.get("Authorization")
+    if auth and auth.lower().startswith("bearer "):
+        return auth[7:].strip()
+    # query ?token=
+    token = websocket.query_params.get("token")
+    if token:
+        return token.strip()
+    # Cookie（同源 WS 会带上）
+    cookie_header = websocket.headers.get("cookie") or ""
+    for part in cookie_header.split(";"):
+        part = part.strip()
+        if part.startswith(f"{ADMIN_COOKIE_NAME}="):
+            return part.split("=", 1)[1].strip()
+    return None
+
+
+async def _authorize_ws(websocket: WebSocket) -> bool:
+    token = _token_from_ws(websocket)
+    if not token:
+        return False
+    payload = decode_jwt(token)
+    if payload is None:
+        return False
+    admin_id = int(payload.get("sub") or 0)
+    async with async_session_factory() as db:
+        admin = await load_active_admin(db, admin_id)
+    return admin is not None
+
+
 async def tasks_websocket(websocket: WebSocket) -> None:
+    if not await _authorize_ws(websocket):
+        logger.warning("ws_rejected reason=unauthorized")
+        await websocket.close(code=4401)
+        return
     await websocket.accept()
     _connections.add(websocket)
     logger.info("ws_connected", total=len(_connections))

@@ -296,22 +296,16 @@ async def _maybe_llm_enhance(db: AsyncSession, mining: dict[str, Any], scene: di
         mining["llm_skip_reason"] = "ai_mock_mode"
         return mining
 
-    if not await _table_exists(db, "ai_models"):
-        mining["llm_enhanced"] = False
-        return mining
+    from app.services.geoflow.llm_client import get_active_chat_model
+    from app.ai.llm_gateway import resolve_llm_endpoint
 
-    row = (
-        await db.execute(
-            text(
-                """
-                SELECT api_url, api_key, model_id FROM ai_models
-                WHERE status = 'active' AND COALESCE(model_type, 'chat') = 'chat'
-                ORDER BY id ASC LIMIT 1
-                """
-            )
-        )
-    ).first()
-    if not row or not row[0] or not row[1]:
+    model = await get_active_chat_model(db)
+    if model is None:
+        mining["llm_enhanced"] = False
+        mining["llm_skip_reason"] = "no_chat_model"
+        return mining
+    ep = resolve_llm_endpoint(model)
+    if not ep.base_url or not ep.api_key:
         mining["llm_enhanced"] = False
         mining["llm_skip_reason"] = "no_chat_model"
         return mining
@@ -327,13 +321,13 @@ async def _maybe_llm_enhance(db: AsyncSession, mining: dict[str, Any], scene: di
     try:
         import httpx
 
-        base = str(row[0]).rstrip("/")
+        base = ep.base_url.rstrip("/")
         async with httpx.AsyncClient(timeout=25.0) as client:
             resp = await client.post(
                 f"{base}/chat/completions",
-                headers={"Authorization": f"Bearer {row[1]}", "Content-Type": "application/json"},
+                headers={"Authorization": f"Bearer {ep.api_key}", "Content-Type": "application/json"},
                 json={
-                    "model": row[2],
+                    "model": ep.model_id,
                     "messages": [{"role": "user", "content": prompt}],
                     "max_tokens": 600,
                     "temperature": 0.3,

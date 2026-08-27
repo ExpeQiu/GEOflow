@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
 import { FlashAlert } from "@/components/admin/FlashAlert";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiGet, apiPost, getToken } from "@/lib/api-client";
 import { PRODUCTION_MORE_NAV, PRODUCTION_NAV } from "@/lib/nav-config";
+import { useRouteParams } from "@/lib/use-route-params";
 
 type JobDetail = {
   id: number;
@@ -28,9 +28,9 @@ type JobDetail = {
   created_at?: string | null;
 };
 
-export default function UrlImportJobPage() {
+export default function UrlImportJobPage({ params }: { params: Promise<{ jobId: string }> }) {
   const token = useAuthGuard();
-  const { jobId } = useParams<{ jobId: string }>();
+  const { jobId } = useRouteParams(params);
   const [job, setJob] = useState<JobDetail | null>(null);
   const [flash, setFlash] = useState("");
 

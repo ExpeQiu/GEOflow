@@ -21,7 +21,7 @@ from app.services.geoflow.task_material_resolver import (
     resolve_task_materials,
     resolve_workflow_type,
 )
-from app.services.geoflow.wiki_types import ascii_slug
+from app.services.geoflow.wiki_types import WIKI_CONTENT_FORMAT, ascii_slug
 from app.ai.workflow_runner import run_workflow_sync
 
 logger = get_logger("geoflow.worker")
@@ -174,6 +174,11 @@ class WorkerExecutionService:
 
             gate = await get_geo_eval_gate_config(self.db)
 
+            pack_type_normalized = str(pack_type or "concept").strip().lower()
+            content_format = task.content_format or "article"
+            if pack_type_normalized != "article":
+                content_format = WIKI_CONTENT_FORMAT
+
             article = Article(
                 title=article_title,
                 slug=f"{slug}-{run.id}",
@@ -184,15 +189,16 @@ class WorkerExecutionService:
                 task_id=task.id,
                 theme_id=theme_id,
                 is_ai_generated=1,
-                content_format=task.content_format or "article",
+                content_format=content_format,
                 keywords=article_fields["keywords"],
                 original_keyword=article_fields["original_keyword"],
                 meta_description=article_fields["meta_description"],
                 eval_status="pending_eval" if gate["enabled"] else "skipped",
             )
-            if task.is_wiki_mdx():
+            if content_format == WIKI_CONTENT_FORMAT:
                 wiki_meta = result.get("wiki_meta") if isinstance(result.get("wiki_meta"), dict) else {}
-                wiki_meta["type"] = pack_type
+                wiki_meta["type"] = pack_type_normalized
+                wiki_meta["wiki_page_type"] = pack_type_normalized
                 if theme_id:
                     wiki_meta.setdefault("theme_id", theme_id)
                 if ctx.tech_ip:

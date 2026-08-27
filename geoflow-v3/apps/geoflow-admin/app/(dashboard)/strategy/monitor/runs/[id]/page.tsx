@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
 import { SchemeBadge } from "@/components/strategy/shared/AivisPrimitives";
@@ -10,10 +9,11 @@ import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiGet, getToken } from "@/lib/api-client";
 import { STRATEGY_MORE_NAV, STRATEGY_NAV } from "@/lib/nav-config";
 import type { MonitorRunDetail } from "@/lib/strategy-types";
+import { useRouteParams } from "@/lib/use-route-params";
 
-export default function MonitorRunDetailPage() {
+export default function MonitorRunDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const token = useAuthGuard();
-  const { id } = useParams<{ id: string }>();
+  const { id } = useRouteParams(params);
   const [data, setData] = useState<MonitorRunDetail | null>(null);
   const [error, setError] = useState("");
 

@@ -10,6 +10,7 @@ from app.core.config import get_settings
 from app.services.admin.production_service import _table_exists
 from app.services.admin.settings_crud_service import SiteSettingBody, upsert_site_setting
 from app.services.geoeval.platform_connectors.base import PLATFORMS_CN
+from app.services.geoeval.probe_platform_registry import list_available_platforms
 from app.services.geoeval.domain_catalog import DEFAULT_OFFICIAL_DOMAINS
 
 logger = logging.getLogger(__name__)
@@ -107,6 +108,8 @@ async def get_monitor_settings(db: AsyncSession) -> dict:
     if not official_domains.strip():
         official_domains = ",".join(DEFAULT_OFFICIAL_DOMAINS)
 
+    available_platforms = await list_available_platforms(db)
+
     return {
         "brand_name": brand_name,
         "brand_aliases": brand_aliases,
@@ -115,6 +118,7 @@ async def get_monitor_settings(db: AsyncSession) -> dict:
         "monitor_scan_limit": monitor_scan_limit,
         "default_knowledge_base_id": default_knowledge_base_id,
         "platforms": list(platforms),
+        "available_platforms": available_platforms,
         "ai_mock_mode": settings.ai_mock_mode,
         "strict_api": strict_api,
         "remediation_delay_hours": remediation_delay_hours,

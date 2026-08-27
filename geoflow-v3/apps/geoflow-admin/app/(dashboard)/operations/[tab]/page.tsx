@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "next/navigation";
 import Link from "next/link";
 import { DashboardAutomation } from "@/components/admin/DashboardAutomation";
 import { QuickStartPanel } from "@/components/admin/DashboardSections";
@@ -19,6 +18,7 @@ import { apiGet, apiPost, getToken } from "@/lib/api-client";
 import type { DashboardAutomationPayload } from "@/lib/dashboard-types";
 import { zh } from "@/lib/i18n/zh";
 import { OPERATIONS_MORE_NAV, OPERATIONS_NAV } from "@/lib/nav-config";
+import { useRouteParams } from "@/lib/use-route-params";
 import type {
   AdminArticle,
   ArticleStats,
@@ -29,8 +29,8 @@ import type {
 } from "@/lib/operations-types";
 import type { AnalyticsSnapshot, MonitorInsight, MonitorSnapshot, TrendPoint } from "@/lib/strategy-types";
 
-export default function OperationsPage() {
-  const { tab } = useParams<{ tab: string }>();
+export default function OperationsPage({ params }: { params: Promise<{ tab: string }> }) {
+  const { tab } = useRouteParams(params);
   const token = useAuthGuard();
   const [stats, setStats] = useState<OpsStats | null>(null);
   const [automation, setAutomation] = useState<DashboardAutomationPayload | null>(null);
@@ -42,6 +42,7 @@ export default function OperationsPage() {
   const [channels, setChannels] = useState<DistributionChannelRow[]>([]);
   const [recentJobs, setRecentJobs] = useState<DistributionJobRow[]>([]);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [importingArticles, setImportingArticles] = useState(false);
   const [flash, setFlash] = useState<{ variant: "success" | "error"; message: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -174,6 +175,34 @@ export default function OperationsPage() {
     }
   }
 
+  async function onImportArticles() {
+    const t = getToken();
+    if (!t) return;
+    setImportingArticles(true);
+    setFlash(null);
+    try {
+      const data = await apiPost<
+        { stats: ArticleStats; articles: AdminArticle[]; import?: { created: number; updated: number; official_count?: number; geoflow_skipped?: number } }
+      >("/api/admin/articles/import-geoweb", t);
+      setArticles(data.articles);
+      setArticleStats(data.stats);
+      const result = data.import;
+      setFlash({
+        variant: "success",
+        message: zh.articles.importSuccess(
+          result?.created ?? 0,
+          result?.updated ?? 0,
+          result?.official_count,
+          result?.geoflow_skipped,
+        ),
+      });
+    } catch {
+      setFlash({ variant: "error", message: zh.articles.importError });
+    } finally {
+      setImportingArticles(false);
+    }
+  }
+
   async function batchPublishArticles(ids: number[]) {
     const t = getToken();
     if (!t || ids.length === 0) return;
@@ -238,6 +267,8 @@ export default function OperationsPage() {
           busyId={busyId}
           themeFilter={themeFilter}
           onThemeFilterChange={setThemeFilter}
+          onImport={onImportArticles}
+          importing={importingArticles}
           onFilterChange={(f) => {
             setArticleFilter(f);
           }}

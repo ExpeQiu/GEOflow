@@ -12,6 +12,9 @@ export const ko = {
     groupStrategy: "L1 전략",
     backHome: "홈으로",
     systemSettings: "시스템 설정",
+    securitySettings: "보안과 비밀번호",
+    apiTokens: "API Tokens",
+    admins: "관리자",
     logout: "로그아웃",
   },
   header: {

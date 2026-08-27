@@ -16,6 +16,7 @@ from app.services.admin.distribution_form_service import (
     _is_valid_http_endpoint,
     _normalize_domain,
     _normalize_endpoint_url,
+    _preserve_secrets_on_update,
     _validate_type_specific,
 )
 
@@ -73,7 +74,8 @@ async def update_admin_distribution_channel(
     if not _is_valid_http_endpoint(endpoint_url):
         raise HTTPException(status_code=422, detail="invalid_endpoint_url")
     domain = _normalize_domain(body.domain)
-    _validate_type_specific(body)
+    existing_cfg = channel.config_json if isinstance(channel.config_json, dict) else {}
+    _validate_type_specific(body, existing_cfg)
 
     cfg: dict[str, Any] = {
         "domain": domain,
@@ -83,6 +85,7 @@ async def update_admin_distribution_channel(
         "template_key": body.template_key.strip() or None,
     }
     cfg.update(_build_type_config(body, endpoint_url))
+    cfg = _preserve_secrets_on_update(existing_cfg, cfg, body)
 
     channel.name = body.name.strip()
     channel.channel_type = body.channel_type
@@ -177,6 +180,9 @@ async def build_distribution_jobs(
                 "status": j.status,
                 "remote_id": j.remote_id,
                 "remote_url": j.remote_url,
+                "canonical_url": getattr(j, "canonical_url", None),
+                "tracked_url": getattr(j, "tracked_url", None),
+                "trace_params": getattr(j, "trace_params_json", None),
                 "error_message": (j.error_message or "")[:200],
                 "attempt_count": j.attempt_count,
                 "updated_at": j.updated_at.isoformat() if j.updated_at else None,
@@ -203,6 +209,78 @@ async def update_distribution_job(db: AsyncSession, job_id: int, body: Distribut
     await db.flush()
     logger.info("admin_distribution_job_updated id=%s status=%s", job.id, body.status)
     return {"job": {"id": job.id, "status": job.status}}
+
+
+async def preview_distribution_links(
+    db: AsyncSession,
+    *,
+    article_id: int,
+    channel_ids: list[int],
+) -> dict:
+    from app.services.geoflow.distribution_trace import (
+        build_external_tracked_url,
+        is_external_channel,
+        is_geoweb_channel,
+        resolve_canonical_from_article,
+    )
+
+    article = await db.get(Article, article_id)
+    if article is None or article.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="article_not_found")
+
+    channels = list(
+        (
+            await db.execute(
+                select(DistributionChannel).where(
+                    DistributionChannel.id.in_(channel_ids),
+                    DistributionChannel.status == "active",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    canonical = resolve_canonical_from_article(article)
+    if not canonical:
+        row = (
+            await db.execute(
+                select(ArticleDistribution, DistributionChannel)
+                .join(DistributionChannel, DistributionChannel.id == ArticleDistribution.channel_id)
+                .where(
+                    ArticleDistribution.article_id == article_id,
+                    DistributionChannel.channel_type == "geoweb",
+                    ArticleDistribution.status.in_(("published", "synced", "success")),
+                )
+                .order_by(ArticleDistribution.id.desc())
+                .limit(1)
+            )
+        ).first()
+        if row:
+            dist, _ = row
+            canonical = (getattr(dist, "canonical_url", None) or dist.remote_url or "").strip() or None
+
+    previews = []
+    for channel in channels:
+        item = {
+            "channel_id": channel.id,
+            "channel_name": channel.name,
+            "channel_type": channel.channel_type,
+            "canonical_url": canonical,
+            "tracked_url": None,
+        }
+        if is_geoweb_channel(channel.channel_type):
+            item["tracked_url"] = canonical
+        elif is_external_channel(channel.channel_type) and canonical:
+            tracked, _params = build_external_tracked_url(
+                article=article,
+                channel=channel,
+                dist_id=0,
+                canonical_url=canonical,
+            )
+            item["tracked_url"] = tracked
+        previews.append(item)
+
+    return {"article_id": article_id, "canonical_url": canonical, "previews": previews}
 
 
 async def delete_distribution_job(db: AsyncSession, job_id: int) -> dict:
@@ -290,6 +368,41 @@ class AdminDistributionBatchBody(BaseModel):
     article_ids: list[int] = Field(min_length=1)
     channel_ids: list[int] = Field(min_length=1)
     interval_seconds: int = Field(default=0, ge=0, le=86400)
+    distribution_mode: str = Field(
+        default="geoweb_and_external",
+        pattern="^(geoweb_only|geoweb_and_external|external_only)$",
+    )
+
+
+def _resolve_batch_channel_ids(
+    channels: list[DistributionChannel],
+    *,
+    requested_ids: list[int],
+    mode: str,
+) -> list[int]:
+    from app.services.geoflow.distribution_trace import is_external_channel, is_geoweb_channel
+
+    by_id = {int(c.id): c for c in channels}
+    selected = [by_id[cid] for cid in requested_ids if cid in by_id]
+
+    geoweb_ids = [int(c.id) for c in selected if is_geoweb_channel(c.channel_type)]
+    external_ids = [int(c.id) for c in selected if is_external_channel(c.channel_type)]
+
+    if mode == "geoweb_only":
+        if geoweb_ids:
+            return geoweb_ids
+        return [int(c.id) for c in channels if is_geoweb_channel(c.channel_type)][:1]
+
+    if mode == "external_only":
+        return external_ids
+
+    # geoweb_and_external：外渠选中时自动补 GEOweb 主站
+    result_ids = list(dict.fromkeys(geoweb_ids + external_ids))
+    if external_ids and not geoweb_ids:
+        auto_geoweb = next((int(c.id) for c in channels if is_geoweb_channel(c.channel_type)), None)
+        if auto_geoweb:
+            result_ids.insert(0, auto_geoweb)
+    return result_ids or requested_ids
 
 
 async def create_distribution_batch(db: AsyncSession, body: AdminDistributionBatchBody) -> dict:
@@ -332,11 +445,19 @@ async def create_distribution_batch(db: AsyncSession, body: AdminDistributionBat
     if missing_channels:
         raise HTTPException(status_code=422, detail=f"active_channels_not_found:{missing_channels[:5]}")
 
+    effective_channel_ids = _resolve_batch_channel_ids(
+        channels,
+        requested_ids=channel_ids,
+        mode=body.distribution_mode,
+    )
+
     created = 0
     skipped = 0
     queued_articles: list[int] = []
     for article in articles:
         for channel in channels:
+            if int(channel.id) not in effective_channel_ids:
+                continue
             existing = (
                 await db.execute(
                     select(ArticleDistribution).where(
@@ -373,7 +494,7 @@ async def create_distribution_batch(db: AsyncSession, body: AdminDistributionBat
             countdown = idx * interval if interval > 0 else 0
             celery_app.send_task(
                 "app.workers.tasks.process_article_distribution",
-                args=[article_id, channel_ids],
+                args=[article_id, effective_channel_ids],
                 countdown=countdown,
             )
             queued += 1
@@ -395,7 +516,9 @@ async def create_distribution_batch(db: AsyncSession, body: AdminDistributionBat
     )
     return {
         "article_count": len(article_ids),
-        "channel_count": len(channel_ids),
+        "channel_count": len(effective_channel_ids),
+        "channel_ids": effective_channel_ids,
+        "distribution_mode": body.distribution_mode,
         "jobs_created": created,
         "jobs_skipped": skipped,
         "queued": queued,

@@ -2,17 +2,18 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
 import { KnowledgeSubNav } from "@/components/production/KnowledgeSubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiGet, apiPatch, getToken } from "@/lib/api-client";
 import { PRODUCTION_MORE_NAV, PRODUCTION_NAV } from "@/lib/nav-config";
+import { useRouteParams } from "@/lib/use-route-params";
 
-export default function TechAssetEditPage() {
+export default function TechAssetEditPage({ params }: { params: Promise<{ id: string }> }) {
   const token = useAuthGuard();
-  const { id } = useParams<{ id: string }>();
+  const { id } = useRouteParams(params);
   const router = useRouter();
   const [form, setForm] = useState({ ip_id: "", name: "", mind_tag: "", wiki_type: "concept", wiki_slug: "", priority: 100, status: "active" });
 

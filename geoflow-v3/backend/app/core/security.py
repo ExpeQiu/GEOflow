@@ -27,6 +27,8 @@ ALL_SCOPES = [
     "articles:publish",
 ]
 
+ADMIN_COOKIE_NAME = "gf_token"
+
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
@@ -55,6 +57,10 @@ def decode_jwt(token: str) -> dict[str, Any] | None:
         return None
 
 
+def is_super_admin_role(role: str | None) -> bool:
+    return (role or "").lower() in ("super_admin", "superadmin")
+
+
 async def authenticate_admin(db: AsyncSession, username: str, password: str) -> Admin | None:
     result = await db.execute(select(Admin).where(Admin.username == username, Admin.status == "active"))
     admin = result.scalar_one_or_none()
@@ -63,15 +69,22 @@ async def authenticate_admin(db: AsyncSession, username: str, password: str) -> 
     return admin
 
 
+async def load_active_admin(db: AsyncSession, admin_id: int) -> Admin | None:
+    result = await db.execute(select(Admin).where(Admin.id == admin_id, Admin.status == "active"))
+    return result.scalar_one_or_none()
+
+
 async def create_api_token(
     db: AsyncSession,
     admin_id: int,
     name: str = "default",
     scopes: list[str] | None = None,
+    expires_days: int | None = None,
 ) -> tuple[str, ApiAccessToken]:
     plain = f"gf_{uuid4().hex}{uuid4().hex[:16]}"
     token_hash = bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
-    expires = datetime.now(UTC).replace(tzinfo=None) + timedelta(days=settings.api_token_default_ttl_days)
+    ttl = settings.api_token_default_ttl_days if expires_days is None else max(1, min(int(expires_days), 3650))
+    expires = datetime.now(UTC).replace(tzinfo=None) + timedelta(days=ttl)
     row = ApiAccessToken(
         admin_id=admin_id,
         name=name,
@@ -94,8 +107,7 @@ async def resolve_api_token(db: AsyncSession, plain_token: str) -> tuple[Admin, 
         if verify_password(plain_token, row.token_hash):
             if row.expires_at and row.expires_at.replace(tzinfo=UTC) < datetime.now(UTC):
                 return None
-            admin_result = await db.execute(select(Admin).where(Admin.id == row.admin_id))
-            admin = admin_result.scalar_one_or_none()
+            admin = await load_active_admin(db, int(row.admin_id))
             if admin is None:
                 return None
             row.last_used_at = datetime.now(UTC).replace(tzinfo=None)
@@ -105,3 +117,7 @@ async def resolve_api_token(db: AsyncSession, plain_token: str) -> tuple[Admin, 
 
 def token_has_scope(scopes: list[str], required: str) -> bool:
     return "*" in scopes or required in scopes
+
+
+def admin_cookie_max_age() -> int:
+    return max(3600, int(settings.jwt_expire_hours) * 3600)

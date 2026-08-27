@@ -91,25 +91,35 @@ class ApiConnector:
         scheme: str = SCHEME_OPEN_API,
         official_domains: list[str] | None = None,
         wiki_domains: list[str] | None = None,
+        probe_api_config: dict | None = None,
     ) -> ProbeOutcome | None:
         enable_thinking = scheme == SCHEME_FRAMEWORK_API
         enable_citation = scheme == SCHEME_CITATION
         prompt = question_text + (_CITE_HINT if enable_citation else "")
         citation_method = "url_extract"
+        from app.services.geoeval.probe_api_resolver import resolve_probe_api_endpoint
+
+        ep = resolve_probe_api_endpoint(platform, probe_api_config)
         try:
             if _mock_enabled() and enable_thinking:
                 text, reasoning = MOCK_ANSWER, MOCK_COT
             elif _mock_enabled() and enable_citation:
                 text, reasoning = MOCK_CITATION_ANSWER, ""
                 citation_method = "mock"
+            elif platform == "kimi" and enable_citation:
+                use_search = _citation_web_search_enabled()
+                text, reasoning = await self._call_kimi(prompt, web_search=use_search, endpoint=ep)
+                citation_method = "web_search" if use_search else "url_extract"
+            elif ep is not None:
+                text, reasoning = await self._call_resolved(
+                    ep,
+                    prompt,
+                    enable_thinking=enable_thinking,
+                )
             elif platform == "deepseek":
                 text, reasoning = await self._call_deepseek(prompt, enable_thinking=enable_thinking)
             elif platform == "doubao":
                 text, reasoning = await self._call_doubao(prompt, enable_thinking=enable_thinking)
-            elif platform == "kimi" and enable_citation:
-                use_search = _citation_web_search_enabled()
-                text, reasoning = await self._call_kimi(prompt, web_search=use_search)
-                citation_method = "web_search" if use_search else "url_extract"
             else:
                 return None
         except Exception as exc:
@@ -191,6 +201,48 @@ class ApiConnector:
         )
         return stamp_outcome(outcome, scheme=scheme)
 
+    async def _call_resolved(
+        self,
+        ep,
+        question: str,
+        *,
+        enable_thinking: bool,
+    ) -> tuple[str, str]:
+        if not ep.model_id:
+            raise ValueError(f"{ep.platform}_model_missing")
+        payload: dict = {
+            "model": ep.model_id,
+            "messages": [{"role": "user", "content": question}],
+            "max_tokens": 4000 if enable_thinking else 800,
+        }
+        if enable_thinking and ep.platform == "doubao":
+            payload["thinking"] = {"type": "enabled"}
+        timeout = 90.0 if enable_thinking else 45.0
+        logger.info(
+            "probe_api_chat_request platform=%s via=%s model=%s base=%s",
+            ep.platform,
+            ep.via,
+            ep.model_id,
+            ep.base_url,
+        )
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.post(
+                f"{ep.base_url.rstrip('/')}/chat/completions",
+                headers={"Authorization": f"Bearer {ep.api_key}", "Content-Type": "application/json"},
+                json=payload,
+            )
+            if resp.status_code >= 400:
+                logger.warning(
+                    "probe_api_chat_http platform=%s status=%s body=%s",
+                    ep.platform,
+                    resp.status_code,
+                    (resp.text or "")[:240],
+                )
+            resp.raise_for_status()
+            data = resp.json()
+            msg = ((data.get("choices") or [{}])[0].get("message")) or {}
+            return split_reasoning(msg, str(msg.get("content") or ""))
+
     async def _call_deepseek(self, question: str, *, enable_thinking: bool) -> tuple[str, str]:
         api_key = os.getenv("DEEPSEEK_API_KEY", "")
         if not api_key:
@@ -267,7 +319,37 @@ class ApiConnector:
             msg = ((data.get("choices") or [{}])[0].get("message")) or {}
             return split_reasoning(msg, str(msg.get("content") or ""))
 
-    async def _call_kimi(self, question: str, *, web_search: bool = False) -> tuple[str, str]:
+    async def _call_kimi(
+        self,
+        question: str,
+        *,
+        web_search: bool = False,
+        endpoint=None,
+    ) -> tuple[str, str]:
+        if endpoint is not None:
+            payload: dict = {
+                "model": endpoint.model_id,
+                "messages": [{"role": "user", "content": question}],
+                "max_tokens": 1200,
+            }
+            if web_search:
+                payload["tools"] = [{"type": "builtin_function", "function": {"name": "$web_search"}}]
+            try:
+                async with httpx.AsyncClient(timeout=60.0 if web_search else 45.0) as client:
+                    resp = await client.post(
+                        f"{endpoint.base_url.rstrip('/')}/chat/completions",
+                        headers={"Authorization": f"Bearer {endpoint.api_key}", "Content-Type": "application/json"},
+                        json=payload,
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+                    msg = ((data.get("choices") or [{}])[0].get("message")) or {}
+                    return split_reasoning(msg, str(msg.get("content") or ""))
+            except Exception:
+                if web_search:
+                    logger.warning("kimi_web_search_fallback_url_extract", exc_info=True)
+                    return await self._call_kimi(question, web_search=False, endpoint=endpoint)
+                raise
         api_key = os.getenv("KIMI_API_KEY", "") or os.getenv("MOONSHOT_API_KEY", "")
         if not api_key:
             if _mock_enabled():

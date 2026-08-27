@@ -7,11 +7,12 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.core.sensitive_filter import assert_text_clean
 from app.models.article import Article
 from app.models.material import Author, Category
 from app.services.admin.wiki_draft import render_wiki_draft
@@ -27,7 +28,7 @@ from app.services.admin.wiki_editor_schema import (
     wiki_publish_gate,
 )
 from app.services.admin.wiki_pack import sort_pack_pages
-from app.services.admin.wiki_reconcile import diff_wiki_inventories
+from app.services.admin.wiki_import import is_geoweb_aligned_wiki_record, load_official_geoweb_wiki_slugs
 from app.services.geoflow.geoweb_publisher import GeowebPublisher
 from app.services.geoflow.wiki_types import (
     GEOWEB_PAGE_TYPES,
@@ -146,19 +147,32 @@ async def build_wiki_panel(
 ) -> dict[str, Any]:
     settings = get_settings()
     geoweb_base_url = (settings.geoweb_base_url or "").rstrip("/")
+    official_slugs = load_official_geoweb_wiki_slugs(include_smoke=include_smoke)
 
-    query = _wiki_query().order_by(Article.id.desc()).limit(200)
+    query = _wiki_query().order_by(Article.id.desc())
     if page_type:
         validate_wiki_type(page_type)
     articles = (await db.execute(query)).scalars().all()
+    articles = [
+        a
+        for a in articles
+        if is_geoweb_aligned_wiki_record(
+            content_format=a.content_format,
+            slug=a.slug or "",
+            wiki_meta=a.wiki_meta if isinstance(a.wiki_meta, dict) else {},
+            official_slugs=official_slugs,
+        )
+    ]
 
     items: list[dict[str, Any]] = []
-    type_counts: dict[str, int] = {t: 0 for t in sorted(GEOWEB_PAGE_TYPES)}
+    type_counts: dict[str, int] = {t: 0 for t in sorted(GEOWEB_PAGE_TYPES) if t != "article"}
     smoke_hidden = 0
     needle = (q or "").strip().lower()
 
     for article in articles:
         resolved_type = resolve_wiki_page_type(article)
+        if resolved_type == "article":
+            continue
         type_counts[resolved_type] = type_counts.get(resolved_type, 0) + 1
         slug = str(meta_get(_meta_dict(article), "slug") or article.slug)
         if not include_smoke and is_smoke_slug(slug):
@@ -170,15 +184,7 @@ async def build_wiki_panel(
             continue
         items.append(_serialize_wiki_page(article, geoweb_base_url))
 
-    total = int(
-        await db.scalar(
-            select(func.count()).select_from(Article).where(
-                Article.deleted_at.is_(None),
-                Article.content_format == WIKI_FORMAT,
-            )
-        )
-        or 0
-    )
+    total = len(articles)
     synced = sum(1 for item in items if item["synced"])
     return {
         "pages": items,
@@ -187,6 +193,7 @@ async def build_wiki_panel(
             "visible": len(items),
             "synced": synced,
             "smoke_hidden": smoke_hidden,
+            "official_slugs": len(official_slugs),
         },
         "type_counts": type_counts,
         "types": sorted(GEOWEB_PAGE_TYPES),
@@ -213,6 +220,15 @@ async def build_wiki_detail(db: AsyncSession, article_id: int) -> dict[str, Any]
 
 
 async def create_wiki_page(db: AsyncSession, body: WikiPageBody) -> dict[str, Any]:
+    await assert_text_clean(
+        db,
+        body.title,
+        body.body,
+        body.quick_answer,
+        body.core_takeaway,
+        body.target_query,
+        context="wiki_create",
+    )
     page_type = validate_wiki_type(body.wiki_page_type)
     slug = await _ensure_unique_slug(db, validate_wiki_slug(body.slug), None)
     if is_smoke_slug(slug):
@@ -248,6 +264,15 @@ async def create_wiki_page(db: AsyncSession, body: WikiPageBody) -> dict[str, An
 
 
 async def update_wiki_page(db: AsyncSession, article_id: int, body: WikiPageBody) -> dict[str, Any]:
+    await assert_text_clean(
+        db,
+        body.title,
+        body.body,
+        body.quick_answer,
+        body.core_takeaway,
+        body.target_query,
+        context="wiki_update",
+    )
     article = await _require_wiki_article(db, article_id)
     page_type = validate_wiki_type(body.wiki_page_type)
     slug = await _ensure_unique_slug(db, validate_wiki_slug(body.slug), article.id)
@@ -328,16 +353,24 @@ async def import_geoweb_wiki_pages(
     db: AsyncSession,
     wiki_dir: str | None = None,
     include_smoke: bool = False,
+    *,
+    official_only: bool = True,
 ) -> dict[str, Any]:
     """把 GEOweb content/wiki 拉进编辑台，不回写前台文件。"""
-    from app.services.admin.wiki_import import default_geoweb_wiki_dir, scan_geoweb_wiki_dir
+    from app.services.admin.wiki_import import (
+        default_geoweb_wiki_dir,
+        is_official_geoweb_wiki_page,
+        scan_geoweb_wiki_dir,
+    )
 
     settings = get_settings()
     root = Path(wiki_dir) if wiki_dir else default_geoweb_wiki_dir()
     if not root.is_dir():
         raise HTTPException(status_code=422, detail=f"wiki_dir_not_found:{root}")
 
-    scanned = scan_geoweb_wiki_dir(root, include_smoke=True)
+    scanned_all = scan_geoweb_wiki_dir(root, include_smoke=True, official_only=False)
+    scanned = scan_geoweb_wiki_dir(root, include_smoke=True, official_only=official_only)
+    geoflow_skipped = sum(1 for p in scanned_all if not is_official_geoweb_wiki_page(p))
     category_id, author_id = await _default_category_author(db)
     geoweb_base_url = (settings.geoweb_base_url or "").rstrip("/")
     created = 0
@@ -420,24 +453,30 @@ async def import_geoweb_wiki_pages(
             meta["geo_content_hash"] = parsed["geo_content_hash"]
         source = parsed.get("source") or "seed"
         meta["imported_from"] = source
+        meta["geoflow_lane"] = "wiki"
         article.wiki_meta = meta
 
     await db.flush()
     logger.info(
-        "wiki_imported created=%s updated=%s smoke_skipped=%s conflict=%s dir=%s",
+        "wiki_imported created=%s updated=%s smoke_skipped=%s geoflow_skipped=%s conflict=%s dir=%s official_only=%s",
         created,
         updated,
         smoke_skipped,
+        geoflow_skipped,
         skipped_conflict,
         str(root),
+        official_only,
     )
     panel = await build_wiki_panel(db)
     panel["import"] = {
         "created": created,
         "updated": updated,
         "smoke_skipped": smoke_skipped,
+        "geoflow_skipped": geoflow_skipped,
         "conflict": skipped_conflict,
         "wiki_dir": str(root),
+        "official_only": official_only,
+        "official_count": len(scanned),
     }
     return panel
 
@@ -691,11 +730,19 @@ async def reconcile_wiki_with_geoweb(db: AsyncSession) -> dict[str, Any]:
     if not geoweb_base_url:
         raise HTTPException(status_code=422, detail="geoweb_base_url_missing")
 
+    official_slugs = load_official_geoweb_wiki_slugs()
     articles = (await db.execute(_wiki_query().order_by(Article.id.desc()))).scalars().all()
     local = []
     for article in articles:
         page = _serialize_wiki_page(article, geoweb_base_url)
         if is_smoke_slug(page["slug"]):
+            continue
+        if not is_geoweb_aligned_wiki_record(
+            content_format=article.content_format,
+            slug=article.slug or "",
+            wiki_meta=article.wiki_meta if isinstance(article.wiki_meta, dict) else {},
+            official_slugs=official_slugs,
+        ):
             continue
         local.append(page)
 

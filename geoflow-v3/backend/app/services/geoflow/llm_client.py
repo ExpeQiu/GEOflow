@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.models.material import AiModel
+from app.ai.llm_gateway import refresh_api_resource_from_db, resolve_llm_endpoint
 
 logger = logging.getLogger(__name__)
 
@@ -48,9 +49,10 @@ async def chat_json(
     user: str,
     timeout: float = 45.0,
 ) -> dict:
-    url = f"{model.api_url.rstrip('/')}/chat/completions"
+    ep = resolve_llm_endpoint(model)
+    url = f"{ep.base_url.rstrip('/')}/chat/completions"
     payload = {
-        "model": model.model_id,
+        "model": ep.model_id,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
@@ -60,7 +62,7 @@ async def chat_json(
     async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.post(
             url,
-            headers={"Authorization": f"Bearer {model.api_key}", "Content-Type": "application/json"},
+            headers={"Authorization": f"Bearer {ep.api_key}", "Content-Type": "application/json"},
             json=payload,
         )
     if resp.status_code >= 400:
@@ -78,6 +80,7 @@ async def chat_json(
 async def chat_json_or_mock(db: AsyncSession, *, system: str, user: str) -> dict | None:
     if get_settings().ai_mock_mode:
         return None
+    await refresh_api_resource_from_db(db)
     model = await get_active_chat_model(db)
     if model is None:
         return None

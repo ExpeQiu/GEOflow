@@ -318,6 +318,7 @@ export type MonitorSettings = {
   monitor_scan_limit?: number;
   default_knowledge_base_id?: number | null;
   platforms: string[];
+  available_platforms?: Array<{ id: string; label: string; api_capable?: boolean; custom?: boolean; note?: string }>;
   ai_mock_mode: boolean;
   strict_api?: boolean;
   remediation_delay_hours?: number;

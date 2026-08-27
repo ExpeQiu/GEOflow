@@ -7,7 +7,13 @@ from typing import Any
 
 import yaml
 
-from app.services.geoflow.wiki_types import GEOWEB_PAGE_TYPES, WIKI_ROUTE_PREFIX, is_smoke_slug, route_prefix_for_type
+from app.services.geoflow.wiki_types import (
+    GEOWEB_PAGE_TYPES,
+    WIKI_CONTENT_FORMAT,
+    WIKI_ROUTE_PREFIX,
+    is_smoke_slug,
+    route_prefix_for_type,
+)
 
 _ROUTE_TO_TYPE = {prefix: page_type for page_type, prefix in WIKI_ROUTE_PREFIX.items()}
 
@@ -20,6 +26,15 @@ def default_geoweb_wiki_dir() -> Path:
         return Path(env)
     # geoflow-v3/backend/app/services/admin → 03T/GEOweb/content/wiki
     return Path(__file__).resolve().parents[5].parent / "GEOweb" / "content" / "wiki"
+
+
+def is_official_geoweb_wiki_page(parsed: dict[str, Any]) -> bool:
+    """GEOweb 官方 Wiki 板块真源：排除 GEOFlow 同步页与 /articles 长文。"""
+    if str(parsed.get("source") or "").strip().lower() == "geoflow":
+        return False
+    if str(parsed.get("wiki_page_type") or "").strip() == "article":
+        return False
+    return True
 
 
 def parse_wiki_markdown(raw: str, fallback_slug: str, route_prefix: str) -> dict[str, Any] | None:
@@ -69,7 +84,12 @@ def parse_wiki_markdown(raw: str, fallback_slug: str, route_prefix: str) -> dict
     }
 
 
-def scan_geoweb_wiki_dir(wiki_dir: Path, include_smoke: bool = False) -> list[dict[str, Any]]:
+def scan_geoweb_wiki_dir(
+    wiki_dir: Path,
+    include_smoke: bool = False,
+    *,
+    official_only: bool = False,
+) -> list[dict[str, Any]]:
     pages: list[dict[str, Any]] = []
     if not wiki_dir.is_dir():
         return pages
@@ -84,6 +104,36 @@ def scan_geoweb_wiki_dir(wiki_dir: Path, include_smoke: bool = False) -> list[di
             parsed = parse_wiki_markdown(path.read_text(encoding="utf-8"), path.stem, route_prefix)
             if parsed is None:
                 continue
+            if official_only and not is_official_geoweb_wiki_page(parsed):
+                continue
             parsed["smoke"] = is_smoke_slug(parsed["slug"])
             pages.append(parsed)
     return pages
+
+
+def load_official_geoweb_wiki_slugs(*, wiki_dir: Path | None = None, include_smoke: bool = False) -> set[str]:
+    root = wiki_dir or default_geoweb_wiki_dir()
+    pages = scan_geoweb_wiki_dir(root, include_smoke=include_smoke, official_only=True)
+    return {str(p["slug"]) for p in pages if p.get("slug")}
+
+
+def is_geoweb_aligned_wiki_record(
+    *,
+    content_format: str | None,
+    slug: str,
+    wiki_meta: dict[str, Any] | None,
+    official_slugs: set[str],
+) -> bool:
+    """Wiki 编辑台可见页：与 GEOweb 官方 Wiki seed slug 对齐，不含长文 (article)。"""
+    if (content_format or "") != WIKI_CONTENT_FORMAT:
+        return False
+    meta = wiki_meta if isinstance(wiki_meta, dict) else {}
+    page_type = str(meta.get("wiki_page_type") or meta.get("type") or "").strip()
+    if page_type == "article":
+        return False
+    resolved_slug = str(meta.get("slug") or slug or "").strip()
+    if not resolved_slug or resolved_slug not in official_slugs:
+        return False
+    if is_smoke_slug(resolved_slug):
+        return False
+    return True

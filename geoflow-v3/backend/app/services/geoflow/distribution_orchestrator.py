@@ -1,4 +1,4 @@
-"""分发编排 — 按 publish_scope 与任务渠道绑定过滤。"""
+"""分发编排 — 按 publish_scope 与任务渠道绑定过滤；GEOweb 优先 + 外渠追踪链接。"""
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,9 +13,20 @@ from app.services.geoflow.distribution_publishers import (
     publish_geoflow_agent,
     publish_wordpress,
 )
+from app.services.geoflow.distribution_trace import (
+    build_external_tracked_url,
+    is_external_channel,
+    is_geoweb_channel,
+    require_geoweb_first,
+    resolve_canonical_from_article,
+    sort_channels_for_distribution,
+    trace_enabled,
+)
 from app.services.geoflow.geoweb_publisher import GeowebPublisher
 
 logger = get_logger("geoflow.distribution")
+
+_SUCCESS_STATUSES = ("published", "synced", "success")
 
 
 class DistributionOrchestrator:
@@ -68,6 +79,94 @@ class DistributionOrchestrator:
             .all()
         )
 
+    async def _find_geoweb_success_url(self, article_id: int) -> str | None:
+        row = (
+            await self.db.execute(
+                select(ArticleDistribution, DistributionChannel)
+                .join(DistributionChannel, DistributionChannel.id == ArticleDistribution.channel_id)
+                .where(
+                    ArticleDistribution.article_id == article_id,
+                    DistributionChannel.channel_type == "geoweb",
+                    ArticleDistribution.status.in_(_SUCCESS_STATUSES),
+                )
+                .order_by(ArticleDistribution.updated_at.desc(), ArticleDistribution.id.desc())
+                .limit(1)
+            )
+        ).first()
+        if not row:
+            return None
+        dist, _channel = row
+        return (dist.canonical_url or dist.remote_url or "").strip() or None
+
+    async def _resolve_canonical_url(self, article: Article, session_canonical: str | None) -> str | None:
+        if session_canonical:
+            return session_canonical
+        from_article = resolve_canonical_from_article(article)
+        if from_article:
+            return from_article
+        return await self._find_geoweb_success_url(int(article.id))
+
+    async def _publish_geoweb_channel(
+        self,
+        article: Article,
+        channel: DistributionChannel,
+        dist: ArticleDistribution,
+    ) -> str | None:
+        result = await self.geoweb.publish(article, channel=channel)
+        url = (result.get("url") or "").strip() or None
+        dist.status = "published"
+        dist.remote_url = url
+        dist.canonical_url = url
+        dist.tracked_url = None
+        dist.trace_params_json = None
+        dist.remote_id = result.get("slug") or result.get("remote_id")
+        return url
+
+    async def _publish_external_channel(
+        self,
+        article: Article,
+        channel: DistributionChannel,
+        dist: ArticleDistribution,
+        *,
+        canonical_url: str | None,
+    ) -> None:
+        cfg = channel.config_json if isinstance(channel.config_json, dict) else {}
+        if require_geoweb_first(cfg, channel.channel_type) and not canonical_url:
+            raise RuntimeError("geoweb_canonical_required")
+
+        tracked_url: str | None = None
+        trace_snapshot: dict | None = None
+        if trace_enabled(cfg) and canonical_url:
+            tracked_url, trace_snapshot = build_external_tracked_url(
+                article=article,
+                channel=channel,
+                dist_id=int(dist.id),
+                canonical_url=canonical_url,
+            )
+
+        publish_kwargs = {
+            "canonical_url": canonical_url,
+            "tracked_url": tracked_url,
+            "dist_id": int(dist.id),
+        }
+        if channel.channel_type == "geoflow_agent":
+            result = await publish_geoflow_agent(channel, article, **publish_kwargs)
+        elif channel.channel_type == "wordpress_rest":
+            result = await publish_wordpress(channel, article, **publish_kwargs)
+        elif channel.channel_type == "generic_http_api":
+            result = await publish_generic_http(channel, article, **publish_kwargs)
+        else:
+            dist.status = "skipped"
+            dist.error_message = f"unsupported_channel:{channel.channel_type}"
+            return
+
+        dist.status = "published"
+        dist.canonical_url = canonical_url
+        dist.tracked_url = tracked_url or canonical_url
+        dist.trace_params_json = trace_snapshot
+        dist.remote_url = tracked_url or result.get("url") or canonical_url
+        dist.remote_id = result.get("remote_id")
+
     async def distribute_article(self, article_id: int, channel_ids: list[int] | None = None) -> None:
         article = await self.db.get(Article, article_id)
         if article is None:
@@ -99,11 +198,14 @@ class DistributionOrchestrator:
             if channel_ids is not None
             else await self._resolve_channels(article)
         )
+        channels = sort_channels_for_distribution(channels)
         if not channels:
             logger.info("distribution_skipped_no_channels article_id=%s", article_id)
             return
 
+        session_canonical: str | None = await self._resolve_canonical_url(article, None)
         published_any = False
+
         for channel in channels:
             existing = (
                 await self.db.execute(
@@ -113,7 +215,9 @@ class DistributionOrchestrator:
                     )
                 )
             ).scalar_one_or_none()
-            if existing and existing.status in ("published", "synced", "success"):
+            if existing and existing.status in _SUCCESS_STATUSES:
+                if is_geoweb_channel(channel.channel_type):
+                    session_canonical = session_canonical or (existing.canonical_url or existing.remote_url)
                 logger.info(
                     "distribution_skip_already_ok article_id=%s channel_id=%s status=%s",
                     article_id,
@@ -131,38 +235,26 @@ class DistributionOrchestrator:
             await self.db.flush()
 
             try:
-                if channel.channel_type == "geoweb":
-                    result = await self.geoweb.publish(article, channel=channel)
-                    dist.status = "published"
-                    dist.remote_url = result.get("url")
-                    dist.remote_id = result.get("slug") or result.get("remote_id")
+                if is_geoweb_channel(channel.channel_type):
+                    url = await self._publish_geoweb_channel(article, channel, dist)
+                    if url:
+                        session_canonical = url
                     published_any = True
-                elif channel.channel_type == "geoflow_agent":
-                    result = await publish_geoflow_agent(channel, article)
-                    dist.status = "published"
-                    dist.remote_url = result.get("url")
-                    dist.remote_id = result.get("remote_id")
-                    published_any = True
-                elif channel.channel_type == "wordpress_rest":
-                    result = await publish_wordpress(channel, article)
-                    dist.status = "published"
-                    dist.remote_url = result.get("url")
-                    dist.remote_id = result.get("remote_id")
-                    published_any = True
-                elif channel.channel_type == "generic_http_api":
-                    result = await publish_generic_http(channel, article)
-                    dist.status = "published"
-                    dist.remote_url = result.get("url")
-                    dist.remote_id = result.get("remote_id")
+                elif is_external_channel(channel.channel_type):
+                    canonical = await self._resolve_canonical_url(article, session_canonical)
+                    await self._publish_external_channel(article, channel, dist, canonical_url=canonical)
                     published_any = True
                 else:
                     dist.status = "skipped"
                     dist.error_message = f"unsupported_channel:{channel.channel_type}"
+
                 logger.info(
-                    "distribution_ok article_id=%s theme_id=%s channel=%s",
+                    "distribution_ok article_id=%s theme_id=%s channel=%s canonical=%s tracked=%s",
                     article_id,
                     article.theme_id,
                     channel.channel_type,
+                    dist.canonical_url,
+                    dist.tracked_url,
                 )
                 if dist.status == "published" and article.task_id:
                     try:
@@ -188,7 +280,12 @@ class DistributionOrchestrator:
                 dist.status = "failed"
                 dist.error_message = str(exc)[:500]
                 dist.attempt_count += 1
-                logger.exception("distribution_failed", article_id=article_id, error=str(exc))
+                logger.exception(
+                    "distribution_failed article_id=%s channel=%s error=%s",
+                    article_id,
+                    channel.channel_type,
+                    str(exc),
+                )
 
         if published_any and article.theme_id:
             from app.services.geoeval.theme_service import mark_theme_published

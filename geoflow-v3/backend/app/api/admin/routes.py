@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Upl
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from app.api.deps import DbSession, get_admin_jwt
+from app.api.deps import DbSession, get_admin_jwt, require_super_admin
 from app.api.response import success
 from app.models.article import Article
 from app.models.knowledge import KnowledgeBase
@@ -51,7 +51,9 @@ from app.services.admin.article_form_service import (
     build_article_form_options,
     build_trashed_articles,
     create_admin_article,
+    import_geoweb_articles,
     purge_admin_article,
+    reconcile_articles_with_geoweb,
     restore_admin_article,
     update_admin_article,
 )
@@ -94,6 +96,7 @@ from app.services.admin.distribution_detail_service import (
     create_distribution_batch,
     delete_admin_distribution_channel,
     delete_distribution_job,
+    preview_distribution_links,
     retry_distribution_job,
     toggle_channel_status,
     update_admin_distribution_channel,
@@ -171,6 +174,12 @@ from app.services.admin.monitor_aivis_service import (
 )
 from app.services.admin.geo_eval_settings_service import GeoEvalSettingsBody, save_geo_eval_settings
 from app.services.admin.monitor_settings_service import MonitorSettingsBody, get_monitor_settings, save_monitor_settings
+from app.services.admin.probe_api_config_service import (
+    ProbeApiConfigBody,
+    get_probe_api_config,
+    save_probe_api_config,
+    test_probe_platform_api,
+)
 from app.services.admin.url_import_service import UrlImportBody, commit_url_import_job, get_url_import_job, list_url_import_history, run_url_import
 from app.services.admin.strategy_crud_service import (
     BatchReevalBody,
@@ -202,6 +211,7 @@ from app.services.admin.settings_crud_service import (
     PasswordChangeBody,
     SensitiveWordsBody,
     SiteSettingBody,
+    _actor_id,
     change_admin_password,
     create_admin_user,
     create_api_token,
@@ -261,60 +271,65 @@ async def sensitive_words_get(request: Request, db: DbSession, jwt=Depends(get_a
     return success(request, await get_sensitive_words(db))
 
 
+@router.get("/settings/security/runtime")
+async def security_runtime_get(request: Request, jwt=Depends(get_admin_jwt)):
+    from app.services.admin.settings_service import build_security_runtime_payload
+
+    return success(request, build_security_runtime_payload())
+
+
 @router.put("/settings/security/sensitive-words")
-async def sensitive_words_put(body: SensitiveWordsBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
-    return success(request, await save_sensitive_words(db, body))
+async def sensitive_words_put(body: SensitiveWordsBody, request: Request, db: DbSession, jwt=Depends(require_super_admin)):
+    return success(request, await save_sensitive_words(db, body, actor_id=_actor_id(jwt)))
 
 
 @router.get("/settings/admins")
-async def admins_list(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
-    return success(request, await list_admin_users(db))
+async def admins_list(request: Request, db: DbSession, jwt=Depends(require_super_admin)):
+    return success(request, await list_admin_users(db, current_admin_id=_actor_id(jwt)))
 
 
 @router.post("/settings/admins")
-async def admins_create(body: AdminUserBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
-    return success(request, await create_admin_user(db, body), status=201)
+async def admins_create(body: AdminUserBody, request: Request, db: DbSession, jwt=Depends(require_super_admin)):
+    return success(request, await create_admin_user(db, body, actor_id=_actor_id(jwt)), status=201)
 
 
 @router.patch("/settings/admins/{admin_id}")
-async def admins_update(admin_id: int, body: AdminUserUpdateBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
-    return success(request, await update_admin_user(db, admin_id, body))
+async def admins_update(admin_id: int, body: AdminUserUpdateBody, request: Request, db: DbSession, jwt=Depends(require_super_admin)):
+    return success(request, await update_admin_user(db, admin_id, body, actor_id=_actor_id(jwt)))
 
 
 @router.post("/settings/admins/{admin_id}/toggle-status")
-async def admins_toggle(admin_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
-    return success(request, await toggle_admin_user(db, admin_id))
+async def admins_toggle(admin_id: int, request: Request, db: DbSession, jwt=Depends(require_super_admin)):
+    return success(request, await toggle_admin_user(db, admin_id, actor_id=_actor_id(jwt)))
 
 
 @router.delete("/settings/admins/{admin_id}")
-async def admins_delete(admin_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
-    return success(request, await delete_admin_user(db, admin_id))
+async def admins_delete(admin_id: int, request: Request, db: DbSession, jwt=Depends(require_super_admin)):
+    return success(request, await delete_admin_user(db, admin_id, actor_id=_actor_id(jwt)))
 
 
 @router.post("/settings/security/password")
 async def security_password(body: PasswordChangeBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
-    admin_id = int(jwt.get("sub", 0) or 0)
-    return success(request, await change_admin_password(db, admin_id, body))
+    return success(request, await change_admin_password(db, _actor_id(jwt), body))
 
 
 @router.get("/settings/api-tokens")
-async def api_tokens_list(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+async def api_tokens_list(request: Request, db: DbSession, jwt=Depends(require_super_admin)):
     return success(request, await list_api_tokens(db))
 
 
 @router.post("/settings/api-tokens")
-async def api_tokens_create(body: ApiTokenBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
-    admin_id = int(jwt.get("sub", 0) or 0)
-    return success(request, await create_api_token(db, admin_id, body), status=201)
+async def api_tokens_create(body: ApiTokenBody, request: Request, db: DbSession, jwt=Depends(require_super_admin)):
+    return success(request, await create_api_token(db, _actor_id(jwt), body), status=201)
 
 
 @router.post("/settings/api-tokens/{token_id}/revoke")
-async def api_tokens_revoke(token_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
-    return success(request, await revoke_api_token(db, token_id))
+async def api_tokens_revoke(token_id: int, request: Request, db: DbSession, jwt=Depends(require_super_admin)):
+    return success(request, await revoke_api_token(db, token_id, actor_id=_actor_id(jwt)))
 
 
 @router.get("/settings/activity-logs")
-async def activity_logs(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+async def activity_logs(request: Request, db: DbSession, jwt=Depends(require_super_admin)):
     return success(request, await list_activity_logs(db))
 
 
@@ -455,6 +470,30 @@ async def list_articles(
     theme_id: int | None = Query(default=None),
 ):
     return success(request, await build_articles_panel(db, review_status=review_status, theme_id=theme_id))
+
+
+@router.post("/articles/import-geoweb")
+async def import_articles_from_geoweb(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    try:
+        payload = await import_geoweb_articles(db)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("admin_articles_import_failed")
+        raise HTTPException(status_code=500, detail="articles_import_failed") from exc
+    return success(request, payload)
+
+
+@router.get("/articles/reconcile")
+async def articles_reconcile(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    try:
+        payload = await reconcile_articles_with_geoweb(db)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("admin_articles_reconcile_failed")
+        raise HTTPException(status_code=500, detail="articles_reconcile_failed") from exc
+    return success(request, payload)
 
 
 @router.get("/articles/form-options")
@@ -741,6 +780,20 @@ async def distribution_jobs(
         request,
         await build_distribution_jobs(db, channel_id=channel_id, status=status, theme_id=theme_id),
     )
+
+
+@router.get("/distribution/preview-links")
+async def distribution_preview_links(
+    request: Request,
+    db: DbSession,
+    jwt=Depends(get_admin_jwt),
+    article_id: int = Query(..., ge=1),
+    channel_ids: str = Query(..., description="comma-separated channel ids"),
+):
+    ids = [int(x.strip()) for x in channel_ids.split(",") if x.strip().isdigit()]
+    if not ids:
+        raise HTTPException(status_code=422, detail="channel_ids_required")
+    return success(request, await preview_distribution_links(db, article_id=article_id, channel_ids=ids))
 
 
 @router.post("/distribution/batch")
@@ -1598,6 +1651,25 @@ async def strategy_monitor_settings_patch(
     return success(request, await save_monitor_settings(db, body))
 
 
+@router.get("/strategy/monitor/probe-api-config")
+async def strategy_probe_api_config_get(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await get_probe_api_config(db))
+
+
+@router.patch("/strategy/monitor/probe-api-config")
+async def strategy_probe_api_config_patch(
+    body: ProbeApiConfigBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)
+):
+    return success(request, await save_probe_api_config(db, body))
+
+
+@router.post("/strategy/monitor/probe-api-config/{platform}/test")
+async def strategy_probe_api_config_test(
+    platform: str, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)
+):
+    return success(request, await test_probe_platform_api(db, platform))
+
+
 @router.get("/strategy/monitor/runs")
 async def strategy_monitor_runs_list(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     return success(request, await list_monitor_runs(db))
@@ -1985,19 +2057,46 @@ async def ai_models_list(request: Request, db: DbSession, jwt=Depends(get_admin_
     return success(request, await list_ai_models(db))
 
 
+@router.get("/ai-models")
+async def ai_models_list(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    return success(request, await list_ai_models(db))
+
+
+@router.get("/ai-gateway")
+async def ai_gateway_status(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    """探测 Lobster 与当前 API 资源开关。"""
+    from app.ai.llm_gateway import probe_lobster_gateway
+
+    return success(request, await probe_lobster_gateway(db))
+
+
+@router.patch("/ai-gateway")
+async def ai_gateway_patch(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
+    """切换 API 资源：vendor=供应商直连，geely=企业 AI Gateway，auto=跟随 .env。"""
+    from pydantic import BaseModel, Field
+
+    from app.ai.llm_gateway import save_api_resource
+
+    class AiGatewayBody(BaseModel):
+        resource: str = Field(min_length=1, max_length=20)
+
+    body = AiGatewayBody.model_validate(await request.json())
+    return success(request, await save_api_resource(db, body.resource, actor_id=_actor_id(jwt)))
+
+
 @router.post("/ai-models")
 async def ai_models_create(body: AiModelBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
-    return success(request, await create_ai_model(db, body), status=201)
+    return success(request, await create_ai_model(db, body, actor_id=_actor_id(jwt)), status=201)
 
 
 @router.patch("/ai-models/{model_id}")
 async def ai_models_update(model_id: int, body: AiModelBody, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
-    return success(request, await update_ai_model(db, model_id, body))
+    return success(request, await update_ai_model(db, model_id, body, actor_id=_actor_id(jwt)))
 
 
 @router.delete("/ai-models/{model_id}")
 async def ai_models_delete(model_id: int, request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
-    return success(request, await delete_ai_model(db, model_id))
+    return success(request, await delete_ai_model(db, model_id, actor_id=_actor_id(jwt)))
 
 
 @router.post("/ai-models/{model_id}/test")

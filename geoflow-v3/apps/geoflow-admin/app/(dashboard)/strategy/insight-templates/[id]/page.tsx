@@ -2,16 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiGet, getToken } from "@/lib/api-client";
 import { STRATEGY_MORE_NAV, STRATEGY_NAV } from "@/lib/nav-config";
+import { useRouteParams } from "@/lib/use-route-params";
 
-export default function InsightTemplateDetailPage() {
+export default function InsightTemplateDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const token = useAuthGuard();
-  const { id } = useParams<{ id: string }>();
+  const { id } = useRouteParams(params);
   const [item, setItem] = useState<{ id: number; name: string; source_url: string; eeat_score: number | null } | null>(null);
 
   useEffect(() => {

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "next/navigation";
 import { FlashAlert } from "@/components/admin/FlashAlert";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
@@ -21,6 +20,7 @@ import { useTaskWebSocket } from "@/hooks/use-task-websocket";
 import { apiDelete, apiGet, apiPost, apiPut, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
 import { PRODUCTION_MORE_NAV, PRODUCTION_NAV } from "@/lib/nav-config";
+import { useRouteParams } from "@/lib/use-route-params";
 import type { AdminTask } from "@/lib/operations-types";
 import type {
   AiStats,
@@ -42,8 +42,8 @@ import type {
   SimulateResult,
 } from "@/lib/strategy-types";
 
-export default function ProductionPage() {
-  const { tab } = useParams<{ tab: string }>();
+export default function ProductionPage({ params }: { params: Promise<{ tab: string }> }) {
+  const { tab } = useRouteParams(params);
   const token = useAuthGuard();
   const [stats, setStats] = useState<MaterialStats | null>(null);
   const [aiStats, setAiStats] = useState<AiStats | null>(null);

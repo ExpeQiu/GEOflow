@@ -3,6 +3,12 @@
 from types import SimpleNamespace
 
 
+def _resolve_geoflow_lane(article) -> str:
+    if (article.content_format or "article") == "wiki_mdx":
+        return "wiki"
+    return "distribution"
+
+
 def _resolve_page_type(article, config: dict) -> str:
     """与 geoweb_publisher._resolve_page_type 保持同逻辑的轻量副本，避免重依赖导入。"""
     types = {
@@ -66,3 +72,13 @@ def test_wiki_mdx_invalid_falls_back_to_concept():
         wiki_meta={"wiki_page_type": "unknown"},
     )
     assert _resolve_page_type(article, {}) == "concept"
+
+
+def test_geoflow_lane_distribution_for_article_format():
+    article = SimpleNamespace(content_format="article", wiki_meta=None)
+    assert _resolve_geoflow_lane(article) == "distribution"
+
+
+def test_geoflow_lane_wiki_for_wiki_mdx():
+    article = SimpleNamespace(content_format="wiki_mdx", wiki_meta={"type": "concept"})
+    assert _resolve_geoflow_lane(article) == "wiki"

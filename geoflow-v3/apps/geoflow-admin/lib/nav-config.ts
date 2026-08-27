@@ -92,8 +92,14 @@ export const PRODUCTION_MORE_NAV: HubNavItem[] = [
   { key: "geo-eval", label: zh.production.tabs["geo-eval"], href: "/production/geo-eval" },
 ];
 
-/** L3：Wiki 定稿与 GEOweb 分发（文章 CMS / 引用分析收入实验室） */
+/** L3：生产-分发文章 + Wiki 定稿 + GEOweb 分发 */
 export const OPERATIONS_NAV: HubNavItem[] = [
+  {
+    key: "articles",
+    label: zh.operations.tabs.articles,
+    href: "/operations/articles",
+    matchPrefixes: ["/operations/articles"],
+  },
   {
     key: "wiki",
     label: zh.operations.tabs.wiki,
@@ -110,7 +116,6 @@ export const OPERATIONS_NAV: HubNavItem[] = [
 
 export const OPERATIONS_MORE_NAV: HubNavItem[] = [
   { key: "overview", label: zh.operations.tabs.overview, href: "/operations/overview" },
-  { key: "articles", label: zh.operations.tabs.articles, href: "/operations/articles" },
   { key: "analytics", label: zh.operations.tabs.analytics, href: "/operations/analytics" },
   {
     key: "distribution-citations",
@@ -149,6 +154,13 @@ export const STRATEGY_MORE_NAV: HubNavItem[] = [
   { key: "difficulty", label: zh.strategy.tabs.difficulty, href: "/strategy/difficulty" },
   { key: "sales-copy", label: zh.strategy.tabs.salesCopy, href: "/strategy/sales-copy" },
   { key: "web-intel", label: zh.strategy.tabs["web-intel"], href: "/strategy/web-intel" },
+];
+
+export const SETTINGS_SUB_NAV: HubNavItem[] = [
+  { key: "site", label: zh.settings.tabs.site, href: "/settings/site" },
+  { key: "security", label: zh.settings.tabs.security, href: "/settings/security" },
+  { key: "tokens", label: zh.settings.tabs.tokens, href: "/settings/api-tokens" },
+  { key: "admins", label: zh.settings.tabs.admins, href: "/settings/admins" },
 ];
 
 export const LAB_NAV_LABEL = "实验室";

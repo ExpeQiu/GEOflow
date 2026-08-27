@@ -35,8 +35,12 @@ if [ -x "${BACKEND}/.venv/bin/python" ]; then
       tests/test_techstore_knowledge_import.py \
       tests/test_theme_pack_produce.py::test_mining_prompt_injects_compare_dims \
       tests/test_north_star_kpi.py \
+      tests/test_settings_crud.py \
+      tests/test_llm_gateway.py \
+      tests/test_probe_api_resolver.py \
+      tests/test_security_hardening.py \
       tests/test_platform_uat.py -m "not live"); then
-    log "OK  pytest (product-trim / techstore-import / mining inject / north-star)"
+    log "OK  pytest (product-trim / north-star / settings / llm-gateway / security)"
     PASS=$((PASS + 1))
   else
     log "FAIL pytest"

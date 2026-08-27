@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from typing import Any
 
 GEOWEB_PAGE_TYPES = frozenset(
     {
@@ -33,6 +34,64 @@ WIKI_ROUTE_PREFIX: dict[str, str] = {
 
 SMOKE_SLUG_RE = re.compile(r"(smoke|probe|interop)", re.I)
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+WIKI_CONTENT_FORMAT = "wiki_mdx"
+ARTICLE_CONTENT_FORMAT = "article"
+
+# Theme 包误写入「长文章」列表的 Wiki 页特征
+_WIKI_NON_ARTICLE_SLUG_RE = re.compile(
+    r"^ai-(concept|compare|guide|glossary|topic|thread|data|certification)-\d+",
+    re.I,
+)
+_WIKI_NON_ARTICLE_TITLE_RE = re.compile(
+    r" · (concept|compare|guide|glossary|topic|thread|data|certification)$",
+    re.I,
+)
+
+
+def is_wiki_content_format(content_format: str | None) -> bool:
+    return (content_format or ARTICLE_CONTENT_FORMAT) == WIKI_CONTENT_FORMAT
+
+
+def is_article_content_format(content_format: str | None) -> bool:
+    return not is_wiki_content_format(content_format)
+
+
+def infer_wiki_page_type_from_article(*, slug: str, title: str, wiki_meta: dict[str, Any] | None = None) -> str | None:
+    """从 slug / 标题 / meta 推断误写入长文章表的 Wiki 页型。"""
+    meta = wiki_meta if isinstance(wiki_meta, dict) else {}
+    page_type = str(meta.get("type") or meta.get("wiki_page_type") or "").strip().lower()
+    if page_type in GEOWEB_PAGE_TYPES and page_type != "article":
+        return page_type
+    slug_match = _WIKI_NON_ARTICLE_SLUG_RE.match(slug or "")
+    if slug_match:
+        return slug_match.group(1).lower()
+    title_match = _WIKI_NON_ARTICLE_TITLE_RE.search(title or "")
+    if title_match:
+        return title_match.group(1).lower()
+    return None
+
+
+def is_distribution_article(
+    *,
+    content_format: str | None,
+    slug: str,
+    title: str,
+    wiki_meta: dict[str, Any] | None = None,
+) -> bool:
+    """生产-分发长文（/operations/articles ↔ GEOweb /articles），排除 Wiki 页型。"""
+    if not is_article_content_format(content_format):
+        return False
+    meta = wiki_meta if isinstance(wiki_meta, dict) else {}
+    page_type = str(meta.get("type") or meta.get("wiki_page_type") or "").strip().lower()
+    if page_type and page_type != "article":
+        return False
+    lane = str(meta.get("geoflow_lane") or "").strip().lower()
+    if lane == "wiki":
+        return False
+    if infer_wiki_page_type_from_article(slug=slug, title=title, wiki_meta=meta):
+        return False
+    return True
 
 
 def route_prefix_for_type(page_type: str) -> str:
