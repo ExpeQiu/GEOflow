@@ -1,7 +1,8 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
+ARG NPM_REGISTRY=https://registry.npmmirror.com
 COPY package.json ./
-RUN npm install
+RUN npm install --registry="${NPM_REGISTRY}"
 
 FROM node:20-alpine AS builder
 WORKDIR /app

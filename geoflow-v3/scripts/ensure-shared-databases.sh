@@ -21,8 +21,18 @@ db_exists() {
 
 create_db() {
   local name="$1"
+  local n=1
   log "CREATE DATABASE ${name} OWNER ${PG_USER}"
-  run_psql postgres -c "CREATE DATABASE ${name} OWNER ${PG_USER};"
+  while (( n <= 8 )); do
+    if run_psql postgres -c "CREATE DATABASE ${name} OWNER ${PG_USER};"; then
+      return 0
+    fi
+    log "CREATE DATABASE ${name} 重试 ${n}/8"
+    n=$((n + 1))
+    sleep 2
+  done
+  err "CREATE DATABASE ${name} 失败"
+  return 1
 }
 
 detect_docker_pg() {
@@ -64,6 +74,17 @@ if command -v docker >/dev/null 2>&1 && PG_CONTAINER="$(detect_docker_pg)"; then
     i=$((i + 1))
     if (( i > 40 )); then
       err "容器内 postgres 未就绪"
+      exit 1
+    fi
+    sleep 1
+  done
+  # 官方镜像首次 initdb 会先起临时进程再 shutdown；pg_isready 会误报就绪
+  i=0
+  until docker exec -e PGPASSWORD="${PG_PASSWORD}" "${PG_CONTAINER}" \
+      psql -U "${PG_USER}" -d postgres -tAc "SELECT 1" >/dev/null 2>&1; do
+    i=$((i + 1))
+    if (( i > 60 )); then
+      err "容器内 postgres 无法执行 SQL（可能仍在 initdb）"
       exit 1
     fi
     sleep 1

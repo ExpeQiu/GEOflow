@@ -18,6 +18,7 @@ fi
 PULL_POLICY="${GEOFLOW_PULL:-never}"
 
 log "===== start (compose) 开始 mode=${MODE} pull=${PULL_POLICY} ====="
+find "$ROOT" -name '._*' -delete 2>/dev/null || true
 
 if [ ! -f .env ] && [ -f .env.example ]; then
   cp .env.example .env
