@@ -314,6 +314,13 @@ def fetch_live_snapshot(database_url: str) -> TechstoreSnapshot:
     import psycopg2.extras
 
     conn = psycopg2.connect(database_url, connect_timeout=8)
+    parsed = urlparse(database_url)
+    logger.info(
+        "techstore_live_connect host=%s port=%s db=%s",
+        parsed.hostname,
+        parsed.port,
+        (parsed.path or "").lstrip("/").split("?")[0],
+    )
     try:
         conn.set_session(readonly=True, autocommit=True)
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)

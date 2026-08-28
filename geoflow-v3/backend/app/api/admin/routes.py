@@ -52,6 +52,7 @@ from app.services.admin.article_form_service import (
     build_trashed_articles,
     create_admin_article,
     import_geoweb_articles,
+    sync_articles_with_geoweb_public,
     purge_admin_article,
     reconcile_articles_with_geoweb,
     restore_admin_article,
@@ -475,7 +476,7 @@ async def list_articles(
 @router.post("/articles/import-geoweb")
 async def import_articles_from_geoweb(request: Request, db: DbSession, jwt=Depends(get_admin_jwt)):
     try:
-        payload = await import_geoweb_articles(db)
+        payload = await sync_articles_with_geoweb_public(db)
     except HTTPException:
         raise
     except Exception as exc:

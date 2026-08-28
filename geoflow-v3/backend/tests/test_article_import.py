@@ -2,6 +2,7 @@
 
 from app.services.admin.article_import import (
     is_official_geoweb_article_page,
+    is_public_geoweb_article_from_disk,
     scan_geoweb_articles_dir,
     default_geoweb_articles_dir,
 )
@@ -72,6 +73,27 @@ def test_reconcile_public_geoweb_articles():
     assert [r["slug"] for r in diff["local_only"]] == ["local-only"]
     assert [r["slug"] for r in diff["remote_only"]] == ["remote-only"]
     assert diff["stats"]["remote"] == 2
+
+
+def test_scan_public_only_includes_geoflow_distribution(tmp_path):
+    wiki = tmp_path / "wiki"
+    articles = wiki / "articles"
+    articles.mkdir(parents=True)
+    (articles / "why-odd.md").write_text(ARTICLE_SAMPLE, encoding="utf-8")
+    geoflow = ARTICLE_SAMPLE.replace('source: seed', 'source: geoflow').replace(
+        'slug: "why-odd-matters-for-adas-buyers"', 'slug: "ai-article-36"'
+    )
+    geoflow = geoflow.replace("tags: [article, adas]", "tags: [article, adas]\ngeoflow_lane: distribution")
+    (articles / "ai-article-36.md").write_text(geoflow, encoding="utf-8")
+    hidden = geoflow.replace('slug: "ai-article-36"', 'slug: "ai-article-hidden"').replace(
+        "geoflow_lane: distribution", "geoflow_lane: theme"
+    )
+    (articles / "ai-article-hidden.md").write_text(hidden, encoding="utf-8")
+    public = scan_geoweb_articles_dir(wiki, include_smoke=True, public_only=True)
+    slugs = {p["slug"] for p in public}
+    assert slugs == {"why-odd-matters-for-adas-buyers", "ai-article-36"}
+    assert is_public_geoweb_article_from_disk({"wiki_page_type": "article", "source": "geoflow", "geoflow_lane": "distribution"}) is True
+    assert is_public_geoweb_article_from_disk({"wiki_page_type": "article", "source": "geoflow", "geoflow_lane": "theme"}) is False
 
 
 def test_scan_default_geoweb_articles_dir_if_present():

@@ -232,7 +232,16 @@ export function MaterialsLibraryPage({ kind }: { kind: keyof typeof CONFIGS }) {
               <li key={item.id} className="flex justify-between rounded-md bg-gray-50 px-3 py-2">
                 <span>{item.title || item.keyword || item.original_name}</span>
                 {cfg.itemDeletePath && (
-                  <button type="button" onClick={() => apiDelete(cfg.itemDeletePath!(item.id), getToken()!).then(() => selectedId && loadItems(selectedId))} className="text-xs text-red-600">删</button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await apiDelete(cfg.itemDeletePath!(item.id), getToken()!);
+                      if (selectedId) await loadItems(selectedId);
+                    }}
+                    className="text-xs text-red-600"
+                  >
+                    删
+                  </button>
                 )}
               </li>
             ))}

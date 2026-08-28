@@ -49,6 +49,98 @@ _WIKI_NON_ARTICLE_TITLE_RE = re.compile(
 )
 
 
+THEME_PACK_TITLE_RE = re.compile(
+    r"补齐 AI 决策链| · (concept|compare|guide|glossary|topic|thread|data|certification|article)$",
+    re.I,
+)
+
+# 分发长文 / 探针误写入 Wiki 编辑台的 slug 特征
+GEOFLOW_PIPELINE_WIKI_SLUG_RE = re.compile(
+    r"^(?:article|l7|suv|noa|15-suv|ad-max|2024-noa|ai-dfe8196b00|ssot|geoflow-kb-fact|geoflow-geoweb|geoflow-interop)(?:-|$)",
+    re.I,
+)
+GEOFLOW_HASH_SLUG_SUFFIX_RE = re.compile(r"-[a-f0-9]{8,}-\d+$", re.I)
+
+
+def is_wiki_mdx_pollution(
+    *,
+    slug: str = "",
+    title: str = "",
+    wiki_meta: dict[str, Any] | None = None,
+) -> bool:
+    """误写入 Wiki 编辑台的分发长文、Theme 管线页或探针（非官方 Wiki seed）。"""
+    meta = wiki_meta if isinstance(wiki_meta, dict) else {}
+    page_type = str(meta.get("wiki_page_type") or meta.get("type") or "").strip().lower()
+    if page_type == "article":
+        return True
+    lane = str(meta.get("geoflow_lane") or "").strip().lower()
+    if lane == "distribution":
+        return True
+    resolved = str(meta.get("slug") or slug or "").strip()
+    if not resolved:
+        return True
+    if GEOFLOW_PIPELINE_WIKI_SLUG_RE.match(resolved):
+        return True
+    if GEOFLOW_HASH_SLUG_SUFFIX_RE.search(resolved):
+        return True
+    source = str(meta.get("imported_from") or meta.get("source") or "").strip().lower()
+    if source == "geoflow" and lane != "wiki":
+        return True
+    if is_theme_pack_wiki_record(slug=resolved, title=title, wiki_meta=meta):
+        return True
+    return False
+
+def is_theme_pack_wiki_record(
+    *,
+    theme_id: int | None = None,
+    slug: str = "",
+    title: str = "",
+    wiki_meta: dict[str, Any] | None = None,
+) -> bool:
+    """Theme 包产出（应走 /operations/articles，不进 Wiki 编辑台）。"""
+    if theme_id:
+        return True
+    meta = wiki_meta if isinstance(wiki_meta, dict) else {}
+    if str(meta.get("geo_theme_id") or meta.get("theme_id") or "").strip():
+        return True
+    if THEME_PACK_TITLE_RE.search(title or ""):
+        return True
+    if _WIKI_NON_ARTICLE_SLUG_RE.match(slug or ""):
+        return True
+    if _WIKI_NON_ARTICLE_TITLE_RE.search(title or ""):
+        return True
+    return False
+
+
+def is_editable_wiki_panel_record(
+    *,
+    content_format: str | None,
+    theme_id: int | None,
+    slug: str,
+    title: str,
+    wiki_meta: dict[str, Any] | None,
+    official_slugs: set[str],
+    tech_brand_mode: bool,
+) -> bool:
+    """Wiki 编辑台列表可见性：Techstore 模式 = 新建 Wiki（无 Theme）；默认 = 官方 seed slug 对齐。"""
+    if (content_format or ARTICLE_CONTENT_FORMAT) != WIKI_CONTENT_FORMAT:
+        return False
+    if is_theme_pack_wiki_record(theme_id=theme_id, slug=slug, title=title, wiki_meta=wiki_meta):
+        return False
+    if is_wiki_mdx_pollution(slug=slug, title=title, wiki_meta=wiki_meta):
+        return False
+    meta = wiki_meta if isinstance(wiki_meta, dict) else {}
+    resolved_slug = str(meta.get("slug") or slug or "").strip()
+    if tech_brand_mode:
+        return bool(resolved_slug) and not is_smoke_slug(resolved_slug)
+    if not resolved_slug or resolved_slug not in official_slugs:
+        return False
+    page_type = str(meta.get("wiki_page_type") or meta.get("type") or "").strip()
+    if page_type == "article":
+        return False
+    return not is_smoke_slug(resolved_slug)
+
+
 def is_wiki_content_format(content_format: str | None) -> bool:
     return (content_format or ARTICLE_CONTENT_FORMAT) == WIKI_CONTENT_FORMAT
 

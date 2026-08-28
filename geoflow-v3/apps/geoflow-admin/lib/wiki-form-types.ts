@@ -89,6 +89,8 @@ export type WikiPanelPayload = {
   schema_types: string[];
   geoweb_base_url: string;
   geoweb_sync_enabled: boolean;
+  tech_brand_mode?: boolean;
+  wiki_packs_enabled?: boolean;
 };
 
 export type WikiDetailPayload = {
@@ -98,6 +100,8 @@ export type WikiDetailPayload = {
   schema_types: string[];
   geoweb_base_url: string;
   geoweb_sync_enabled: boolean;
+  tech_brand_mode?: boolean;
+  wiki_packs_enabled?: boolean;
   publish?: {
     url?: string;
     slug?: string;

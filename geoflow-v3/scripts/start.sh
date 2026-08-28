@@ -1,15 +1,23 @@
 #!/usr/bin/env bash
-# Docker Compose 全量栈。默认 --pull never（只用本地镜像，避免卡住）
-# 需要在线拉取时: GEOFLOW_PULL=always ./scripts/start.sh
+# Docker Compose。默认全量；infra 只起 Postgres+Redis（供 Techstore/GEOweb 单独部署）
+#   ./scripts/start.sh
+#   ./scripts/start.sh infra
+#   GEOFLOW_PULL=always ./scripts/start.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck source=scripts/_common.sh
 source "${ROOT}/scripts/_common.sh"
 cd "$ROOT"
 
+MODE="${1:-all}"
+if [[ "${MODE}" != "all" && "${MODE}" != "infra" ]]; then
+  err "用法: $0 [all|infra]"
+  exit 2
+fi
+
 PULL_POLICY="${GEOFLOW_PULL:-never}"
 
-log "===== start (compose) 开始 pull=${PULL_POLICY} ====="
+log "===== start (compose) 开始 mode=${MODE} pull=${PULL_POLICY} ====="
 
 if [ ! -f .env ] && [ -f .env.example ]; then
   cp .env.example .env
@@ -47,6 +55,13 @@ until docker compose exec -T postgres pg_isready -U geo_user -d geo_flow >/dev/n
   sleep 1
 done
 log "postgres ready"
+"${ROOT}/scripts/ensure-shared-databases.sh"
+
+if [[ "${MODE}" == "infra" ]]; then
+  log "infra 完成。Postgres :${PG_PORT}  geo_flow + gweb_db  Redis :16380"
+  log "===== start (compose) 完成 ====="
+  exit 0
+fi
 
 log "构建并启动 api/worker/scheduler/flower/admin..."
 docker compose up -d --build --pull "${PULL_POLICY}" api worker scheduler flower geoflow-admin

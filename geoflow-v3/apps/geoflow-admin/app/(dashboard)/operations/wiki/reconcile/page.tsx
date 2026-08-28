@@ -5,7 +5,6 @@ import { useCallback, useEffect, useState } from "react";
 import { FlashAlert } from "@/components/admin/FlashAlert";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
-import { WikiSubNav } from "@/components/operations/WikiSubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiGet, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
@@ -65,7 +64,6 @@ export default function WikiReconcilePage() {
     <div>
       <HubHeader title={zh.wiki.reconcileTitle} subtitle={zh.wiki.reconcileSubtitle} />
       <HubNav items={OPERATIONS_NAV} moreItems={OPERATIONS_MORE_NAV} tone="blue" />
-      <WikiSubNav />
       {error && <FlashAlert variant="error">{error}</FlashAlert>}
       {loading && <FlashAlert variant="info">{zh.common.loading}</FlashAlert>}
       {payload && (

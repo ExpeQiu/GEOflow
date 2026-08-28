@@ -99,6 +99,7 @@ def build_wiki_meta(existing: dict[str, Any] | None, body: WikiPageBody, page_ty
             "schema_type": schema_type,
             "geo_theme_id": geo_theme_id,
             "tags": tags,
+            "geoflow_lane": "wiki",
         }
     )
     return meta

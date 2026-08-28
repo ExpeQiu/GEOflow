@@ -37,6 +37,7 @@ CORS_ALLOWED_ORIGINS=http://127.0.0.1:${ADMIN_PORT},http://localhost:${ADMIN_POR
 GEOWEB_BASE_URL=http://127.0.0.1:3070
 GEOWEB_SYNC_TOKEN=dev-sync-token
 GEOWEB_SYNC_ENABLED=true
+TECHSTORE_DATABASE_URL=postgresql://geo_user:geo_password@127.0.0.1:${PG_PORT}/gweb_db
 API_PORT=${API_PORT}
 ADMIN_PORT=${ADMIN_PORT}
 PG_PORT=${PG_PORT}
@@ -65,6 +66,7 @@ if [[ "${NO_DOCKER}" == "1" ]]; then
     exit 1
   fi
   log "PostgreSQL ready (host :${PG_PORT})"
+  "${ROOT}/scripts/ensure-shared-databases.sh"
 else
   # --- PostgreSQL：永不 rm 重建；优先复用容器与含数据的卷 ---
   log "启动 PostgreSQL (${PG_NAME} :${PG_PORT})..."
@@ -87,6 +89,7 @@ else
       -e POSTGRES_PASSWORD=geo_password \
       -p "127.0.0.1:${PG_PORT}:5432" \
       -v "${VOL}:/var/lib/postgresql/data" \
+      -v "${ROOT}/docker/postgres-init:/docker-entrypoint-initdb.d:ro" \
       postgres:16-alpine >/dev/null
   fi
 
@@ -97,6 +100,7 @@ else
   fi
   log "PostgreSQL ready"
   docker inspect "${PG_NAME}" --format '挂载卷={{range .Mounts}}{{.Name}}{{end}}' 2>/dev/null | while read -r line; do log "${line}"; done
+  "${ROOT}/scripts/ensure-shared-databases.sh"
 fi
 
 log "Python 依赖..."

@@ -16,6 +16,8 @@
 | [国产AI模型应对](./国产AI模型应对.md) | 模型接入 |
 | [langgraph-orchestration](./langgraph-orchestration.md) | LangGraph 编排（v3 内嵌） |
 | [ADR/](./ADR/) | 架构决策 |
+| [共享 PostgreSQL](./ADR/ADR-017-共享PostgreSQL实例.md) | 与 Techstore / GEOweb 一套实例两库 |
+| [Docker 三仓部署](../deploy-stack/README.md) | 分别部署 / 一键部署 |
 | [v3 架构](../geoflow-v3/guide/architecture.md) | 运行时结构 |
 | [验证报告](../geoflow-v3/guide/verification-report.md) | 验收 |
 | [待办清单](../geoflow-v3/guide/待办清单.md) | 未完成运营动作 |

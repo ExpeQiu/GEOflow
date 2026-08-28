@@ -27,6 +27,10 @@ GEOFLOW_NO_DOCKER=1 ./scripts/start-all.sh
 # 允许拉取: GEOFLOW_PULL=missing ./scripts/start.sh
 ```
 
+Postgres 默认 `:15433`，同一实例两个库：`geo_flow`（本仓 Alembic）与 `gweb_db`（Techstore Prisma / GEOweb 只读）。详见仓库 `guide/ADR/ADR-017-共享PostgreSQL实例.md`。
+
+三仓一键 Docker：仓库根目录 [`deploy-stack/`](../deploy-stack/README.md)。
+
 | 服务 | 地址 |
 |------|------|
 | API | http://127.0.0.1:18081 |

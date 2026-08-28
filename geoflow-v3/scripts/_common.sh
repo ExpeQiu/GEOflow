@@ -162,6 +162,7 @@ ensure_daemon() {
 }
 
 print_endpoints() {
+  log "Postgres → :${PG_PORT}  库 geo_flow + gweb_db（ADR-017）"
   log "API   → http://127.0.0.1:${API_PORT}/health"
   log "Admin → http://127.0.0.1:${ADMIN_PORT}/login  (admin / password)"
   if pgrep -f "celery -A app.workers.celery_app worker" >/dev/null 2>&1; then

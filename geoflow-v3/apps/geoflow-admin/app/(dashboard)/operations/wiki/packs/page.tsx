@@ -5,7 +5,6 @@ import { useCallback, useEffect, useState } from "react";
 import { FlashAlert } from "@/components/admin/FlashAlert";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
-import { WikiSubNav } from "@/components/operations/WikiSubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiGet, apiPost, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
@@ -28,6 +27,8 @@ type WikiPacksPayload = {
   packs: WikiPack[];
   unassigned: WikiPage[];
   geoweb_sync_enabled: boolean;
+  disabled?: boolean;
+  disabled_reason?: string;
   table_missing?: boolean;
   sync?: { dry_run?: boolean; ok_count?: number };
 };
@@ -77,16 +78,24 @@ export default function WikiPacksPage() {
     <div>
       <HubHeader title={zh.wiki.packsTitle} subtitle={zh.wiki.packsSubtitle} />
       <HubNav items={OPERATIONS_NAV} moreItems={OPERATIONS_MORE_NAV} tone="blue" />
-      <WikiSubNav />
       {error && <FlashAlert variant="error">{error}</FlashAlert>}
       {flash && <FlashAlert variant="success">{flash}</FlashAlert>}
       {!payload && <FlashAlert variant="info">{zh.common.loading}</FlashAlert>}
-      {payload && payload.packs.length === 0 && (
+      {payload?.disabled && (
+        <FlashAlert variant="info">
+          Theme 包已迁至「长文章」：请在{" "}
+          <Link href="/operations/articles" className="font-medium underline">
+            运营 · 长文章
+          </Link>{" "}
+          按 Theme 审核发布，Wiki 编辑台仅维护新建 Wiki。
+        </FlashAlert>
+      )}
+      {payload && !payload.disabled && payload.packs.length === 0 && (
         <div className="rounded-lg bg-white px-6 py-10 text-center text-sm text-gray-500 shadow-sm ring-1 ring-gray-200">
           {zh.wiki.packsEmpty}
         </div>
       )}
-      {payload && (
+      {payload && !payload.disabled && (
         <div className="space-y-4">
           {payload.packs.map((pack) => (
             <section key={pack.id} className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">

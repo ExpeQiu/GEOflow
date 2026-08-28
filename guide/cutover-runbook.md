@@ -8,6 +8,7 @@
 2. 生产 `.env`：`AI_MOCK_MODE=false`、`monitor_probe_mode=api`、`monitor_strict_api=true`
 3. Embedding / Chat 模型 Key 已配；豆包/DeepSeek 探针可用
 4. GEOweb `geoflow/sync` 契约联调通过；`official_domains` 已写入 site_settings
+5. 生产 Postgres 为同一实例两库：`geo_flow` + `gweb_db`（[ADR-017](./ADR/ADR-017-共享PostgreSQL实例.md)）
 
 ## 切流步骤
 

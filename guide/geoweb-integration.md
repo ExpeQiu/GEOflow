@@ -44,6 +44,8 @@ GEOWEB_SYNC_TOKEN=shared-with-geoweb
 GEOWEB_SYNC_ENABLED=true
 ```
 
+Postgres 与 Techstore 共用实例、分库，见 [ADR-017](./ADR/ADR-017-共享PostgreSQL实例.md)。
+
 GEOweb：`GEOFLOW_SYNC_TOKEN` 必须与上列 Token 一致。
 
 ## 存量清理

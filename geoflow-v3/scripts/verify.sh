@@ -8,7 +8,26 @@ ADMIN_PORT="${ADMIN_PORT:-13001}"
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 
 log "Docker 运行态"
-docker compose ps
+docker compose ps 2>/dev/null || true
+
+check_shared_dbs() {
+  local ctn=""
+  ctn="$(docker ps --format '{{.Names}}' 2>/dev/null | grep -E '^geoflow-v3-postgres(-local)?$' | head -1 || true)"
+  if [[ -z "${ctn}" ]]; then
+    log "SKIP shared-db check（无 geoflow postgres 容器）"
+    return 0
+  fi
+  local db
+  for db in geo_flow gweb_db; do
+    if docker exec "${ctn}" psql -U geo_user -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${db}'" 2>/dev/null | grep -q 1; then
+      log "postgres database ${db} OK (${ctn})"
+    else
+      log "FAIL: 缺少 database ${db}。请跑 scripts/ensure-shared-databases.sh"
+      exit 1
+    fi
+  done
+}
+check_shared_dbs
 
 if curl -sf "http://127.0.0.1:${API_PORT}/health" | grep -q ok; then
   log "API health OK (:${API_PORT})"

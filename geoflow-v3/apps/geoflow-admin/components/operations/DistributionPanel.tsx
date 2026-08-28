@@ -24,19 +24,21 @@ export function DistributionPanel({
       <section className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
         <div className="flex flex-col gap-3 border-b border-gray-200 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-medium text-gray-900">{zh.distribution.channelsTitle}</h2>
-          <Link
-            href="/operations/distribution/new"
-            className="inline-flex h-9 items-center rounded-lg bg-blue-600 px-3 text-sm font-semibold text-white hover:bg-blue-700"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            {zh.distribution.createButton}
-          </Link>
-          <Link
-            href="/operations/distribution/tasks"
-            className="inline-flex h-9 items-center rounded-lg border border-blue-200 bg-blue-50 px-3 text-sm font-medium text-blue-700 hover:bg-blue-100"
-          >
-            {zh.distribution.tasksTab}
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/operations/distribution/new"
+              className="inline-flex h-9 items-center rounded-lg bg-blue-600 px-3 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              {zh.distribution.createButton}
+            </Link>
+            <Link
+              href="/operations/distribution/tasks"
+              className="inline-flex h-9 items-center rounded-lg border border-blue-200 bg-blue-50 px-3 text-sm font-medium text-blue-700 hover:bg-blue-100"
+            >
+              {zh.distribution.tasksTab}
+            </Link>
+          </div>
         </div>
         {channels.length === 0 ? (
           <div className="px-6 py-10 text-center text-sm text-gray-500">

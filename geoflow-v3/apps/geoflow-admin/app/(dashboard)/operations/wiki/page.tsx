@@ -5,7 +5,6 @@ import { FlashAlert } from "@/components/admin/FlashAlert";
 import { HubHeader } from "@/components/admin/HubHeader";
 import { HubNav } from "@/components/admin/HubNav";
 import { WikiPanel } from "@/components/operations/WikiPanel";
-import { WikiSubNav } from "@/components/operations/WikiSubNav";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { apiGet, apiPost, getToken } from "@/lib/api-client";
 import { zh } from "@/lib/i18n/zh";
@@ -82,7 +81,6 @@ export default function WikiListPage() {
     <div>
       <HubHeader title={zh.wiki.hubTitle} subtitle={zh.wiki.hubSubtitle} />
       <HubNav items={OPERATIONS_NAV} moreItems={OPERATIONS_MORE_NAV} tone="blue" />
-      <WikiSubNav />
       {error && <FlashAlert variant="error">{error}</FlashAlert>}
       {flash && <FlashAlert variant="success">{flash}</FlashAlert>}
       {loading && !payload && <FlashAlert variant="info">{zh.common.loading}</FlashAlert>}
@@ -102,6 +100,7 @@ export default function WikiListPage() {
           onQueryChange={setQuery}
           onImport={onImport}
           importing={importing}
+          techBrandMode={payload.tech_brand_mode}
         />
       )}
     </div>

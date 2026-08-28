@@ -27,7 +27,7 @@ function mergeNav(base: Messages, overlay: Overlay | undefined): Messages {
     nav: { ...base.nav, ...overlay.nav },
     header: { ...base.header, ...overlay.header },
     login: { ...base.login, ...overlay.login },
-  };
+  } as Messages;
 }
 
 const LocaleContext = createContext<{

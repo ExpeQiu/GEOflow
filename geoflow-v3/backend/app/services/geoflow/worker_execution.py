@@ -21,7 +21,7 @@ from app.services.geoflow.task_material_resolver import (
     resolve_task_materials,
     resolve_workflow_type,
 )
-from app.services.geoflow.wiki_types import WIKI_CONTENT_FORMAT, ascii_slug
+from app.services.geoflow.wiki_types import WIKI_CONTENT_FORMAT, ARTICLE_CONTENT_FORMAT, ascii_slug
 from app.ai.workflow_runner import run_workflow_sync
 
 logger = get_logger("geoflow.worker")
@@ -176,7 +176,11 @@ class WorkerExecutionService:
 
             pack_type_normalized = str(pack_type or "concept").strip().lower()
             content_format = task.content_format or "article"
-            if pack_type_normalized != "article":
+            # Theme 包产出 → 长文章（/operations/articles），不写 Wiki
+            if theme_id:
+                content_format = ARTICLE_CONTENT_FORMAT
+                pack_type_normalized = "article"
+            elif pack_type_normalized != "article":
                 content_format = WIKI_CONTENT_FORMAT
 
             article = Article(

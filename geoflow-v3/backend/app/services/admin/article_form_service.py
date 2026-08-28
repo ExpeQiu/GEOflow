@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.article import Article
@@ -20,12 +20,18 @@ from app.services.admin.geo_eval_settings_service import get_geo_eval_gate_confi
 from app.services.admin.article_import import (
     default_geoweb_articles_dir,
     is_official_geoweb_article_page,
+    is_public_geoweb_article_from_disk,
     scan_geoweb_articles_dir,
 )
 from app.services.admin.article_reconcile import diff_article_inventories
 from app.services.admin.operations_service import build_articles_panel
 from app.services.admin.wiki_editor_service import _default_category_author, _parse_theme_id
-from app.services.geoflow.wiki_types import is_article_content_format, is_distribution_article, is_wiki_content_format
+from app.services.geoflow.wiki_types import (
+    infer_wiki_page_type_from_article,
+    is_article_content_format,
+    is_distribution_article,
+    is_wiki_content_format,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -324,9 +330,10 @@ async def import_geoweb_articles(
     wiki_dir: str | None = None,
     include_smoke: bool = False,
     *,
-    official_only: bool = True,
+    official_only: bool = False,
+    public_only: bool = True,
 ) -> dict[str, Any]:
-    """把 GEOweb content/wiki/articles 官方长文拉进编辑台。"""
+    """把 GEOweb content/wiki/articles 公开长文拉进编辑台（与 /articles 目录一致）。"""
     from pathlib import Path
 
     settings = get_settings()
@@ -334,13 +341,25 @@ async def import_geoweb_articles(
     if not root.is_dir():
         raise HTTPException(status_code=422, detail=f"wiki_dir_not_found:{root}")
 
+    if official_only and public_only:
+        raise HTTPException(status_code=422, detail="import_mode_conflict")
+
     scanned_all = scan_geoweb_articles_dir(root, include_smoke=True, official_only=False)
-    scanned = scan_geoweb_articles_dir(root, include_smoke=include_smoke, official_only=official_only)
-    geoflow_skipped = sum(1 for p in scanned_all if not is_official_geoweb_article_page(p))
+    scanned = scan_geoweb_articles_dir(
+        root,
+        include_smoke=include_smoke,
+        official_only=official_only,
+        public_only=public_only,
+    )
+    geoflow_skipped = sum(
+        1 for p in scanned_all if not is_public_geoweb_article_from_disk(p) and not is_official_geoweb_article_page(p)
+    )
     category_id, author_id = await _default_category_author(db)
     geoweb_base_url = (settings.geoweb_base_url or "").rstrip("/")
     created = 0
     updated = 0
+    restored = 0
+    converted = 0
     skipped_conflict = 0
     smoke_skipped = 0
 
@@ -351,13 +370,24 @@ async def import_geoweb_articles(
             continue
         existing = (
             await db.execute(
-                select(Article).where(Article.slug == slug, Article.deleted_at.is_(None)).limit(1)
+                select(Article)
+                .where(Article.slug == slug)
+                .order_by(case((Article.deleted_at.is_(None), 0), else_=1), Article.id.desc())
+                .limit(1)
             )
         ).scalar_one_or_none()
         if existing is not None and is_wiki_content_format(existing.content_format):
-            skipped_conflict += 1
-            logger.warning("article_import_slug_conflict slug=%s article_id=%s", slug, existing.id)
-            continue
+            page_type = str(parsed.get("wiki_page_type") or "").strip().lower()
+            if page_type != "article" and infer_wiki_page_type_from_article(
+                slug=existing.slug or "",
+                title=existing.title or "",
+                wiki_meta=existing.wiki_meta if isinstance(existing.wiki_meta, dict) else {},
+            ):
+                skipped_conflict += 1
+                logger.warning("article_import_wiki_type_conflict slug=%s article_id=%s", slug, existing.id)
+                continue
+            converted += 1
+            logger.info("article_import_convert_wiki slug=%s article_id=%s", slug, existing.id)
 
         excerpt = (parsed.get("quick_answer") or parsed.get("core_takeaway") or "").strip()
         tags = parsed.get("tags") or []
@@ -386,6 +416,10 @@ async def import_geoweb_articles(
             created += 1
         else:
             article = existing
+            if article.deleted_at is not None:
+                article.deleted_at = None
+                article.status = "published"
+                restored += 1
             article.title = parsed["title"]
             article.content = parsed["body"]
             article.excerpt = excerpt
@@ -405,26 +439,100 @@ async def import_geoweb_articles(
 
     await db.flush()
     logger.info(
-        "articles_imported created=%s updated=%s smoke_skipped=%s geoflow_skipped=%s conflict=%s dir=%s official_only=%s",
+        "articles_imported created=%s updated=%s restored=%s converted=%s smoke_skipped=%s geoflow_skipped=%s conflict=%s dir=%s official_only=%s public_only=%s count=%s",
         created,
         updated,
+        restored,
+        converted,
         smoke_skipped,
         geoflow_skipped,
         skipped_conflict,
         str(root),
         official_only,
+        public_only,
+        len(scanned),
     )
     panel = await build_articles_panel(db)
     panel["import"] = {
         "created": created,
         "updated": updated,
+        "restored": restored,
+        "converted": converted,
         "smoke_skipped": smoke_skipped,
         "geoflow_skipped": geoflow_skipped,
         "conflict": skipped_conflict,
         "wiki_dir": str(root),
         "official_only": official_only,
+        "public_only": public_only,
+        "public_count": len(scanned),
         "official_count": len(scanned),
     }
+    return panel
+
+
+async def sync_articles_with_geoweb_public(
+    db: AsyncSession,
+    wiki_dir: str | None = None,
+    include_smoke: bool = False,
+    *,
+    trash_local_only: bool = True,
+) -> dict[str, Any]:
+    """导入 GEOweb 公开 /articles 并软删不在 GEOweb 的本地长文。"""
+    from pathlib import Path
+
+    root = Path(wiki_dir) if wiki_dir else default_geoweb_articles_dir()
+    if not root.is_dir():
+        raise HTTPException(status_code=422, detail=f"wiki_dir_not_found:{root}")
+
+    public_slugs = {
+        p["slug"]
+        for p in scan_geoweb_articles_dir(root, include_smoke=include_smoke, public_only=True)
+    }
+    panel = await import_geoweb_articles(
+        db,
+        wiki_dir=str(root),
+        include_smoke=include_smoke,
+        public_only=True,
+    )
+    import_meta = dict(panel.get("import") or {})
+
+    trashed = 0
+    trashed_slugs: list[str] = []
+    if trash_local_only:
+        now = datetime.now(UTC).replace(tzinfo=None)
+        articles = (
+            await db.execute(select(Article).where(Article.deleted_at.is_(None)))
+        ).scalars().all()
+        for article in articles:
+            if not is_distribution_article(
+                content_format=article.content_format,
+                slug=article.slug or "",
+                title=article.title or "",
+                wiki_meta=article.wiki_meta if isinstance(article.wiki_meta, dict) else {},
+            ):
+                continue
+            slug = str(article.slug or "").strip()
+            if slug and slug not in public_slugs:
+                article.deleted_at = now
+                article.status = "trashed"
+                trashed += 1
+                trashed_slugs.append(slug)
+                logger.info("article_sync_trash id=%s slug=%s", article.id, slug)
+        await db.flush()
+        panel = await build_articles_panel(db)
+        panel["import"] = import_meta
+
+    panel["sync"] = {
+        "public_count": len(public_slugs),
+        "trashed": trashed,
+        "trashed_slugs": sorted(trashed_slugs),
+    }
+    logger.info(
+        "articles_synced public=%s trashed=%s panel_total=%s",
+        len(public_slugs),
+        trashed,
+        (panel.get("stats") or {}).get("total"),
+    )
     return panel
 
 

@@ -32,6 +32,7 @@ from app.services.admin.wiki_import import is_geoweb_aligned_wiki_record, load_o
 from app.services.geoflow.geoweb_publisher import GeowebPublisher
 from app.services.geoflow.wiki_types import (
     GEOWEB_PAGE_TYPES,
+    is_editable_wiki_panel_record,
     is_smoke_slug,
     related_path_for,
     wiki_preview_url,
@@ -147,6 +148,7 @@ async def build_wiki_panel(
 ) -> dict[str, Any]:
     settings = get_settings()
     geoweb_base_url = (settings.geoweb_base_url or "").rstrip("/")
+    tech_brand_mode = bool(settings.geoflow_tech_brand_mode)
     official_slugs = load_official_geoweb_wiki_slugs(include_smoke=include_smoke)
 
     query = _wiki_query().order_by(Article.id.desc())
@@ -156,11 +158,14 @@ async def build_wiki_panel(
     articles = [
         a
         for a in articles
-        if is_geoweb_aligned_wiki_record(
+        if is_editable_wiki_panel_record(
             content_format=a.content_format,
+            theme_id=a.theme_id,
             slug=a.slug or "",
+            title=a.title or "",
             wiki_meta=a.wiki_meta if isinstance(a.wiki_meta, dict) else {},
             official_slugs=official_slugs,
+            tech_brand_mode=tech_brand_mode,
         )
     ]
 
@@ -201,6 +206,8 @@ async def build_wiki_panel(
         "schema_types": list(SCHEMA_TYPES),
         "geoweb_base_url": geoweb_base_url,
         "geoweb_sync_enabled": bool(settings.geoweb_sync_enabled),
+        "tech_brand_mode": tech_brand_mode,
+        "wiki_packs_enabled": not tech_brand_mode,
     }
 
 
@@ -216,6 +223,8 @@ async def build_wiki_detail(db: AsyncSession, article_id: int) -> dict[str, Any]
         "schema_types": list(SCHEMA_TYPES),
         "geoweb_base_url": geoweb_base_url,
         "geoweb_sync_enabled": bool(settings.geoweb_sync_enabled),
+        "tech_brand_mode": bool(settings.geoflow_tech_brand_mode),
+        "wiki_packs_enabled": not settings.geoflow_tech_brand_mode,
     }
 
 
@@ -235,6 +244,12 @@ async def create_wiki_page(db: AsyncSession, body: WikiPageBody) -> dict[str, An
         raise HTTPException(status_code=422, detail="wiki_slug_reserved_smoke")
     category_id, author_id = await _default_category_author(db)
     excerpt = (body.quick_answer or body.core_takeaway or "").strip()
+    settings = get_settings()
+    theme_id = None if settings.geoflow_tech_brand_mode else _parse_theme_id(body.geo_theme_id)
+    wiki_meta = build_wiki_meta(None, body, page_type, slug)
+    if settings.geoflow_tech_brand_mode:
+        wiki_meta.pop("geo_theme_id", None)
+        wiki_meta.pop("theme_id", None)
     article = Article(
         title=body.title.strip(),
         slug=slug,
@@ -248,8 +263,8 @@ async def create_wiki_page(db: AsyncSession, body: WikiPageBody) -> dict[str, An
         review_status="pending",
         eval_status="skipped",
         content_format=WIKI_FORMAT,
-        wiki_meta=build_wiki_meta(None, body, page_type, slug),
-        theme_id=_parse_theme_id(body.geo_theme_id),
+        wiki_meta=wiki_meta,
+        theme_id=theme_id,
         is_ai_generated=0,
     )
     db.add(article)
@@ -286,8 +301,16 @@ async def update_wiki_page(db: AsyncSession, article_id: int, body: WikiPageBody
     article.original_keyword = (body.target_query or "").strip()
     article.keywords = ",".join(t.strip() for t in body.tags if t.strip())
     article.content_format = WIKI_FORMAT
-    article.theme_id = _parse_theme_id(body.geo_theme_id) or article.theme_id
-    article.wiki_meta = build_wiki_meta(_meta_dict(article), body, page_type, slug)
+    settings = get_settings()
+    if settings.geoflow_tech_brand_mode:
+        article.theme_id = None
+    elif body.geo_theme_id:
+        article.theme_id = _parse_theme_id(body.geo_theme_id) or article.theme_id
+    wiki_meta = build_wiki_meta(_meta_dict(article), body, page_type, slug)
+    if settings.geoflow_tech_brand_mode:
+        wiki_meta.pop("geo_theme_id", None)
+        wiki_meta.pop("theme_id", None)
+    article.wiki_meta = wiki_meta
     await db.flush()
     logger.info(
         "wiki_page_updated article_id=%s slug=%s wiki_page_type=%s",
@@ -566,6 +589,18 @@ async def generate_wiki_draft(db: AsyncSession, body: WikiGenerateDraftBody) -> 
 
 
 async def build_wiki_packs(db: AsyncSession) -> dict[str, Any]:
+    settings = get_settings()
+    if settings.geoflow_tech_brand_mode:
+        logger.info("wiki_packs_disabled tech_brand_mode=true")
+        return {
+            "packs": [],
+            "unassigned": [],
+            "disabled": True,
+            "disabled_reason": "theme_packs_moved_to_articles",
+            "geoweb_base_url": (settings.geoweb_base_url or "").rstrip("/"),
+            "geoweb_sync_enabled": bool(settings.geoweb_sync_enabled),
+        }
+
     from app.models.theme import GeoTheme
     from app.services.admin.production_service import _table_exists
     from app.services.geoeval.theme_service import _theme_dict
@@ -635,6 +670,12 @@ async def build_wiki_packs(db: AsyncSession) -> dict[str, Any]:
 
 
 async def sync_wiki_pack(db: AsyncSession, theme_id: int) -> dict[str, Any]:
+    if get_settings().geoflow_tech_brand_mode:
+        raise HTTPException(
+            status_code=410,
+            detail="wiki_theme_packs_disabled: Theme 包请走 /operations/articles 发布长文",
+        )
+
     from app.models.theme import GeoTheme
 
     theme = await db.get(GeoTheme, theme_id)

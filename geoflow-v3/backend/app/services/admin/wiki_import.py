@@ -80,6 +80,8 @@ def parse_wiki_markdown(raw: str, fallback_slug: str, route_prefix: str) -> dict
         "tags": [str(x).strip() for x in tags if str(x).strip()],
         "geo_content_hash": str(fm.get("geo_content_hash") or "").strip() or None,
         "source": str(fm.get("source") or "").strip() or None,
+        "geoflow_lane": str(fm.get("geoflow_lane") or "").strip() or None,
+        "geo_publish": fm.get("geo_publish") if fm.get("geo_publish") is not None else True,
         "route_prefix": route_prefix_for_type(page_type),
     }
 

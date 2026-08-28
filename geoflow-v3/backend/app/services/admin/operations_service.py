@@ -150,7 +150,6 @@ async def build_articles_panel(
         select(Article)
         .where(Article.deleted_at.is_(None))
         .order_by(Article.id.desc())
-        .limit(100)
     )
     if review_status:
         query = query.where(Article.review_status == review_status)
@@ -166,7 +165,7 @@ async def build_articles_panel(
             title=a.title or "",
             wiki_meta=a.wiki_meta if isinstance(a.wiki_meta, dict) else {},
         )
-    ]
+    ][:100]
     theme_titles: dict[int, str] = {}
     theme_gate: dict[int, tuple[str, bool | None]] = {}
     theme_ids = {a.theme_id for a in articles if a.theme_id}

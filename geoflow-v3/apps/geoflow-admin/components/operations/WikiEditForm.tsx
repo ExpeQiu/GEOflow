@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { ArrowLeft, Eye, EyeOff, Plus, Trash2 } from "lucide-react";
 import { WikiRelatedPicker } from "@/components/operations/WikiRelatedPicker";
-import { WikiSubNav } from "@/components/operations/WikiSubNav";
 import { FlashAlert } from "@/components/admin/FlashAlert";
 import { cn } from "@/lib/cn";
 import { apiGet, apiPatch, apiPost, getToken } from "@/lib/api-client";
@@ -49,6 +48,7 @@ export function WikiEditForm({ articleId }: { articleId?: number }) {
   const [kbs, setKbs] = useState<WikiKbItem[]>([]);
   const [kbId, setKbId] = useState<number | "">("");
   const [generating, setGenerating] = useState(false);
+  const [techBrandMode, setTechBrandMode] = useState(false);
 
   useEffect(() => {
     if (isNew || !articleId) return;
@@ -61,10 +61,19 @@ export function WikiEditForm({ articleId }: { articleId?: number }) {
         setSynced(data.page.synced);
         setGeowebUrl(data.page.geoweb_url);
         setSyncEnabled(data.geoweb_sync_enabled);
+        setTechBrandMode(Boolean(data.tech_brand_mode));
       })
       .catch(() => setError(zh.wiki.loadError))
       .finally(() => setLoading(false));
   }, [articleId, isNew]);
+
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+    apiGet<{ tech_brand_mode?: boolean }>("/api/admin/settings/site", token)
+      .then((data) => setTechBrandMode(Boolean(data.tech_brand_mode)))
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     const token = getToken();
@@ -182,7 +191,6 @@ export function WikiEditForm({ articleId }: { articleId?: number }) {
 
   return (
     <form onSubmit={onSubmit}>
-      <WikiSubNav />
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-4">
           <Link href="/operations/wiki" className="text-gray-400 hover:text-gray-600">
@@ -423,10 +431,12 @@ export function WikiEditForm({ articleId }: { articleId?: number }) {
         <div className="space-y-6">
           <Section title={zh.wiki.sections.publish}>
             <div className="space-y-4">
-              <div>
-                <label className={labelClass}>{zh.wiki.fields.geoThemeId}</label>
-                <input value={form.geo_theme_id} onChange={(e) => patch("geo_theme_id", e.target.value)} className={inputClass} />
-              </div>
+              {!techBrandMode && (
+                <div>
+                  <label className={labelClass}>{zh.wiki.fields.geoThemeId}</label>
+                  <input value={form.geo_theme_id} onChange={(e) => patch("geo_theme_id", e.target.value)} className={inputClass} />
+                </div>
+              )}
               <div>
                 <label className={labelClass}>{zh.wiki.fields.tags}</label>
                 <input

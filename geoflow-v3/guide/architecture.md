@@ -18,6 +18,10 @@ cp .env.example .env
 ./scripts/verify.sh
 ```
 
+Postgres：同一实例两库 `geo_flow` + `gweb_db`，见 [ADR-017](../../guide/ADR/ADR-017-共享PostgreSQL实例.md)。启动后会跑 `scripts/ensure-shared-databases.sh`。
+
+三仓 Docker（分仓或一键）：[deploy-stack](../../deploy-stack/README.md)。
+
 ## 大爆炸切流
 
 1. `./scripts/migrate-from-laravel.sh` 迁移数据
