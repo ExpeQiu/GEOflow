@@ -28,6 +28,16 @@ GEOFLOW_PULL=missing ./start.sh
 
 默认 `GEOFLOW_PULL=never`：本地没有 `pgvector/pgvector:pg16` 时会失败，改用 `GEOFLOW_PULL=missing`。
 
+## 腾讯云（与 Gweb/Techstore 共用）
+
+公网：GEOweb `:8093` → PM2 `:3014`；GEOFlow Admin `:8098` → PM2 `:3015`。  
+Nginx 写在同一份 `gweb-stack.conf`（8095/8096 不动）。Docker **不** 再起 Postgres/Redis，库走现网 `127.0.0.1:5433`（`gweb_db` + `geo_flow`）。
+
+```bash
+cd /Volumes/Lexar/git/03T/GEOFlow/deploy-stack
+DEPLOY_SSH_PASS=... ./deploy-tencent.sh
+```
+
 ## 分别部署
 
 ```bash

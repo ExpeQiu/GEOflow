@@ -1,10 +1,18 @@
 from datetime import datetime
+import os
 
 from sqlalchemy import BigInteger, DateTime, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
-from pgvector.sqlalchemy import Vector
 
 from app.core.database import Base
+
+_SKIP_PGVECTOR = os.getenv("SKIP_PGVECTOR", "").lower() in ("1", "true", "yes")
+if _SKIP_PGVECTOR:
+    _EmbeddingType = Text
+else:
+    from pgvector.sqlalchemy import Vector
+
+    _EmbeddingType = Vector(3072)
 
 
 class KnowledgeBase(Base):
@@ -37,6 +45,6 @@ class KnowledgeChunk(Base):
     embedding_model_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     embedding_dimensions: Mapped[int] = mapped_column(Integer, default=0)
     embedding_provider: Mapped[str] = mapped_column(String(255), default="")
-    embedding_vector = mapped_column(Vector(3072), nullable=True)
+    embedding_vector = mapped_column(_EmbeddingType, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
